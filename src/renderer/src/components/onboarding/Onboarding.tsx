@@ -133,6 +133,22 @@ interface CliInstallUi {
 function InstallStep() {
   const [ui, setUi] = useState<Record<string, CliInstallUi>>({})
 
+  // Seed from persisted install state so already-installed CLIs show "已安装".
+  useEffect(() => {
+    window.api.config.get().then((cfg) => {
+      setUi((prev) => {
+        const next = { ...prev }
+        for (const c of CLIS) {
+          const inst = cfg.install[c.id as CliId]
+          if (inst?.installed && !next[c.id]?.busy) {
+            next[c.id] = { phase: 'done', message: '已安装', version: inst.version }
+          }
+        }
+        return next
+      })
+    })
+  }, [])
+
   useEffect(() => {
     return window.api.install.onProgress((p) => {
       setUi((prev) => ({
@@ -154,7 +170,11 @@ function InstallStep() {
   }
 
   const installAll = async () => {
-    for (const c of CLIS) await installOne(c.id as CliId)
+    // Skip already-installed CLIs; use each row's 重装 to reinstall one.
+    for (const c of CLIS) {
+      if (ui[c.id]?.phase === 'done') continue
+      await installOne(c.id as CliId)
+    }
   }
 
   return (
@@ -176,7 +196,9 @@ function InstallStep() {
                   {s.error ? (
                     <span style={{ color: 'var(--danger)' }}>{s.error}</span>
                   ) : s.phase === 'done' ? (
-                    <span style={{ color: 'var(--success)' }}>已安装 {s.version}</span>
+                    <span style={{ color: 'var(--success)' }}>
+                      已安装{s.version && s.version !== 'installed' ? ` ${s.version}` : ''}
+                    </span>
                   ) : s.busy ? (
                     `${s.message ?? '安装中'}${s.fraction != null ? ` ${Math.round(s.fraction * 100)}%` : ''}`
                   ) : (

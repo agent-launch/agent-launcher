@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { paths } from '../sandbox'
@@ -179,12 +179,14 @@ async function installPi(onProgress: Progress): Promise<InstallResult> {
     `--userconfig=${emptyNpmrc}`
   ])
 
-  const entry = join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'cli.js')
+  const pkgRoot = join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent')
+  const entry = join(pkgRoot, 'dist', 'cli.js')
   if (!existsSync(entry)) throw new Error('pi entry missing after npm install')
   onProgress('verify', '验证…')
-  let version = 'installed'
+  // pi prints --version to stderr; read the installed package.json instead.
+  let version = ''
   try {
-    version = (await run(nodeBin, [entry, '--version'])).trim() || version
+    version = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version ?? ''
   } catch {
     /* ignore */
   }
