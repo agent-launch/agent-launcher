@@ -83,6 +83,32 @@
   -webkit-app-region: no-drag;
 }
 
+/* Sidebar resize handle (opencode-style): 8px hit area, 3px accent line on hover. */
+.resize-handle {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 8px;
+  transform: translateX(50%);
+  z-index: 10;
+  cursor: col-resize;
+}
+.resize-handle::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+.resize-handle:hover::after,
+.resize-handle:active::after {
+  opacity: 1;
+}
+
 /* Thin, theme-aware scrollbars. */
 ::-webkit-scrollbar {
   width: 10px;

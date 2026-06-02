@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
+import { Sidebar } from '@/components/shell/Sidebar'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
 interface ActiveTerminal {
@@ -16,8 +17,6 @@ interface ActiveTerminal {
 
 export function Shell() {
   const activeCli = useAppStore((s) => s.activeCli)
-  const setActiveCli = useAppStore((s) => s.setActiveCli)
-  const resetOnboarding = useAppStore((s) => s.resetOnboarding)
   const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
 
   const [cfg, setCfg] = useState<AppConfig | null>(null)
@@ -75,48 +74,7 @@ export function Shell() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Sidebar */}
-      <aside className="flex w-60 shrink-0 flex-col border-r border-border-weak bg-strong">
-        <div className="px-4 pb-2 pt-4 text-[12px] font-medium uppercase tracking-wide text-text-weak">
-          CLI
-        </div>
-        <nav className="flex flex-col gap-0.5 px-2">
-          {CLIS.map((c) => {
-            const selected = c.id === active.id
-            const isInstalled = cfg?.install[c.id as CliId]?.installed
-            return (
-              <button
-                key={c.id}
-                onClick={() => setActiveCli(c.id)}
-                className={`no-drag flex items-center gap-3 rounded-md px-2 py-2 text-left text-[14px] transition-colors ${
-                  selected
-                    ? 'bg-surface-weak text-text-strong'
-                    : 'text-text-base hover:bg-surface-weak/60'
-                }`}
-              >
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
-                  <CliIcon cliId={c.id as CliId} size={16} />
-                </span>
-                <span className="flex-1">{c.name}</span>
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ background: isInstalled ? 'var(--success)' : 'var(--border-base)' }}
-                  title={isInstalled ? '已安装' : '未安装'}
-                />
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="mt-auto border-t border-border-weak p-3">
-          <button
-            onClick={resetOnboarding}
-            className="no-drag w-full rounded-md px-2 py-1.5 text-left text-[12px] text-text-weak hover:bg-surface-weak hover:text-text-base"
-          >
-            重新运行引导（dev）
-          </button>
-        </div>
-      </aside>
+      <Sidebar cfg={cfg} />
 
       {/* Main pane */}
       <main className="flex min-w-0 flex-1 flex-col">
