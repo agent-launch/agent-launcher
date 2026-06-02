@@ -61,6 +61,17 @@ export interface AppConfig {
   clis: Record<CliId, CliProfiles>
 }
 
+/** A real, resumable conversation persisted by the CLI itself. */
+export interface SessionInfo {
+  id: string
+  cliId: CliId
+  /** ai-title / first prompt — the display name. */
+  name: string
+  /** Last-modified epoch ms, for sorting + display. */
+  updatedAt: number
+  cwd?: string
+}
+
 /** One resolved env var pair for the "Resolved Environment" preview. */
 export interface EnvPair {
   key: string

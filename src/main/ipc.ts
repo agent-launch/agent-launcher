@@ -8,6 +8,7 @@ import {
 } from './store'
 import { paths } from './sandbox'
 import { resolvedEnvPreview } from './cli-env'
+import { listSessions } from './sessions-history'
 import { detectEnvironment } from './install/detect'
 import { installCli } from './install/installer'
 import {
@@ -54,6 +55,9 @@ export function registerIpc(): void {
     })
     return res.canceled ? null : res.filePaths[0]
   })
+
+  // ---- sessions (CLI-native conversation history) ----
+  ipcMain.handle('sessions:list', (_e, id: CliId) => listSessions(id))
 
   // ---- PTY terminal ----
   ipcMain.handle('pty:create', (e, opts: SpawnOptions) => createSession(e.sender, opts))

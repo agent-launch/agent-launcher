@@ -8,6 +8,8 @@ interface Props {
   cliId: CliId
   mode: 'cli' | 'shell'
   cwd?: string
+  /** Resume a saved CLI session instead of starting fresh. */
+  resumeId?: string
   /** Bump to force a fresh session (e.g. restart / switch CLI). */
   sessionKey: string | number
   onExit?: (code: number) => void
@@ -18,7 +20,7 @@ function readVar(name: string, fallback: string): string {
   return v || fallback
 }
 
-export function TerminalView({ cliId, mode, cwd, sessionKey, onExit }: Props) {
+export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -63,7 +65,7 @@ export function TerminalView({ cliId, mode, cwd, sessionKey, onExit }: Props) {
     term.onData((d) => ptyId && window.api.pty.write(ptyId, d))
 
     window.api.pty
-      .create({ cliId, mode, cwd, cols: term.cols, rows: term.rows })
+      .create({ cliId, mode, cwd, resumeId, cols: term.cols, rows: term.rows })
       .then((id) => {
         if (disposed) {
           window.api.pty.kill(id)

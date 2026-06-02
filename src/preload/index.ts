@@ -6,13 +6,15 @@ import type {
   DetectResult,
   EnvPair,
   InstallProgress,
-  InstallResult
+  InstallResult,
+  SessionInfo
 } from '../shared/types'
 
 interface SpawnOptions {
   cliId: CliId
   mode: 'cli' | 'shell'
   cwd?: string
+  resumeId?: string
   cols?: number
   rows?: number
 }
@@ -39,6 +41,9 @@ const api = {
     resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
     openFile: (): Promise<string> => ipcRenderer.invoke('config:openFile'),
     reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal')
+  },
+  sessions: {
+    list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id)
   },
   install: {
     cli: (id: CliId): Promise<InstallResult> => ipcRenderer.invoke('install:cli', id),

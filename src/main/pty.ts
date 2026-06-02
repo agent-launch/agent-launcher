@@ -5,6 +5,7 @@ import type { WebContents } from 'electron'
 import { paths } from './sandbox'
 import { loadConfig } from './store'
 import { buildCliEnv } from './cli-env'
+import { resumeArgs } from './sessions-history'
 import type { CliId } from '@shared/types'
 
 export interface SpawnOptions {
@@ -12,6 +13,8 @@ export interface SpawnOptions {
   /** 'cli' runs the CLI binary directly; 'shell' opens a shell with env+PATH injected. */
   mode: 'cli' | 'shell'
   cwd?: string
+  /** When set (cli mode), resume this saved session instead of starting fresh. */
+  resumeId?: string
   cols?: number
   rows?: number
 }
@@ -39,11 +42,12 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
   if (!install.installed || !install.binPath) {
     throw new Error(`${opts.cliId} 尚未安装`)
   }
+  const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
   if (opts.cliId === 'gemini' && install.nodeEntry) {
     // Gemini is a JS app — run it through the bundled node.
     return { file: install.binPath, args: [install.nodeEntry] }
   }
-  return { file: install.binPath, args: [] }
+  return { file: install.binPath, args: resume ?? [] }
 }
 
 export function createSession(wc: WebContents, opts: SpawnOptions): string {

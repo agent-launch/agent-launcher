@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAppStore } from '@/store/app'
-import { useSessionStore } from '@/store/sessions'
 import { CLIS } from '@/data/clis'
 import { Button } from '@/components/ui/Button'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
-import type { AppConfig, CliId } from '@shared/types'
+import type { AppConfig, CliId, SessionInfo } from '@shared/types'
+
+interface ActiveTerminal {
+  key: string
+  mode: 'cli' | 'shell'
+  cwd?: string
+  resumeId?: string
+}
 
 export function Shell() {
   const activeCli = useAppStore((s) => s.activeCli)
@@ -17,30 +23,31 @@ export function Shell() {
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [cwd, setCwd] = useState<string>('')
   const [view, setView] = useState<'run' | 'config'>('run')
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-
-  const sessions = useSessionStore((s) => s.sessions)
-  const addSession = useSessionStore((s) => s.add)
-  const setSessionStatus = useSessionStore((s) => s.setStatus)
-  const removeSession = useSessionStore((s) => s.remove)
-
-  const cliSessions = sessions.filter((s) => s.cliId === active.id)
-  const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null
+  const [terminal, setTerminal] = useState<ActiveTerminal | null>(null)
+  const [sessions, setSessions] = useState<SessionInfo[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(false)
 
   // Reload config whenever we land on the run view (profiles may have changed).
   useEffect(() => {
     window.api.config.get().then(setCfg)
   }, [view, activeCli])
 
-  // Leave the terminal when switching CLI; its PTY dies on unmount, so the
-  // session is no longer running — retire it before returning to the landing.
-  const activeRef = useRef<string | null>(null)
-  activeRef.current = activeSessionId
+  // Read the CLI's own saved sessions (Claude/Codex conversation history).
+  const refreshSessions = useCallback(async () => {
+    setLoadingSessions(true)
+    try {
+      setSessions(await window.api.sessions.list(active.id as CliId))
+    } finally {
+      setLoadingSessions(false)
+    }
+  }, [active.id])
+
   useEffect(() => {
-    if (activeRef.current) setSessionStatus(activeRef.current, 'exited')
-    setActiveSessionId(null)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCli])
+    if (view === 'run' && !terminal) refreshSessions()
+  }, [view, terminal, refreshSessions])
+
+  // Switching CLI closes the current terminal (back to that CLI's landing).
+  useEffect(() => setTerminal(null), [activeCli])
 
   const installed = cfg?.install[active.id as CliId]?.installed ?? false
 
@@ -49,24 +56,21 @@ export function Shell() {
     if (dir) setCwd(dir)
   }
 
-  const shortCwd = (p?: string) => (p ? p.replace(/^.*[/\\]/, '') || p : '~')
+  const newKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
-  const start = (mode: 'cli' | 'shell') => {
-    const label = `${mode === 'cli' ? active.name : 'Shell'} · ${shortCwd(cwd)}`
-    const s = addSession({ cliId: active.id as CliId, mode, cwd: cwd || undefined, label })
-    setActiveSessionId(s.id)
-  }
+  const start = (mode: 'cli' | 'shell') =>
+    setTerminal({ key: newKey(), mode, cwd: cwd || undefined })
 
-  // Re-open a session from the list (spawns a fresh PTY with its config).
-  const openSession = (id: string) => {
-    setSessionStatus(id, 'running')
-    setActiveSessionId(id)
-  }
+  // Resume a saved session — restores its previous conversation in the CLI.
+  const resume = (s: SessionInfo) =>
+    setTerminal({ key: newKey(), mode: 'cli', cwd: s.cwd, resumeId: s.id })
 
-  // CLI process exited — drop the dead terminal and return to the list.
-  const onTerminalExit = (code: number) => {
-    if (activeSessionId) setSessionStatus(activeSessionId, 'exited', code)
-    setActiveSessionId(null)
+  // CLI exited — drop the dead terminal, return to the list (which refetches).
+  const onTerminalExit = () => setTerminal(null)
+
+  const fmtTime = (ms: number) => {
+    const d = new Date(ms)
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
 
   return (
@@ -153,18 +157,19 @@ export function Shell() {
           </div>
         ) : (
           <div className="relative flex-1 bg-base">
-            {activeSession ? (
+            {terminal ? (
               <div className="absolute inset-0 p-2">
                 <TerminalView
-                  cliId={activeSession.cliId}
-                  mode={activeSession.mode}
-                  cwd={activeSession.cwd}
-                  sessionKey={activeSession.id}
+                  cliId={active.id as CliId}
+                  mode={terminal.mode}
+                  cwd={terminal.cwd}
+                  resumeId={terminal.resumeId}
+                  sessionKey={terminal.key}
                   onExit={onTerminalExit}
                 />
               </div>
             ) : (
-              <div className="flex h-full flex-col items-center justify-center gap-6 px-8">
+              <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center gap-6 overflow-y-auto px-8 py-10">
                 <div className="text-center">
                   <div className="font-mono text-[13px] text-text-weak">
                     <span style={{ color: 'var(--accent)' }}>$</span> 准备运行 {active.name}
@@ -172,7 +177,7 @@ export function Shell() {
                   <p className="mt-1 text-[12px] text-text-weak">env 已由 app 注入，无需 export。</p>
                   <div className="mt-4 flex justify-center gap-2">
                     <Button onClick={() => start('cli')} disabled={!installed}>
-                      {installed ? `启动 ${active.name}` : '请先在引导中安装'}
+                      {installed ? `启动 ${active.name}（新会话）` : '请先在引导中安装'}
                     </Button>
                     <Button variant="secondary" onClick={() => start('shell')}>
                       打开终端
@@ -180,49 +185,52 @@ export function Shell() {
                   </div>
                 </div>
 
-                {cliSessions.length > 0 && (
-                  <div className="w-full max-w-md">
-                    <div className="mb-2 px-1 text-[12px] font-medium uppercase tracking-wide text-text-weak">
-                      Session 列表
+                <div className="w-full">
+                  <div className="mb-2 flex items-center justify-between px-1">
+                    <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">
+                      历史会话
+                    </span>
+                    <button
+                      onClick={refreshSessions}
+                      className="text-[12px] text-text-weak hover:text-text-strong"
+                    >
+                      刷新
+                    </button>
+                  </div>
+
+                  {loadingSessions ? (
+                    <div className="px-1 text-[12px] text-text-weak">读取中…</div>
+                  ) : sessions.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[12px] text-text-weak">
+                      {active.id === 'gemini'
+                        ? '该 CLI 暂不支持恢复历史会话'
+                        : `还没有 ${active.name} 历史会话，启动一个新会话开始吧`}
                     </div>
+                  ) : (
                     <div className="space-y-1.5">
-                      {cliSessions.map((s) => (
-                        <div
+                      {sessions.map((s) => (
+                        <button
                           key={s.id}
-                          className="group flex items-center gap-3 rounded-lg border border-border-weak bg-surface px-3 py-2"
+                          onClick={() => resume(s)}
+                          className="flex w-full items-center gap-3 rounded-lg border border-border-weak bg-surface px-3 py-2 text-left hover:border-border-selected"
+                          title="恢复这个会话"
                         >
-                          <span
-                            className="size-2 shrink-0 rounded-full"
-                            style={{
-                              background: s.status === 'running' ? 'var(--success)' : 'var(--border-base)'
-                            }}
-                            title={s.status === 'running' ? '运行中' : '已退出'}
-                          />
-                          <button
-                            onClick={() => openSession(s.id)}
-                            className="min-w-0 flex-1 text-left"
-                          >
-                            <div className="truncate text-[13px] text-text-strong">{s.label}</div>
-                            <div className="text-[11px] text-text-weak">
-                              {s.mode === 'cli' ? 'CLI' : '终端'}
-                              {s.status === 'exited' && s.exitCode != null
-                                ? ` · 退出码 ${s.exitCode}`
-                                : ''}
+                          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                            <CliIcon cliId={active.id as CliId} size={15} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-[13px] text-text-strong">{s.name}</div>
+                            <div className="truncate text-[11px] text-text-weak">
+                              {fmtTime(s.updatedAt)}
                               {s.cwd ? ` · ${s.cwd}` : ''}
                             </div>
-                          </button>
-                          <button
-                            onClick={() => removeSession(s.id)}
-                            className="shrink-0 text-[12px] text-text-weak opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                            title="移除"
-                          >
-                            ✕
-                          </button>
-                        </div>
+                          </div>
+                          <span className="shrink-0 text-[11px] text-text-weak">恢复 →</span>
+                        </button>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
