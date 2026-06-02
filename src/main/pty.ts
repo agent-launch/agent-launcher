@@ -6,6 +6,7 @@ import { paths } from './sandbox'
 import { loadConfig } from './store'
 import { buildCliEnv } from './cli-env'
 import { resumeArgs } from './sessions-history'
+import { writeCodexConfig } from './codex-config'
 import type { CliId } from '@shared/types'
 
 export interface SpawnOptions {
@@ -57,6 +58,8 @@ export function createSession(wc: WebContents, opts: SpawnOptions): string {
 
   // Ensure the isolated config dir exists before the CLI tries to write it.
   mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
+  // Codex reads config.toml + auth.json from CODEX_HOME — materialize them.
+  if (opts.cliId === 'codex') writeCodexConfig()
 
   const proc = pty.spawn(file, args, {
     name: 'xterm-256color',

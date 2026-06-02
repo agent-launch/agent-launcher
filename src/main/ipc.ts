@@ -8,6 +8,7 @@ import {
 } from './store'
 import { paths } from './sandbox'
 import { resolvedEnvPreview } from './cli-env'
+import { writeCodexConfig, readCodexFiles } from './codex-config'
 import { listSessions } from './sessions-history'
 import { detectEnvironment } from './install/detect'
 import { installCli } from './install/installer'
@@ -24,20 +25,29 @@ export function registerIpc(): void {
   ipcMain.handle('detect', () => detectEnvironment())
 
   // ---- config / profiles (cc-switch style) ----
+  // Keep Codex's native config.toml/auth.json in sync after any profile change.
+  const synced = (id: CliId, cfg: ReturnType<typeof loadConfig>) => {
+    if (id === 'codex') writeCodexConfig()
+    return cfg
+  }
   ipcMain.handle('config:get', () => loadConfig())
   ipcMain.handle('config:addProfile', (_e, id: CliId, patch: CliProfilePatch) =>
-    addProfile(id, patch)
+    synced(id, addProfile(id, patch))
   )
   ipcMain.handle('config:updateProfile', (_e, id: CliId, pid: string, patch: CliProfilePatch) =>
-    updateProfile(id, pid, patch)
+    synced(id, updateProfile(id, pid, patch))
   )
-  ipcMain.handle('config:deleteProfile', (_e, id: CliId, pid: string) => deleteProfile(id, pid))
+  ipcMain.handle('config:deleteProfile', (_e, id: CliId, pid: string) =>
+    synced(id, deleteProfile(id, pid))
+  )
   ipcMain.handle('config:setActiveProfile', (_e, id: CliId, pid: string) =>
-    setActiveProfile(id, pid)
+    synced(id, setActiveProfile(id, pid))
   )
   ipcMain.handle('config:resolvedEnv', (_e, id: CliId) => resolvedEnvPreview(id))
   ipcMain.handle('config:openFile', () => shell.openPath(paths.config))
   ipcMain.handle('config:reveal', () => shell.showItemInFolder(paths.config))
+  ipcMain.handle('codex:files', () => readCodexFiles())
+  ipcMain.handle('codex:reveal', () => shell.openPath(paths.cliConfig('codex')))
 
   ipcMain.handle('install:cli', async (e: IpcMainInvokeEvent, id: CliId) => {
     const send = (p: InstallProgress) => {

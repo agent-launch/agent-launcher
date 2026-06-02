@@ -45,6 +45,11 @@ const api = {
   sessions: {
     list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id)
   },
+  codex: {
+    files: (): Promise<{ dir: string; configToml: string; authJson: string }> =>
+      ipcRenderer.invoke('codex:files'),
+    reveal: (): Promise<string> => ipcRenderer.invoke('codex:reveal')
+  },
   install: {
     cli: (id: CliId): Promise<InstallResult> => ipcRenderer.invoke('install:cli', id),
     onProgress: (cb: (p: InstallProgress) => void) => {

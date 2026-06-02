@@ -3,15 +3,23 @@ import { Button } from '@/components/ui/Button'
 import { PROVIDERS_BY_CLI, CATEGORY_LABEL } from '@/data/providers'
 import type { AppConfig, CliId, CliProfile, EnvPair } from '@shared/types'
 
+interface CodexFiles {
+  dir: string
+  configToml: string
+  authJson: string
+}
+
 export function ConfigView({ cliId }: { cliId: CliId }) {
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [env, setEnv] = useState<EnvPair[]>([])
+  const [codexFiles, setCodexFiles] = useState<CodexFiles | null>(null)
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setCfg(await window.api.config.get())
     setEnv(await window.api.config.resolvedEnv(cliId))
+    setCodexFiles(cliId === 'codex' ? await window.api.codex.files() : null)
   }, [cliId])
 
   useEffect(() => {
@@ -154,6 +162,41 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
           )}
         </div>
       </div>
+
+      {/* Codex writes native config files into CODEX_HOME — show them. */}
+      {cliId === 'codex' && codexFiles && (
+        <div className="mt-8">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-[14px] font-medium text-text-strong">
+              Codex 配置文件（CODEX_HOME）
+            </h3>
+            <Button size="sm" variant="ghost" onClick={() => window.api.codex.reveal()}>
+              打开目录
+            </Button>
+          </div>
+          <p className="mb-3 text-[12px] text-text-weak">
+            Codex 不是只靠环境变量，而是从这个目录读 config.toml + auth.json。
+            切换配置时这两个文件会自动写入：<span className="font-mono">{codexFiles.dir}</span>
+          </p>
+          <div className="space-y-3">
+            <FileBlock name="config.toml" content={codexFiles.configToml} />
+            <FileBlock name="auth.json" content={codexFiles.authJson} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FileBlock({ name, content }: { name: string; content: string }) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border-weak bg-surface">
+      <div className="border-b border-border-weak px-3 py-1.5 font-mono text-[11px] text-text-weak">
+        {name}
+      </div>
+      <pre className="selectable overflow-x-auto px-3 py-2 font-mono text-[12px] text-text-strong">
+        {content}
+      </pre>
     </div>
   )
 }
