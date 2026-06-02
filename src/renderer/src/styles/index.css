@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Map our design tokens into Tailwind v4's theme so utilities like
+   bg-base / text-strong / border-weak / text-accent resolve to the tokens. */
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+
+  --color-base: var(--background-base);
+  --color-strong: var(--background-strong);
+  --color-stronger: var(--background-stronger);
+  --color-surface: var(--surface-base);
+  --color-surface-weak: var(--surface-weak);
+
+  --color-text-base: var(--text-base);
+  --color-text-weak: var(--text-weak);
+  --color-text-strong: var(--text-strong);
+  --color-text-interactive: var(--text-interactive-base);
+
+  --color-border-base: var(--border-base);
+  --color-border-weak: var(--border-weak);
+  --color-border-selected: var(--border-selected);
+
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+  }
+  body {
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    color: var(--text-strong);
+    background: var(--background-base);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* The whole window is frameless; nothing should be draggable by default. */
+    user-select: none;
+    cursor: default;
+  }
+  /* Inputs / editable areas opt back into selection. */
+  input,
+  textarea,
+  [contenteditable],
+  .selectable {
+    user-select: text;
+  }
+}
+
+/* Custom titlebar drag regions (Electron). */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Thin, theme-aware scrollbars. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-base);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-weak);
+  background-clip: content-box;
+}

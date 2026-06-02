@@ -1,0 +1,104 @@
+import { mkdirSync } from 'node:fs'
+import { homedir } from 'node:os'
+import * as pty from '@lydell/node-pty'
+import type { WebContents } from 'electron'
+import { paths } from './sandbox'
+import { loadConfig } from './store'
+import { buildCliEnv } from './cli-env'
+import type { CliId } from '@shared/types'
+
+export interface SpawnOptions {
+  cliId: CliId
+  /** 'cli' runs the CLI binary directly; 'shell' opens a shell with env+PATH injected. */
+  mode: 'cli' | 'shell'
+  cwd?: string
+  cols?: number
+  rows?: number
+}
+
+interface Session {
+  proc: pty.IPty
+  cliId: CliId
+}
+
+const sessions = new Map<string, Session>()
+let seq = 0
+
+function defaultShell(): { file: string; args: string[] } {
+  if (process.platform === 'win32') {
+    return { file: process.env.COMSPEC || 'cmd.exe', args: [] }
+  }
+  return { file: process.env.SHELL || '/bin/bash', args: ['-l'] }
+}
+
+/** Resolve what to spawn for the selected CLI. */
+function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
+  if (opts.mode === 'shell') return defaultShell()
+  const cfg = loadConfig()
+  const install = cfg.install[opts.cliId]
+  if (!install.installed || !install.binPath) {
+    throw new Error(`${opts.cliId} 尚未安装`)
+  }
+  if (opts.cliId === 'gemini' && install.nodeEntry) {
+    // Gemini is a JS app — run it through the bundled node.
+    return { file: install.binPath, args: [install.nodeEntry] }
+  }
+  return { file: install.binPath, args: [] }
+}
+
+export function createSession(wc: WebContents, opts: SpawnOptions): string {
+  const cwd = opts.cwd && opts.cwd.length ? opts.cwd : homedir()
+  const { file, args } = resolveTarget(opts)
+  const env = buildCliEnv(opts.cliId)
+
+  // Ensure the isolated config dir exists before the CLI tries to write it.
+  mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
+
+  const proc = pty.spawn(file, args, {
+    name: 'xterm-256color',
+    cols: opts.cols ?? 80,
+    rows: opts.rows ?? 24,
+    cwd,
+    env: env as { [key: string]: string }
+  })
+
+  const id = `pty-${++seq}`
+  sessions.set(id, { proc, cliId: opts.cliId })
+
+  proc.onData((data) => {
+    if (!wc.isDestroyed()) wc.send('pty:data', id, data)
+  })
+  proc.onExit(({ exitCode }) => {
+    sessions.delete(id)
+    if (!wc.isDestroyed()) wc.send('pty:exit', id, exitCode)
+  })
+
+  return id
+}
+
+export function writeSession(id: string, data: string): void {
+  sessions.get(id)?.proc.write(data)
+}
+
+export function resizeSession(id: string, cols: number, rows: number): void {
+  try {
+    sessions.get(id)?.proc.resize(Math.max(1, cols), Math.max(1, rows))
+  } catch {
+    /* resize can race with exit */
+  }
+}
+
+export function killSession(id: string): void {
+  const s = sessions.get(id)
+  if (!s) return
+  try {
+    s.proc.kill()
+  } catch {
+    /* already dead */
+  }
+  sessions.delete(id)
+}
+
+export function killAll(): void {
+  for (const id of [...sessions.keys()]) killSession(id)
+}
