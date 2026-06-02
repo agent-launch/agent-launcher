@@ -29,6 +29,7 @@ const CUSTOM: Provider = {
 // Ported from cc-switch (github.com/farion1231/cc-switch) provider presets.
 // Claude uses ANTHROPIC_BASE_URL (often /anthropic paths).
 const CLAUDE: Provider[] = [
+  { id: 'routerlink', name: 'RouterLink', category: 'aggregator', baseUrl: 'https://router-link-beta.world3.ai/api', websiteUrl: 'https://router-link-beta.world3.ai', note: 'Anthropic 端点' },
   { id: 'official', name: 'Claude 官方', category: 'official', baseUrl: '', websiteUrl: 'https://anthropic.com/claude-code', note: '官方直连（需海外卡）' },
   { id: 'shengsuanyun', name: 'Shengsuanyun 胜算云', category: 'aggregator', baseUrl: 'https://router.shengsuanyun.com/api', websiteUrl: 'https://shengsuanyun.com' },
   { id: 'patewayai', name: 'PatewayAI', category: 'third_party', baseUrl: 'https://api.pateway.ai', websiteUrl: 'https://pateway.ai' },
@@ -78,6 +79,7 @@ const CLAUDE: Provider[] = [
 
 // Codex uses an OpenAI-style base_url (usually ending in /v1).
 const CODEX: Provider[] = [
+  { id: 'routerlink', name: 'RouterLink', category: 'aggregator', baseUrl: 'https://router-link-beta.world3.ai/api/v1', websiteUrl: 'https://router-link-beta.world3.ai', note: 'OpenAI 兼容端点' },
   { id: 'official', name: 'OpenAI 官方', category: 'official', baseUrl: '', websiteUrl: 'https://chatgpt.com/codex', note: '官方登录（需海外卡）' },
   { id: 'shengsuanyun', name: 'Shengsuanyun 胜算云', category: 'aggregator', baseUrl: 'https://router.shengsuanyun.com/api/v1', websiteUrl: 'https://shengsuanyun.com' },
   { id: 'patewayai', name: 'PatewayAI', category: 'third_party', baseUrl: 'https://api.pateway.ai/v1', websiteUrl: 'https://pateway.ai' },
