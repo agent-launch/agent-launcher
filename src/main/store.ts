@@ -1,26 +1,58 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { paths } from './sandbox'
-import type { AppConfig, CliConfig, CliId, CliInstallState } from '@shared/types'
+import type {
+  AppConfig,
+  CliId,
+  CliInstallState,
+  CliProfile,
+  CliProfilePatch,
+  CliProfiles
+} from '@shared/types'
 
-const SCHEMA = 1
+const SCHEMA = 2
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'gemini']
 
 function emptyConfig(): AppConfig {
-  const blankInstall: CliInstallState = { installed: false }
-  const blankCli: CliConfig = {}
-  return {
-    schema: SCHEMA,
-    install: {
-      'claude-code': { ...blankInstall },
-      codex: { ...blankInstall },
-      gemini: { ...blankInstall }
-    },
-    clis: {
-      'claude-code': { ...blankCli },
-      codex: { ...blankCli },
-      gemini: { ...blankCli }
+  const install = {} as Record<CliId, CliInstallState>
+  const clis = {} as Record<CliId, CliProfiles>
+  for (const id of CLI_IDS) {
+    install[id] = { installed: false }
+    clis[id] = { profiles: [] }
+  }
+  return { schema: SCHEMA, install, clis }
+}
+
+let counter = 0
+function newId(): string {
+  counter += 1
+  return `p${Date.now().toString(36)}${counter}`
+}
+
+/** Coerce any on-disk shape (incl. legacy single-config) into the current model. */
+function normalize(raw: unknown): AppConfig {
+  const base = emptyConfig()
+  if (!raw || typeof raw !== 'object') return base
+  const r = raw as Partial<AppConfig> & { clis?: Record<string, unknown> }
+
+  for (const id of CLI_IDS) {
+    if (r.install?.[id]) base.install[id] = { ...base.install[id], ...r.install[id] }
+
+    const entry = r.clis?.[id] as unknown
+    if (!entry || typeof entry !== 'object') continue
+
+    if (Array.isArray((entry as CliProfiles).profiles)) {
+      base.clis[id] = entry as CliProfiles
+    } else {
+      // Legacy schema 1: a single {providerId,baseUrl,apiKey,model} object.
+      const legacy = entry as CliProfilePatch
+      if (legacy.baseUrl || legacy.apiKey || legacy.providerId || legacy.model) {
+        const p: CliProfile = { id: newId(), name: legacy.providerId ?? '默认配置', ...legacy }
+        base.clis[id] = { activeProfileId: p.id, profiles: [p] }
+      }
     }
   }
+  return base
 }
 
 let cache: AppConfig | null = null
@@ -29,35 +61,65 @@ export function loadConfig(): AppConfig {
   if (cache) return cache
   try {
     if (existsSync(paths.config)) {
-      const parsed = JSON.parse(readFileSync(paths.config, 'utf8')) as AppConfig
-      // Shallow-merge over defaults so new fields don't crash old configs.
-      cache = { ...emptyConfig(), ...parsed }
+      cache = normalize(JSON.parse(readFileSync(paths.config, 'utf8')))
       return cache
     }
   } catch {
-    // Corrupt config — fall back to defaults rather than crash.
+    /* corrupt — fall back to defaults */
   }
   cache = emptyConfig()
   return cache
 }
 
-export function saveConfig(cfg: AppConfig): void {
+export function saveConfig(cfg: AppConfig): AppConfig {
   cache = cfg
   mkdirSync(dirname(paths.config), { recursive: true })
   // Plaintext on purpose — product decision is local JSON, no keychain.
   writeFileSync(paths.config, JSON.stringify(cfg, null, 2), { mode: 0o600 })
+  return cfg
 }
 
 export function setInstallState(id: CliId, state: CliInstallState): AppConfig {
   const cfg = loadConfig()
   cfg.install[id] = state
-  saveConfig(cfg)
-  return cfg
+  return saveConfig(cfg)
 }
 
-export function setCliConfig(id: CliId, patch: Partial<CliConfig>): AppConfig {
+// ---- profile CRUD ----
+
+export function addProfile(id: CliId, patch: CliProfilePatch): AppConfig {
   const cfg = loadConfig()
-  cfg.clis[id] = { ...cfg.clis[id], ...patch }
-  saveConfig(cfg)
-  return cfg
+  const profile: CliProfile = { id: newId(), name: patch.name || '未命名', ...patch }
+  cfg.clis[id].profiles.push(profile)
+  // First profile becomes active automatically.
+  if (!cfg.clis[id].activeProfileId) cfg.clis[id].activeProfileId = profile.id
+  return saveConfig(cfg)
+}
+
+export function updateProfile(id: CliId, profileId: string, patch: CliProfilePatch): AppConfig {
+  const cfg = loadConfig()
+  const p = cfg.clis[id].profiles.find((x) => x.id === profileId)
+  if (p) Object.assign(p, patch)
+  return saveConfig(cfg)
+}
+
+export function deleteProfile(id: CliId, profileId: string): AppConfig {
+  const cfg = loadConfig()
+  const c = cfg.clis[id]
+  c.profiles = c.profiles.filter((x) => x.id !== profileId)
+  if (c.activeProfileId === profileId) c.activeProfileId = c.profiles[0]?.id
+  return saveConfig(cfg)
+}
+
+export function setActiveProfile(id: CliId, profileId: string): AppConfig {
+  const cfg = loadConfig()
+  if (cfg.clis[id].profiles.some((x) => x.id === profileId)) {
+    cfg.clis[id].activeProfileId = profileId
+  }
+  return saveConfig(cfg)
+}
+
+export function getActiveProfile(id: CliId): CliProfile | undefined {
+  const c = loadConfig().clis[id]
+  return c.profiles.find((x) => x.id === c.activeProfileId)
 }

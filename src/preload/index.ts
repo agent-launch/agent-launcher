@@ -1,9 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppConfig,
-  CliConfig,
   CliId,
+  CliProfilePatch,
   DetectResult,
+  EnvPair,
   InstallProgress,
   InstallResult
 } from '../shared/types'
@@ -27,8 +28,17 @@ const api = {
   pickDir: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDir'),
   config: {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
-    setCli: (id: CliId, patch: Partial<CliConfig>): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:setCli', id, patch)
+    addProfile: (id: CliId, patch: CliProfilePatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:addProfile', id, patch),
+    updateProfile: (id: CliId, pid: string, patch: CliProfilePatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:updateProfile', id, pid, patch),
+    deleteProfile: (id: CliId, pid: string): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:deleteProfile', id, pid),
+    setActiveProfile: (id: CliId, pid: string): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:setActiveProfile', id, pid),
+    resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
+    openFile: (): Promise<string> => ipcRenderer.invoke('config:openFile'),
+    reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal')
   },
   install: {
     cli: (id: CliId): Promise<InstallResult> => ipcRenderer.invoke('install:cli', id),

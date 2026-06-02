@@ -217,7 +217,13 @@ function ConfigStep() {
   }
 
   const save = async () => {
-    await window.api.config.setCli(cliId, { providerId, baseUrl, apiKey })
+    const p = providers.find((x) => x.id === providerId)
+    await window.api.config.addProfile(cliId, {
+      name: p?.name ?? '自定义',
+      providerId,
+      baseUrl,
+      apiKey
+    })
     setSaved(true)
   }
 

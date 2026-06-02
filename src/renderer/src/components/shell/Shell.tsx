@@ -3,6 +3,7 @@ import { useAppStore } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { Button } from '@/components/ui/Button'
 import { TerminalView } from '@/components/terminal/TerminalView'
+import { ConfigView } from '@/components/config/ConfigView'
 import type { AppConfig, CliId } from '@shared/types'
 
 export function Shell() {
@@ -13,11 +14,13 @@ export function Shell() {
 
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [cwd, setCwd] = useState<string>('')
+  const [view, setView] = useState<'run' | 'config'>('run')
   const [session, setSession] = useState<{ key: number; mode: 'cli' | 'shell' } | null>(null)
 
+  // Reload config whenever we land on the run view (profiles may have changed).
   useEffect(() => {
     window.api.config.get().then(setCfg)
-  }, [])
+  }, [view, activeCli])
 
   // Reset the running terminal when switching CLI.
   useEffect(() => setSession(null), [activeCli])
@@ -81,21 +84,43 @@ export function Shell() {
       {/* Main pane */}
       <main className="flex min-w-0 flex-1 flex-col">
         <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak px-4">
-          <button
-            onClick={pickDir}
-            className="no-drag rounded-md bg-surface-weak px-2 py-1 text-[12px] text-text-base hover:text-text-strong"
-            title="选择项目目录"
-          >
-            {cwd || '~/选择项目目录'}
-          </button>
+          <div className="flex gap-1">
+            {(['run', 'config'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`no-drag rounded-md px-2.5 py-1 text-[13px] ${
+                  view === v
+                    ? 'bg-surface-weak text-text-strong'
+                    : 'text-text-base hover:text-text-strong'
+                }`}
+              >
+                {v === 'run' ? '运行' : '配置'}
+              </button>
+            ))}
+          </div>
+          {view === 'run' && (
+            <button
+              onClick={pickDir}
+              className="no-drag rounded-md bg-surface-weak px-2 py-1 text-[12px] text-text-base hover:text-text-strong"
+              title="选择项目目录"
+            >
+              {cwd || '~/选择项目目录'}
+            </button>
+          )}
           <div className="ml-auto flex items-center gap-2">
             <Chip label={active.name} color={active.accent} />
             <Chip label={installed ? '已安装' : '未安装'} />
           </div>
         </div>
 
-        <div className="relative flex-1 bg-base">
-          {session ? (
+        {view === 'config' ? (
+          <div className="flex-1 overflow-y-auto bg-base">
+            <ConfigView cliId={active.id as CliId} />
+          </div>
+        ) : (
+          <div className="relative flex-1 bg-base">
+            {session ? (
             <div className="absolute inset-0 p-2">
               <TerminalView
                 cliId={active.id as CliId}
@@ -123,8 +148,9 @@ export function Shell() {
                 </div>
               </div>
             </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </main>
     </div>
   )

@@ -33,8 +33,11 @@ export interface CliInstallState {
   nodeEntry?: string
 }
 
-/** Per-CLI provider/runtime config persisted in config.json. */
-export interface CliConfig {
+/** A single saved provider config (cc-switch style profile). */
+export interface CliProfile {
+  id: string
+  /** User-facing label, e.g. "AiHubMix · Opus". */
+  name: string
   providerId?: string
   /** Pre-filled or custom relay base URL. */
   baseUrl?: string
@@ -43,10 +46,27 @@ export interface CliConfig {
   model?: string
 }
 
+/** All profiles for one CLI plus which one is active. */
+export interface CliProfiles {
+  activeProfileId?: string
+  profiles: CliProfile[]
+}
+
+/** Patch shape used when creating/editing a profile. */
+export type CliProfilePatch = Partial<Omit<CliProfile, 'id'>>
+
 export interface AppConfig {
   schema: number
   install: Record<CliId, CliInstallState>
-  clis: Record<CliId, CliConfig>
+  clis: Record<CliId, CliProfiles>
+}
+
+/** One resolved env var pair for the "Resolved Environment" preview. */
+export interface EnvPair {
+  key: string
+  value: string
+  /** True for secrets we mask in the UI. */
+  secret?: boolean
 }
 
 /** Streamed install progress. */

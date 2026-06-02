@@ -1,5 +1,13 @@
-import { ipcMain, dialog, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
-import { loadConfig, setCliConfig } from './store'
+import { ipcMain, dialog, shell, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import {
+  loadConfig,
+  addProfile,
+  updateProfile,
+  deleteProfile,
+  setActiveProfile
+} from './store'
+import { paths } from './sandbox'
+import { resolvedEnvPreview } from './cli-env'
 import { detectEnvironment } from './install/detect'
 import { installCli } from './install/installer'
 import {
@@ -9,15 +17,26 @@ import {
   killSession,
   type SpawnOptions
 } from './pty'
-import type { CliConfig, CliId, InstallProgress } from '@shared/types'
+import type { CliId, CliProfilePatch, InstallProgress } from '@shared/types'
 
 export function registerIpc(): void {
   ipcMain.handle('detect', () => detectEnvironment())
 
+  // ---- config / profiles (cc-switch style) ----
   ipcMain.handle('config:get', () => loadConfig())
-  ipcMain.handle('config:setCli', (_e, id: CliId, patch: Partial<CliConfig>) =>
-    setCliConfig(id, patch)
+  ipcMain.handle('config:addProfile', (_e, id: CliId, patch: CliProfilePatch) =>
+    addProfile(id, patch)
   )
+  ipcMain.handle('config:updateProfile', (_e, id: CliId, pid: string, patch: CliProfilePatch) =>
+    updateProfile(id, pid, patch)
+  )
+  ipcMain.handle('config:deleteProfile', (_e, id: CliId, pid: string) => deleteProfile(id, pid))
+  ipcMain.handle('config:setActiveProfile', (_e, id: CliId, pid: string) =>
+    setActiveProfile(id, pid)
+  )
+  ipcMain.handle('config:resolvedEnv', (_e, id: CliId) => resolvedEnvPreview(id))
+  ipcMain.handle('config:openFile', () => shell.openPath(paths.config))
+  ipcMain.handle('config:reveal', () => shell.showItemInFolder(paths.config))
 
   ipcMain.handle('install:cli', async (e: IpcMainInvokeEvent, id: CliId) => {
     const send = (p: InstallProgress) => {
