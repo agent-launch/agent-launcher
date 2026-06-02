@@ -3,6 +3,7 @@ import { useAppStore } from '@/store/app'
 import { Button } from '@/components/ui/Button'
 import { CLIS } from '@/data/clis'
 import { PROVIDERS_BY_CLI, CATEGORY_LABEL } from '@/data/providers'
+import { CliIcon } from '@/components/CliIcon'
 import type { CliId, DetectResult, InstallProgress } from '@shared/types'
 
 const STEPS = ['欢迎', '检测环境', '自动安装', '配置中转', '开跑'] as const
@@ -166,11 +167,8 @@ function InstallStep() {
               key={c.id}
               className="flex items-center gap-3 rounded-lg border border-border-weak bg-surface px-4 py-3"
             >
-              <span
-                className="grid size-8 place-items-center rounded-md text-[13px] font-semibold text-white"
-                style={{ background: c.accent }}
-              >
-                {c.glyph}
+              <span className="grid size-8 place-items-center rounded-md bg-surface-weak text-text-strong">
+                <CliIcon cliId={c.id as CliId} size={18} />
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[14px] text-text-strong">{c.name}</div>

@@ -29,6 +29,15 @@ export default defineConfig({
       }
     },
     plugins: [react(), tailwindcss()],
+    // Pre-bundle the deep-imported brand icons so dev cold-start doesn't
+    // trigger a mid-session re-optimize when they're first requested.
+    optimizeDeps: {
+      include: [
+        '@lobehub/icons/es/ClaudeCode',
+        '@lobehub/icons/es/Codex',
+        '@lobehub/icons/es/GeminiCLI'
+      ]
+    },
     build: {
       rollupOptions: {
         input: { index: resolve('src/renderer/index.html') }

@@ -4,6 +4,7 @@ import { CLIS } from '@/data/clis'
 import { Button } from '@/components/ui/Button'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
+import { CliIcon } from '@/components/CliIcon'
 import type { AppConfig, CliId } from '@shared/types'
 
 export function Shell() {
@@ -54,11 +55,8 @@ export function Shell() {
                     : 'text-text-base hover:bg-surface-weak/60'
                 }`}
               >
-                <span
-                  className="grid size-7 shrink-0 place-items-center rounded-md text-[12px] font-semibold text-white"
-                  style={{ background: c.accent }}
-                >
-                  {c.glyph}
+                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                  <CliIcon cliId={c.id as CliId} size={16} />
                 </span>
                 <span className="flex-1">{c.name}</span>
                 <span

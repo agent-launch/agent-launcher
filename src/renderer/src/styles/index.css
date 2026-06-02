@@ -61,6 +61,18 @@
   .selectable {
     user-select: text;
   }
+
+  /* All buttons (and button-like / select controls) use a pointer cursor. */
+  button,
+  [role='button'],
+  select,
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role='button'][aria-disabled='true'] {
+    cursor: default;
+  }
 }
 
 /* Custom titlebar drag regions (Electron). */
