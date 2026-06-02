@@ -24,9 +24,8 @@ function buildConfigToml(): string {
     '[model_providers.custom]',
     `name = "${(p.name || 'Custom').replace(/"/g, '')}"`,
     `base_url = "${p.baseUrl}"`,
-    // Most third-party relays speak the OpenAI Chat Completions API, not the
-    // newer Responses API — "chat" is the safe default for relays.
-    'wire_api = "chat"',
+    // Codex's native API; most relays support it now, so default to "responses".
+    'wire_api = "responses"',
     'env_key = "OPENAI_API_KEY"'
   ].filter((l) => l !== null)
   return lines.join('\n') + '\n'
