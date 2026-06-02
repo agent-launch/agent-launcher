@@ -3,23 +3,22 @@ import { Button } from '@/components/ui/Button'
 import { PROVIDERS_BY_CLI, CATEGORY_LABEL } from '@/data/providers'
 import type { AppConfig, CliId, CliProfile, EnvPair } from '@shared/types'
 
-interface CodexFiles {
+interface NativeFiles {
   dir: string
-  configToml: string
-  authJson: string
+  files: { name: string; content: string }[]
 }
 
 export function ConfigView({ cliId }: { cliId: CliId }) {
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [env, setEnv] = useState<EnvPair[]>([])
-  const [codexFiles, setCodexFiles] = useState<CodexFiles | null>(null)
+  const [nativeFiles, setNativeFiles] = useState<NativeFiles | null>(null)
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setCfg(await window.api.config.get())
     setEnv(await window.api.config.resolvedEnv(cliId))
-    setCodexFiles(cliId === 'codex' ? await window.api.codex.files() : null)
+    setNativeFiles(await window.api.config.nativeFiles(cliId))
   }, [cliId])
 
   useEffect(() => {
@@ -163,24 +162,23 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
         </div>
       </div>
 
-      {/* Codex writes native config files into CODEX_HOME — show them. */}
-      {cliId === 'codex' && codexFiles && (
+      {/* CLIs configured by files (Codex/opencode/pi) — show them. */}
+      {nativeFiles && nativeFiles.files.length > 0 && (
         <div className="mt-8">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[14px] font-medium text-text-strong">
-              Codex 配置文件（CODEX_HOME）
-            </h3>
-            <Button size="sm" variant="ghost" onClick={() => window.api.codex.reveal()}>
+            <h3 className="text-[14px] font-medium text-text-strong">原生配置文件</h3>
+            <Button size="sm" variant="ghost" onClick={() => window.api.config.revealNative(cliId)}>
               打开目录
             </Button>
           </div>
           <p className="mb-3 text-[12px] text-text-weak">
-            Codex 不是只靠环境变量，而是从这个目录读 config.toml + auth.json。
-            切换配置时这两个文件会自动写入：<span className="font-mono">{codexFiles.dir}</span>
+            该 CLI 从这个目录读自己的配置文件（非纯环境变量）。切换配置时会自动写入：
+            <span className="font-mono">{nativeFiles.dir}</span>
           </p>
           <div className="space-y-3">
-            <FileBlock name="config.toml" content={codexFiles.configToml} />
-            <FileBlock name="auth.json" content={codexFiles.authJson} />
+            {nativeFiles.files.map((f) => (
+              <FileBlock key={f.name} name={f.name} content={f.content} />
+            ))}
           </div>
         </div>
       )}

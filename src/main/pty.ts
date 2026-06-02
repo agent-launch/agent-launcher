@@ -3,10 +3,10 @@ import { homedir } from 'node:os'
 import * as pty from '@lydell/node-pty'
 import type { WebContents } from 'electron'
 import { paths } from './sandbox'
-import { loadConfig } from './store'
+import { loadConfig, getActiveProfile } from './store'
 import { buildCliEnv } from './cli-env'
 import { resumeArgs } from './sessions-history'
-import { writeCodexConfig } from './codex-config'
+import { writeNativeConfig, hasNativeConfig } from './native-config'
 import type { CliId } from '@shared/types'
 
 export interface SpawnOptions {
@@ -44,9 +44,14 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
     throw new Error(`${opts.cliId} 尚未安装`)
   }
   const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
-  if (opts.cliId === 'gemini' && install.nodeEntry) {
-    // Gemini is a JS app — run it through the bundled node.
-    return { file: install.binPath, args: [install.nodeEntry] }
+  // Node-based CLIs (Gemini, Pi) run through the bundled node via their JS entry.
+  if (install.nodeEntry) {
+    const extra: string[] = [...(resume ?? [])]
+    if (opts.cliId === 'pi') {
+      const model = getActiveProfile('pi')?.model
+      if (model) extra.push('--model', `agentlauncher/${model}`)
+    }
+    return { file: install.binPath, args: [install.nodeEntry, ...extra] }
   }
   return { file: install.binPath, args: resume ?? [] }
 }
@@ -58,8 +63,8 @@ export function createSession(wc: WebContents, opts: SpawnOptions): string {
 
   // Ensure the isolated config dir exists before the CLI tries to write it.
   mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
-  // Codex reads config.toml + auth.json from CODEX_HOME — materialize them.
-  if (opts.cliId === 'codex') writeCodexConfig()
+  // CLIs configured by files (Codex/opencode/pi) — materialize them first.
+  if (hasNativeConfig(opts.cliId)) writeNativeConfig(opts.cliId)
 
   const proc = pty.spawn(file, args, {
     name: 'xterm-256color',

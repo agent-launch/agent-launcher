@@ -69,13 +69,25 @@ export async function detectEnvironment(): Promise<DetectResult> {
       label: 'Gemini CLI',
       present: cfg.install.gemini.installed,
       detail: cfg.install.gemini.version ? `已装 ${cfg.install.gemini.version}` : '未安装'
+    },
+    {
+      key: 'opencode',
+      label: 'opencode',
+      present: cfg.install.opencode.installed,
+      detail: cfg.install.opencode.version ? `已装 ${cfg.install.opencode.version}` : '未安装'
+    },
+    {
+      key: 'pi',
+      label: 'Pi',
+      present: cfg.install.pi.installed,
+      detail: cfg.install.pi.version ? `已装 ${cfg.install.pi.version}` : '未安装'
     }
   ]
 
-  // Reflect the real on-disk binary for installed CLIs (config could be stale).
+  // Reflect the real on-disk binary for native-binary CLIs (config could be stale).
   for (const it of items) {
-    if (['claude-code', 'codex'].includes(it.key)) {
-      const bin = cfg.install[it.key as 'claude-code' | 'codex'].binPath
+    if (['claude-code', 'codex', 'opencode'].includes(it.key)) {
+      const bin = cfg.install[it.key as 'claude-code' | 'codex' | 'opencode'].binPath
       if (it.present && bin && !existsSync(bin)) {
         it.present = false
         it.detail = '记录存在但二进制丢失'

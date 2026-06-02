@@ -7,6 +7,7 @@ import type {
   EnvPair,
   InstallProgress,
   InstallResult,
+  NativeFiles,
   SessionInfo
 } from '../shared/types'
 
@@ -40,15 +41,13 @@ const api = {
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
     resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
     openFile: (): Promise<string> => ipcRenderer.invoke('config:openFile'),
-    reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal')
+    reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal'),
+    nativeFiles: (id: CliId): Promise<NativeFiles | null> =>
+      ipcRenderer.invoke('config:nativeFiles', id),
+    revealNative: (id: CliId): Promise<string> => ipcRenderer.invoke('config:revealNative', id)
   },
   sessions: {
     list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id)
-  },
-  codex: {
-    files: (): Promise<{ dir: string; configToml: string; authJson: string }> =>
-      ipcRenderer.invoke('codex:files'),
-    reveal: (): Promise<string> => ipcRenderer.invoke('codex:reveal')
   },
   install: {
     cli: (id: CliId): Promise<InstallResult> => ipcRenderer.invoke('install:cli', id),

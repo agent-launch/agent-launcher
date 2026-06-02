@@ -1,6 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { paths } from './sandbox'
+import { loadConfig } from './store'
+import { buildCliEnv } from './cli-env'
 import type { CliId, SessionInfo } from '@shared/types'
 
 const MAX_LIST = 50 // only parse the most-recently-touched files
@@ -127,10 +130,101 @@ function listCodex(): SessionInfo[] {
   })
 }
 
+/** Pi: JSONL session files under <cfg>/sessions (organized by working dir). */
+function listPi(): SessionInfo[] {
+  const root = join(paths.cliConfig('pi'), 'sessions')
+  if (!existsSync(root)) return []
+  const refs: FileRef[] = []
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name)
+      if (e.isDirectory()) walk(full)
+      else if (e.name.endsWith('.jsonl'))
+        try {
+          refs.push({ full, id: e.name.replace(/\.jsonl$/, ''), mtimeMs: statSync(full).mtimeMs })
+        } catch {
+          /* ignore */
+        }
+    }
+  }
+  try {
+    walk(root)
+  } catch {
+    return []
+  }
+  return recentJsonl(refs).map((ref) => {
+    let name: string | null = null
+    let cwd: string | undefined
+    let firstUser: string | null = null
+    for (const rec of readLines(ref.full)) {
+      const o = rec as Record<string, any>
+      if (!name && (o.name || o.title)) name = o.name || o.title
+      if (!cwd && typeof o.cwd === 'string') cwd = o.cwd
+      if (!firstUser && (o.role === 'user' || o.type === 'user')) {
+        const c = o.content ?? o.text ?? o.message
+        firstUser = typeof c === 'string' ? c : Array.isArray(c) ? (c.find((x) => x.text)?.text ?? null) : null
+      }
+    }
+    return {
+      id: ref.id,
+      cliId: 'pi' as CliId,
+      name: (name || firstUser || 'Pi 会话').trim().slice(0, 80),
+      updatedAt: ref.mtimeMs,
+      cwd
+    }
+  })
+}
+
+/** opencode stores sessions in SQLite — list via its own `session list` command. */
+function listOpencode(): SessionInfo[] {
+  const bin = loadConfig().install.opencode.binPath
+  if (!bin || !existsSync(bin)) return []
+  let out = ''
+  try {
+    out = execFileSync(bin, ['session', 'list'], {
+      env: buildCliEnv('opencode') as NodeJS.ProcessEnv,
+      encoding: 'utf8',
+      timeout: 20000,
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
+  } catch {
+    return []
+  }
+  // Tolerant parse: try JSON first, else "id <whitespace> title" lines.
+  try {
+    const arr = JSON.parse(out)
+    if (Array.isArray(arr)) {
+      return arr
+        .map((s: any) => ({
+          id: String(s.id ?? s.sessionID ?? ''),
+          cliId: 'opencode' as CliId,
+          name: String(s.title ?? s.name ?? '未命名会话').slice(0, 80),
+          updatedAt: Number(s.time?.updated ?? s.updated ?? (Date.parse(s.updatedAt ?? '') || 0)),
+          cwd: typeof s.directory === 'string' ? s.directory : undefined
+        }))
+        .filter((s) => s.id)
+    }
+  } catch {
+    /* not JSON — fall through to line parsing */
+  }
+  return out
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const m = line.match(/^(\S+)\s+(.*)$/)
+      const id = m?.[1] ?? line
+      return { id, cliId: 'opencode' as CliId, name: (m?.[2] || id).slice(0, 80), updatedAt: 0 }
+    })
+    .filter((s) => /^(ses_|[0-9a-f-]{8})/.test(s.id))
+}
+
 export function listSessions(cliId: CliId): SessionInfo[] {
   try {
     if (cliId === 'claude-code') return listClaude()
     if (cliId === 'codex') return listCodex()
+    if (cliId === 'pi') return listPi()
+    if (cliId === 'opencode') return listOpencode()
     return [] // Gemini CLI resume not wired yet
   } catch {
     return []
@@ -141,5 +235,7 @@ export function listSessions(cliId: CliId): SessionInfo[] {
 export function resumeArgs(cliId: CliId, id: string): string[] | null {
   if (cliId === 'claude-code') return ['--resume', id]
   if (cliId === 'codex') return ['resume', id]
+  if (cliId === 'opencode') return ['--session', id]
+  if (cliId === 'pi') return ['--session', id]
   return null
 }

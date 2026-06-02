@@ -135,7 +135,11 @@ const GEMINI: Provider[] = [
 export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   'claude-code': CLAUDE,
   codex: CODEX,
-  gemini: GEMINI
+  gemini: GEMINI,
+  // opencode & pi consume OpenAI-compatible relays (the /v1 endpoints), so the
+  // Codex relay list applies to them too.
+  opencode: CODEX,
+  pi: CODEX
 }
 
 export const CATEGORY_LABEL: Record<ProviderCategory, string> = {

@@ -27,6 +27,17 @@ function cliVars(cliId: CliId): EnvPair[] {
     if (p?.baseUrl) out.push({ key: 'GOOGLE_GEMINI_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'GEMINI_API_KEY', value: p.apiKey, secret: true })
     if (p?.model) out.push({ key: 'GEMINI_MODEL', value: p.model })
+  } else if (cliId === 'opencode') {
+    // opencode honors XDG dirs; isolate config/data/cache/state into the sandbox.
+    // Relay/key live in opencode.json (see native-config), pointed to here.
+    out.push({ key: 'XDG_CONFIG_HOME', value: join(configDir, 'xdg-config') })
+    out.push({ key: 'XDG_DATA_HOME', value: join(configDir, 'xdg-data') })
+    out.push({ key: 'XDG_CACHE_HOME', value: join(configDir, 'xdg-cache') })
+    out.push({ key: 'XDG_STATE_HOME', value: join(configDir, 'xdg-state') })
+    out.push({ key: 'OPENCODE_CONFIG', value: join(configDir, 'opencode.json') })
+  } else if (cliId === 'pi') {
+    // PI_CODING_AGENT_DIR holds config (models.json/auth.json) + sessions/.
+    out.push({ key: 'PI_CODING_AGENT_DIR', value: configDir })
   }
   return out
 }

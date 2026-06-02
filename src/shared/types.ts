@@ -1,6 +1,6 @@
 // Shared IPC contract types — imported by both main and renderer.
 
-export type CliId = 'claude-code' | 'codex' | 'gemini'
+export type CliId = 'claude-code' | 'codex' | 'gemini' | 'opencode' | 'pi'
 
 export type InstallStrategy = 'native-binary' | 'node-npm'
 
@@ -78,6 +78,16 @@ export interface EnvPair {
   value: string
   /** True for secrets we mask in the UI. */
   secret?: boolean
+}
+
+/** A native config file a CLI reads (Codex/opencode/pi), for display. */
+export interface NativeFile {
+  name: string
+  content: string
+}
+export interface NativeFiles {
+  dir: string
+  files: NativeFile[]
 }
 
 /** Streamed install progress. */

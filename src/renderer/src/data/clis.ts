@@ -38,6 +38,24 @@ export const CLIS: CliMeta[] = [
     accent: '#4285f4',
     envPrefix: 'GEMINI_* / GOOGLE_*',
     install: 'node-npm'
+  },
+  {
+    id: 'opencode',
+    name: 'opencode',
+    vendor: 'SST',
+    glyph: 'o',
+    accent: '#f2a60d',
+    envPrefix: 'XDG_* / OPENCODE_CONFIG',
+    install: 'native-binary'
+  },
+  {
+    id: 'pi',
+    name: 'Pi',
+    vendor: 'earendil',
+    glyph: 'π',
+    accent: '#7c3aed',
+    envPrefix: 'PI_CODING_AGENT_DIR',
+    install: 'node-npm'
   }
 ]
 

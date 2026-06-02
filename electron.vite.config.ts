@@ -35,7 +35,8 @@ export default defineConfig({
       include: [
         '@lobehub/icons/es/ClaudeCode',
         '@lobehub/icons/es/Codex',
-        '@lobehub/icons/es/GeminiCLI'
+        '@lobehub/icons/es/GeminiCLI',
+        '@lobehub/icons/es/OpenCode'
       ]
     },
     build: {

@@ -8,7 +8,7 @@ import {
 } from './store'
 import { paths } from './sandbox'
 import { resolvedEnvPreview } from './cli-env'
-import { writeCodexConfig, readCodexFiles } from './codex-config'
+import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { listSessions } from './sessions-history'
 import { detectEnvironment } from './install/detect'
 import { installCli } from './install/installer'
@@ -25,9 +25,9 @@ export function registerIpc(): void {
   ipcMain.handle('detect', () => detectEnvironment())
 
   // ---- config / profiles (cc-switch style) ----
-  // Keep Codex's native config.toml/auth.json in sync after any profile change.
+  // Keep file-configured CLIs' native config in sync after any profile change.
   const synced = (id: CliId, cfg: ReturnType<typeof loadConfig>) => {
-    if (id === 'codex') writeCodexConfig()
+    if (hasNativeConfig(id)) writeNativeConfig(id)
     return cfg
   }
   ipcMain.handle('config:get', () => loadConfig())
@@ -46,8 +46,12 @@ export function registerIpc(): void {
   ipcMain.handle('config:resolvedEnv', (_e, id: CliId) => resolvedEnvPreview(id))
   ipcMain.handle('config:openFile', () => shell.openPath(paths.config))
   ipcMain.handle('config:reveal', () => shell.showItemInFolder(paths.config))
-  ipcMain.handle('codex:files', () => readCodexFiles())
-  ipcMain.handle('codex:reveal', () => shell.openPath(paths.cliConfig('codex')))
+  ipcMain.handle('config:nativeFiles', (_e, id: CliId) =>
+    hasNativeConfig(id) ? readNativeFiles(id) : null
+  )
+  ipcMain.handle('config:revealNative', (_e, id: CliId) =>
+    shell.openPath(paths.cliConfig(id))
+  )
 
   ipcMain.handle('install:cli', async (e: IpcMainInvokeEvent, id: CliId) => {
     const send = (p: InstallProgress) => {

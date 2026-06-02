@@ -28,6 +28,12 @@ export function codexTargetTriple(p: PlatformInfo): string {
   return triple
 }
 
+/** opencode's npm platform subpackage key (note win32 -> "windows"). */
+export function opencodePlatformKey(p: PlatformInfo): string {
+  const os = p.os === 'win32' ? 'windows' : p.os
+  return `${os}-${p.arch}`
+}
+
 /** Node dist filename component (note win32 -> "win"). */
 export function nodeDistName(p: PlatformInfo, version: string): { file: string; ext: string } {
   const osPart = p.os === 'win32' ? 'win' : p.os

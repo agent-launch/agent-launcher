@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import { paths } from '../sandbox'
 import { setInstallState } from '../store'
 import type { CliId, InstallResult } from '@shared/types'
-import { detectPlatform, codexTargetTriple } from './platform'
+import { detectPlatform, codexTargetTriple, opencodePlatformKey } from './platform'
 import { fetchJson, downloadFile, extractArchive } from './download'
 import { ensureNode } from './node-runtime'
 
@@ -132,11 +132,73 @@ async function installGemini(onProgress: Progress): Promise<InstallResult> {
   return { ok: true, cliId: 'gemini', version, binPath: nodeBin }
 }
 
+/** opencode: native binary from the platform optional-dep package (no Node). */
+async function installOpencode(onProgress: Progress): Promise<InstallResult> {
+  const p = detectPlatform()
+  onProgress('resolve', '查询版本…')
+  const main = await npmMeta('opencode-ai/latest')
+  const sub = `opencode-${opencodePlatformKey(p)}`
+  const subMeta = await npmMeta(`${sub}/${main.version}`)
+  const dir = paths.cliInstall('opencode')
+  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress)
+  const binPath = join(dir, 'bin', p.os === 'win32' ? 'opencode.exe' : 'opencode')
+  if (!existsSync(binPath)) throw new Error('opencode binary missing after extract')
+  if (p.os !== 'win32') chmodSync(binPath, 0o755)
+  onProgress('verify', '验证…')
+  let version = main.version
+  try {
+    version = (await run(binPath, ['--version'])).trim().split(/\s+/).pop() || main.version
+  } catch {
+    /* keep registry version */
+  }
+  setInstallState('opencode', { installed: true, version, binPath })
+  return { ok: true, cliId: 'opencode', version, binPath }
+}
+
+/** Pi: Node app — bundled portable Node + npm install into sandbox. */
+async function installPi(onProgress: Progress): Promise<InstallResult> {
+  onProgress('node', '准备便携 Node…')
+  const { nodeBin, npmCli } = await ensureNode((msg, f) => onProgress('node', msg, f))
+  const dir = paths.cliInstall('pi')
+  mkdirSync(dir, { recursive: true })
+  mkdirSync(paths.npmCache, { recursive: true })
+  const emptyNpmrc = join(paths.root, '.npmrc-empty')
+  writeFileSync(emptyNpmrc, '')
+
+  onProgress('npm', 'npm 安装 Pi…')
+  await run(nodeBin, [
+    npmCli,
+    'install',
+    '@earendil-works/pi-coding-agent@latest',
+    '--prefix',
+    dir,
+    '--no-audit',
+    '--no-fund',
+    '--no-update-notifier',
+    `--cache=${paths.npmCache}`,
+    `--userconfig=${emptyNpmrc}`
+  ])
+
+  const entry = join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'cli.js')
+  if (!existsSync(entry)) throw new Error('pi entry missing after npm install')
+  onProgress('verify', '验证…')
+  let version = 'installed'
+  try {
+    version = (await run(nodeBin, [entry, '--version'])).trim() || version
+  } catch {
+    /* ignore */
+  }
+  setInstallState('pi', { installed: true, version, binPath: nodeBin, nodeEntry: entry })
+  return { ok: true, cliId: 'pi', version, binPath: nodeBin }
+}
+
 export async function installCli(id: CliId, onProgress: Progress): Promise<InstallResult> {
   try {
     if (id === 'claude-code') return await installClaude(onProgress)
     if (id === 'codex') return await installCodex(onProgress)
     if (id === 'gemini') return await installGemini(onProgress)
+    if (id === 'opencode') return await installOpencode(onProgress)
+    if (id === 'pi') return await installPi(onProgress)
     throw new Error(`Unknown CLI: ${id}`)
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
