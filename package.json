@@ -23,6 +23,7 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "lucide-react": "^1.17.0",
+    "sql.js": "^1.14.1",
     "zustand": "^5.0.8"
   },
   "pnpm": {
@@ -36,6 +37,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
+    "@types/sql.js": "^1.4.11",
     "@vitejs/plugin-react": "^4.6.0",
     "electron": "^34.0.0",
     "electron-builder": "^25.1.8",

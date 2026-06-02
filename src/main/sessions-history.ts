@@ -1,9 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
+import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { paths } from './sandbox'
-import { loadConfig } from './store'
-import { buildCliEnv } from './cli-env'
 import type { CliId, SessionInfo } from '@shared/types'
 
 const MAX_LIST = 50 // only parse the most-recently-touched files
@@ -152,79 +150,81 @@ function listPi(): SessionInfo[] {
   } catch {
     return []
   }
-  return recentJsonl(refs).map((ref) => {
+  const out: SessionInfo[] = []
+  for (const ref of recentJsonl(refs)) {
+    let isSession = false
     let name: string | null = null
     let cwd: string | undefined
     let firstUser: string | null = null
     for (const rec of readLines(ref.full)) {
       const o = rec as Record<string, any>
-      if (!name && (o.name || o.title)) name = o.name || o.title
-      if (!cwd && typeof o.cwd === 'string') cwd = o.cwd
-      if (!firstUser && (o.role === 'user' || o.type === 'user')) {
-        const c = o.content ?? o.text ?? o.message
-        firstUser = typeof c === 'string' ? c : Array.isArray(c) ? (c.find((x) => x.text)?.text ?? null) : null
+      // Session header: {type:"session", id, cwd, name?}
+      if (o.type === 'session') {
+        isSession = true
+        if (typeof o.cwd === 'string') cwd = o.cwd
+        if (o.name) name = o.name
+      }
+      // First user message: {type:"message", message:{role:"user", content:[{type:"text",text}]}}
+      if (!firstUser && o.type === 'message' && o.message?.role === 'user') {
+        const c = o.message.content
+        firstUser =
+          typeof c === 'string' ? c : Array.isArray(c) ? (c.find((x) => x.type === 'text')?.text ?? null) : null
       }
     }
-    return {
-      id: ref.id,
-      cliId: 'pi' as CliId,
+    if (!isSession) continue
+    // Use the full file path as the id — pi resolves `--session <path>` directly.
+    out.push({
+      id: ref.full,
+      cliId: 'pi',
       name: (name || firstUser || 'Pi 会话').trim().slice(0, 80),
       updatedAt: ref.mtimeMs,
       cwd
-    }
-  })
-}
-
-/** opencode stores sessions in SQLite — list via its own `session list` command. */
-function listOpencode(): SessionInfo[] {
-  const bin = loadConfig().install.opencode.binPath
-  if (!bin || !existsSync(bin)) return []
-  let out = ''
-  try {
-    out = execFileSync(bin, ['session', 'list'], {
-      env: buildCliEnv('opencode') as NodeJS.ProcessEnv,
-      encoding: 'utf8',
-      timeout: 20000,
-      stdio: ['ignore', 'pipe', 'ignore']
     })
-  } catch {
-    return []
-  }
-  // Tolerant parse: try JSON first, else "id <whitespace> title" lines.
-  try {
-    const arr = JSON.parse(out)
-    if (Array.isArray(arr)) {
-      return arr
-        .map((s: any) => ({
-          id: String(s.id ?? s.sessionID ?? ''),
-          cliId: 'opencode' as CliId,
-          name: String(s.title ?? s.name ?? '未命名会话').slice(0, 80),
-          updatedAt: Number(s.time?.updated ?? s.updated ?? (Date.parse(s.updatedAt ?? '') || 0)),
-          cwd: typeof s.directory === 'string' ? s.directory : undefined
-        }))
-        .filter((s) => s.id)
-    }
-  } catch {
-    /* not JSON — fall through to line parsing */
   }
   return out
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const m = line.match(/^(\S+)\s+(.*)$/)
-      const id = m?.[1] ?? line
-      return { id, cliId: 'opencode' as CliId, name: (m?.[2] || id).slice(0, 80), updatedAt: 0 }
-    })
-    .filter((s) => /^(ses_|[0-9a-f-]{8})/.test(s.id))
 }
 
-export function listSessions(cliId: CliId): SessionInfo[] {
+/** opencode stores sessions in a SQLite DB — read the `session` table directly. */
+let sqlPromise: Promise<SqlJsStatic> | null = null
+function getSql(): Promise<SqlJsStatic> {
+  if (!sqlPromise) {
+    sqlPromise = initSqlJs({ locateFile: () => require.resolve('sql.js/dist/sql-wasm.wasm') })
+  }
+  return sqlPromise
+}
+
+async function listOpencode(): Promise<SessionInfo[]> {
+  const dbPath = join(paths.cliConfig('opencode'), 'xdg-data', 'opencode', 'opencode.db')
+  if (!existsSync(dbPath)) return []
+  const SQL = await getSql()
+  const db = new SQL.Database(readFileSync(dbPath))
+  try {
+    const res = db.exec(
+      'SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT 50'
+    )
+    if (!res.length) return []
+    return res[0].values.map((row) => {
+      const [id, title, directory, updated] = row as [string, string, string, number]
+      const ms = Number(updated) || 0
+      return {
+        id: String(id),
+        cliId: 'opencode' as CliId,
+        name: (title || '未命名会话').toString().slice(0, 80),
+        updatedAt: ms > 0 && ms < 1e12 ? ms * 1000 : ms, // tolerate seconds vs ms
+        cwd: typeof directory === 'string' ? directory : undefined
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+export async function listSessions(cliId: CliId): Promise<SessionInfo[]> {
   try {
     if (cliId === 'claude-code') return listClaude()
     if (cliId === 'codex') return listCodex()
     if (cliId === 'pi') return listPi()
-    if (cliId === 'opencode') return listOpencode()
+    if (cliId === 'opencode') return await listOpencode()
     return [] // Gemini CLI resume not wired yet
   } catch {
     return []
