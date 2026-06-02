@@ -1,3 +1,4 @@
+import { PanelLeftClose, PanelLeftOpen, RotateCcw } from 'lucide-react'
 import { useAppStore, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_COLLAPSED } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { CliIcon } from '@/components/CliIcon'
@@ -25,10 +26,10 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
         )}
         <button
           onClick={toggle}
-          className="no-drag grid size-6 place-items-center rounded-md text-[15px] text-text-weak hover:bg-surface-weak hover:text-text-strong"
+          className="no-drag grid size-6 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
           title={collapsed ? '展开侧栏' : '收起侧栏'}
         >
-          {collapsed ? '»' : '«'}
+          {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
       </div>
 
@@ -97,7 +98,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
         >
-          <span className="text-[13px]">↻</span>
+          <RotateCcw size={13} className="shrink-0" />
           {!collapsed && <span>重新运行引导</span>}
         </button>
       </div>
