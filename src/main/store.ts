@@ -5,6 +5,7 @@ import type {
   AppConfig,
   CliId,
   CliInstallState,
+  CliPrefs,
   CliProfile,
   CliProfilePatch,
   CliProfiles
@@ -16,11 +17,13 @@ const CLI_IDS: CliId[] = ['claude-code', 'codex', 'gemini', 'opencode', 'pi']
 function emptyConfig(): AppConfig {
   const install = {} as Record<CliId, CliInstallState>
   const clis = {} as Record<CliId, CliProfiles>
+  const prefs = {} as Record<CliId, CliPrefs>
   for (const id of CLI_IDS) {
     install[id] = { installed: false }
     clis[id] = { profiles: [] }
+    prefs[id] = {}
   }
-  return { schema: SCHEMA, install, clis }
+  return { schema: SCHEMA, install, clis, prefs }
 }
 
 let counter = 0
@@ -35,8 +38,10 @@ function normalize(raw: unknown): AppConfig {
   if (!raw || typeof raw !== 'object') return base
   const r = raw as Partial<AppConfig> & { clis?: Record<string, unknown> }
 
+  const rp = (raw as { prefs?: Record<string, CliPrefs> }).prefs
   for (const id of CLI_IDS) {
     if (r.install?.[id]) base.install[id] = { ...base.install[id], ...r.install[id] }
+    if (rp?.[id]) base.prefs[id] = { ...base.prefs[id], ...rp[id] }
 
     const entry = r.clis?.[id] as unknown
     if (!entry || typeof entry !== 'object') continue
@@ -122,4 +127,14 @@ export function setActiveProfile(id: CliId, profileId: string): AppConfig {
 export function getActiveProfile(id: CliId): CliProfile | undefined {
   const c = loadConfig().clis[id]
   return c.profiles.find((x) => x.id === c.activeProfileId)
+}
+
+export function setYolo(id: CliId, yolo: boolean): AppConfig {
+  const cfg = loadConfig()
+  cfg.prefs[id] = { ...cfg.prefs[id], yolo }
+  return saveConfig(cfg)
+}
+
+export function getPrefs(id: CliId): CliPrefs {
+  return loadConfig().prefs[id] ?? {}
 }

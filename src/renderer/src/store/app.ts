@@ -14,6 +14,8 @@ interface AppState {
   sidebarWidth: number
   /** Collapsed = icon-only rail. */
   sidebarCollapsed: boolean
+  /** Settings modal visibility (transient, not persisted). */
+  settingsOpen: boolean
   completeOnboarding: () => void
   skipOnboarding: () => void
   /** Dev helper — re-trigger the wizard. */
@@ -22,6 +24,7 @@ interface AppState {
   setSidebarWidth: (w: number) => void
   toggleSidebar: () => void
   setSidebarCollapsed: (c: boolean) => void
+  setSettingsOpen: (o: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -31,13 +34,15 @@ export const useAppStore = create<AppState>()(
       activeCli: 'claude-code',
       sidebarWidth: 240,
       sidebarCollapsed: false,
+      settingsOpen: false,
       completeOnboarding: () => set({ onboarded: true }),
       skipOnboarding: () => set({ onboarded: true }),
       resetOnboarding: () => set({ onboarded: false }),
       setActiveCli: (id) => set({ activeCli: id }),
       setSidebarWidth: (w) => set({ sidebarWidth: Math.round(w) }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
-      setSidebarCollapsed: (c) => set({ sidebarCollapsed: c })
+      setSidebarCollapsed: (c) => set({ sidebarCollapsed: c }),
+      setSettingsOpen: (o) => set({ settingsOpen: o })
     }),
     {
       name: 'agent-launcher:app',

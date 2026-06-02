@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen, RotateCcw } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, RotateCcw, Settings } from 'lucide-react'
 import { useAppStore, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_COLLAPSED } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { CliIcon } from '@/components/CliIcon'
@@ -14,6 +14,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
   const setWidth = useAppStore((s) => s.setSidebarWidth)
   const toggle = useAppStore((s) => s.toggleSidebar)
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed)
+  const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
 
   return (
     <aside
@@ -90,7 +91,17 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
         })}
       </nav>
 
-      <div className="border-t border-border-weak p-2">
+      <div className="flex flex-col gap-0.5 border-t border-border-weak p-2">
+        <button
+          onClick={() => setSettingsOpen(true)}
+          title={collapsed ? '设置' : undefined}
+          className={`no-drag flex w-full items-center gap-2 rounded-md py-1.5 text-[12px] text-text-base hover:bg-surface-weak hover:text-text-strong ${
+            collapsed ? 'justify-center px-0' : 'px-2'
+          }`}
+        >
+          <Settings size={14} className="shrink-0" />
+          {!collapsed && <span>设置</span>}
+        </button>
         <button
           onClick={resetOnboarding}
           title={collapsed ? '重新运行引导' : undefined}

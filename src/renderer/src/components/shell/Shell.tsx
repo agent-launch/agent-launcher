@@ -6,6 +6,7 @@ import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
+import { SettingsModal } from '@/components/settings/SettingsModal'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
 interface ActiveTerminal {
@@ -74,6 +75,7 @@ export function Shell() {
 
   return (
     <div className="flex h-full overflow-hidden">
+      <SettingsModal />
       <Sidebar cfg={cfg} />
 
       {/* Main pane */}

@@ -55,10 +55,17 @@ export interface CliProfiles {
 /** Patch shape used when creating/editing a profile. */
 export type CliProfilePatch = Partial<Omit<CliProfile, 'id'>>
 
+/** Per-CLI runtime preferences (not tied to a provider profile). */
+export interface CliPrefs {
+  /** Auto-approve everything / skip permission prompts (where supported). */
+  yolo?: boolean
+}
+
 export interface AppConfig {
   schema: number
   install: Record<CliId, CliInstallState>
   clis: Record<CliId, CliProfiles>
+  prefs: Record<CliId, CliPrefs>
 }
 
 /** A real, resumable conversation persisted by the CLI itself. */

@@ -39,6 +39,8 @@ const api = {
       ipcRenderer.invoke('config:deleteProfile', id, pid),
     setActiveProfile: (id: CliId, pid: string): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
+    setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:setYolo', id, on),
     resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
     openFile: (): Promise<string> => ipcRenderer.invoke('config:openFile'),
     reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal'),

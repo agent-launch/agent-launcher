@@ -60,3 +60,12 @@ export const CLIS: CliMeta[] = [
 ]
 
 // Provider/relay catalog now lives in ./providers.ts (ported from cc-switch).
+
+/** Whether each CLI supports a "YOLO" (auto-approve all) toggle, and the flag. */
+export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> = {
+  'claude-code': { supported: true, note: '--dangerously-skip-permissions' },
+  codex: { supported: true, note: '--dangerously-bypass-approvals-and-sandbox' },
+  gemini: { supported: true, note: '--yolo' },
+  opencode: { supported: true, note: '--dangerously-skip-permissions' },
+  pi: { supported: false, note: '该 CLI 无自动批准开关（仅工具白/黑名单）' }
+}

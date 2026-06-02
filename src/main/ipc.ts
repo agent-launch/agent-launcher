@@ -4,7 +4,8 @@ import {
   addProfile,
   updateProfile,
   deleteProfile,
-  setActiveProfile
+  setActiveProfile,
+  setYolo
 } from './store'
 import { paths } from './sandbox'
 import { resolvedEnvPreview } from './cli-env'
@@ -43,6 +44,7 @@ export function registerIpc(): void {
   ipcMain.handle('config:setActiveProfile', (_e, id: CliId, pid: string) =>
     synced(id, setActiveProfile(id, pid))
   )
+  ipcMain.handle('config:setYolo', (_e, id: CliId, on: boolean) => setYolo(id, on))
   ipcMain.handle('config:resolvedEnv', (_e, id: CliId) => resolvedEnvPreview(id))
   ipcMain.handle('config:openFile', () => shell.openPath(paths.config))
   ipcMain.handle('config:reveal', () => shell.showItemInFolder(paths.config))
