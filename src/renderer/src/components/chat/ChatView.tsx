@@ -23,6 +23,7 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
   const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(!!resumeId)
   const [error, setError] = useState<string | null>(null)
 
   const handleRef = useRef<string | null>(null)
@@ -33,6 +34,18 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
   // Start the chat process once; subscribe before starting so no early event is missed.
   useEffect(() => {
     let live = true
+
+    // Resuming a session: seed the prior conversation so history doesn't vanish.
+    // Live turns only emit NEW content, so there's no duplication.
+    if (resumeId) {
+      window.api.sessions
+        .transcript(cliId, resumeId)
+        .then((tr) => {
+          if (live) setMessages(tr.messages)
+        })
+        .finally(() => live && setLoadingHistory(false))
+    }
+
     const off = window.api.chat.onEvent((id, ev: ChatEvent) => {
       if (id !== handleRef.current) return
       if (ev.type === 'session') sessionRef.current = ev.sessionId
@@ -112,20 +125,24 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
         <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
           <CliIcon cliId={cliId} size={14} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] text-text-strong">{t('chat.newChat')}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] text-text-strong">
+          {resumeId ? t('chat.continued') : t('chat.newChat')}
+        </span>
         <button
           onClick={() => onOpenTerminal(sessionRef.current)}
-          className="no-drag flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] text-text-weak hover:bg-surface-weak hover:text-text-strong"
+          className="no-drag grid size-7 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
           title={t('chat.openInTerminal')}
         >
-          <SquareTerminal size={14} />
-          {t('chat.openInTerminal')}
+          <SquareTerminal size={15} />
         </button>
       </div>
 
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div className="w-full space-y-5 px-8 py-6 lg:px-16">
-          {messages.length === 0 && !error && (
+          {loadingHistory && (
+            <div className="py-6 text-center text-[13px] text-text-weak">{t('transcript.loading')}</div>
+          )}
+          {!loadingHistory && messages.length === 0 && !error && (
             <div className="py-10 text-center text-[13px] text-text-weak">{t('chat.empty')}</div>
           )}
           <MessageList messages={messages} />

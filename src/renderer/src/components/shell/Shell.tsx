@@ -87,16 +87,19 @@ export function Shell() {
     setTerminal({ key: newKey(), mode: 'cli', cwd: dir ?? cwd ?? undefined, resumeId })
   }
 
-  // "Continue" from a saved session: in-UI chat where supported, else terminal.
-  const continueSession = (s: SessionInfo) => {
-    setTranscriptFor(null)
-    if (CHAT_CLIS.has(s.cliId)) setChatFor({ key: newKey(), cwd: s.cwd, resumeId: s.id })
-    else setTerminal({ key: newKey(), mode: 'cli', cwd: s.cwd, resumeId: s.id })
+  // Click a saved session. One clear path per mode:
+  //  - UI mode + chat-capable CLI → open it in the chat view (history + continue).
+  //  - UI mode + non-chat CLI (e.g. Gemini) → read-only transcript.
+  //  - terminal mode → resume straight in the terminal.
+  const resume = (s: SessionInfo) => {
+    if (renderTranscript && CHAT_CLIS.has(s.cliId)) {
+      setChatFor({ key: newKey(), cwd: s.cwd, resumeId: s.id })
+    } else if (renderTranscript) {
+      setTranscriptFor(s)
+    } else {
+      openTerminal(s.id, s.cwd)
+    }
   }
-
-  // Click a saved session: render its transcript first (if enabled), else continue.
-  const resume = (s: SessionInfo) =>
-    renderTranscript ? setTranscriptFor(s) : continueSession(s)
 
   // CLI exited — drop the dead terminal, return to the list (which refetches).
   const onTerminalExit = () => setTerminal(null)
@@ -178,7 +181,7 @@ export function Shell() {
                   cliId={active.id as CliId}
                   sessionId={transcriptFor.id}
                   name={transcriptFor.name}
-                  onResume={() => continueSession(transcriptFor)}
+                  onResume={() => openTerminal(transcriptFor.id, transcriptFor.cwd)}
                   onBack={() => setTranscriptFor(null)}
                 />
               </div>
@@ -200,12 +203,13 @@ export function Shell() {
                     <Button variant="secondary" onClick={() => start('shell')}>
                       {t('shell.openTerminal')}
                     </Button>
-                    <Button variant="secondary" onClick={() => start('cli')} disabled={!installed}>
-                      {installed ? t('shell.launch', { name: active.name }) : t('shell.installFirst')}
-                    </Button>
-                    {chatSupported && (
+                    {renderTranscript && chatSupported ? (
                       <Button onClick={startChat} disabled={!installed}>
-                        {t('chat.start')}
+                        {installed ? t('chat.start') : t('shell.installFirst')}
+                      </Button>
+                    ) : (
+                      <Button onClick={() => start('cli')} disabled={!installed}>
+                        {installed ? t('shell.launch', { name: active.name }) : t('shell.installFirst')}
                       </Button>
                     )}
                   </div>

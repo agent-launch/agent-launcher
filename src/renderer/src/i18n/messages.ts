@@ -61,8 +61,9 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
       '开启后，对应 CLI 会自动批准所有操作（执行命令、改文件等），不再逐次确认。省事但有风险，只在你信任当前项目时开启。每个 CLI 独立设置。',
     'settings.yolo.unsupported': '该 CLI 无自动批准开关（仅工具白/黑名单）',
     'settings.yolo.notSupported': '不支持',
-    'settings.renderTranscript': '在 UI 中渲染聊天记录',
-    'settings.renderTranscriptDesc': '点击历史会话时，先在界面里展示对话内容；关闭则直接在终端恢复会话。',
+    'settings.renderTranscript': '在 UI 中聊天（而非终端）',
+    'settings.renderTranscriptDesc':
+      '开启后，点击历史会话会在界面里打开对话（带完整历史，可继续聊天）；关闭则点击会话直接在终端中恢复。',
 
     // ---- transcript view ----
     'transcript.back': '返回',
@@ -79,6 +80,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'chat.start': '在 UI 中聊天',
     'chat.onlyClaude': 'Gemini CLI 暂不支持 UI 聊天，请使用终端',
     'chat.newChat': '新对话',
+    'chat.continued': '继续对话',
     'chat.placeholder': '输入消息，Enter 发送，Shift+Enter 换行',
     'chat.send': '发送',
     'chat.openInTerminal': '在终端打开',
@@ -220,9 +222,9 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
       'When on, the CLI auto-approves every action (running commands, editing files, etc.) without asking each time. Convenient but risky — only enable it for projects you trust. Set per CLI.',
     'settings.yolo.unsupported': 'This CLI has no auto-approve switch (allow/deny lists only)',
     'settings.yolo.notSupported': 'Unsupported',
-    'settings.renderTranscript': 'Render chat history in UI',
+    'settings.renderTranscript': 'Chat in the UI (not the terminal)',
     'settings.renderTranscriptDesc':
-      'When you click a past session, show the conversation in the app first; off resumes straight in the terminal.',
+      'When on, clicking a past session opens it in the app (with full history, ready to continue); when off, clicking resumes it straight in the terminal.',
 
     // ---- transcript view ----
     'transcript.back': 'Back',
@@ -239,6 +241,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'chat.start': 'Chat here',
     'chat.onlyClaude': "Gemini CLI doesn't support in-UI chat yet; use the terminal",
     'chat.newChat': 'New chat',
+    'chat.continued': 'Continued chat',
     'chat.placeholder': 'Type a message — Enter to send, Shift+Enter for newline',
     'chat.send': 'Send',
     'chat.openInTerminal': 'Open in terminal',
