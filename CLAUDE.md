@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-AgentLauncher is an Electron desktop app that **installs, configures, and runs** five coding-agent CLIs — Claude Code, Codex, Gemini CLI, opencode, and Pi — for users who don't use the command line. It bundles each CLI into an isolated sandbox, materializes its provider/relay config from the UI, and spawns it in an embedded terminal. The product brief (package.json `description`) and all UI copy are in Chinese.
+AgentLauncher is an Electron desktop app that **installs, configures, and runs** four coding-agent CLIs — Claude Code, Codex, opencode, and Pi — for users who don't use the command line. It bundles each CLI into an isolated sandbox, materializes its provider/relay config from the UI, and spawns it in an embedded terminal. The product brief (package.json `description`) and all UI copy are in Chinese.
 
 ## Commands
 
@@ -33,7 +33,7 @@ All renderer↔main communication goes through `src/preload/index.ts`, which exp
 
 A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI config two ways:
 
-1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects per-CLI vars (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_CLI_HOME`, opencode's `XDG_*`, `PI_CODING_AGENT_DIR`, plus `ANTHROPIC_BASE_URL`/`OPENAI_BASE_URL`/etc. and the auth token). This points each CLI's config dir into the sandbox and sets its relay endpoint.
+1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects per-CLI vars (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, opencode's `XDG_*`, `PI_CODING_AGENT_DIR`, plus `ANTHROPIC_BASE_URL`/`OPENAI_BASE_URL`/etc. and the auth token). This points each CLI's config dir into the sandbox and sets its relay endpoint.
 2. **Native config files** — `src/main/native-config.ts` writes the files some CLIs read instead of (or in addition to) env: Codex `config.toml`+`auth.json`, opencode `opencode.json` (custom `@ai-sdk/openai-compatible` provider), Pi `models.json`. `hasNativeConfig(id)` gates this. **Any profile change in `ipc.ts` re-runs `writeNativeConfig` via the `synced()` wrapper** — keep that invariant when adding config mutations.
 
 `resolvedEnvPreview` / `readNativeFiles` produce **masked** copies for the UI; secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
@@ -42,7 +42,7 @@ A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI confi
 
 Two strategies, per `CliMeta.install`:
 - **native-binary** (Claude, Codex, opencode): download the platform-specific npm tarball from the registry, extract with system `tar`, run the binary directly. Codex binaries live under `vendor/<rust-triple>/bin/`.
-- **node-npm** (Gemini, Pi): these are real Node apps, so `node-runtime.ts` first fetches a **portable Node LTS** (SHA256-verified against `SHASUMS256.txt`), then `npm install`s the package into the sandbox with an empty `--userconfig` so the user's npmrc is never read. Spawned later via `binPath`(=node) + `nodeEntry`(=the JS entry).
+- **node-npm** (Pi): a real Node app, so `node-runtime.ts` first fetches a **portable Node LTS** (SHA256-verified against `SHASUMS256.txt`), then `npm install`s the package into the sandbox with an empty `--userconfig` so the user's npmrc is never read. Spawned later via `binPath`(=node) + `nodeEntry`(=the JS entry).
 
 `platform.ts` holds all the OS/arch → package-key/triple mapping quirks (win32→"windows"/"win", musl on linux, etc.). `detect.ts` reports environment facts to the wizard and cross-checks recorded `binPath`s still exist on disk.
 

@@ -46,9 +46,9 @@ export async function detectEnvironment(): Promise<DetectResult> {
     },
     {
       key: 'node',
-      label: '便携 Node 运行时（仅 Gemini 需要）',
+      label: '便携 Node 运行时（仅 Pi 需要）',
       present: isNodeInstalled(),
-      detail: isNodeInstalled() ? '沙盒内已就绪' : '将在安装 Gemini 时自动获取'
+      detail: isNodeInstalled() ? '沙盒内已就绪' : '将在安装 Pi 时自动获取'
     },
     {
       key: 'claude-code',
@@ -63,12 +63,6 @@ export async function detectEnvironment(): Promise<DetectResult> {
       label: 'Codex CLI',
       present: cfg.install.codex.installed,
       detail: cfg.install.codex.version ? `已装 ${cfg.install.codex.version}` : '未安装'
-    },
-    {
-      key: 'gemini',
-      label: 'Gemini CLI',
-      present: cfg.install.gemini.installed,
-      detail: cfg.install.gemini.version ? `已装 ${cfg.install.gemini.version}` : '未安装'
     },
     {
       key: 'opencode',

@@ -55,7 +55,7 @@ export function registerIpc(): void {
   )
   ipcMain.handle('config:revealNative', (_e, id: CliId) => {
     // Ensure the per-CLI sandbox dir exists so the button works even before
-    // the CLI has been launched (e.g. claude/gemini with no native files yet).
+    // the CLI has been launched (e.g. claude with no native files yet).
     const dir = paths.cliConfig(id)
     mkdirSync(dir, { recursive: true })
     return shell.openPath(dir)

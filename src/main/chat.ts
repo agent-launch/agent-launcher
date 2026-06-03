@@ -15,7 +15,7 @@ import type { ChatEvent, ChatStartOptions, CliId, TranscriptPart, TranscriptRole
  *    on stdin (`--input/--output-format stream-json`).
  *  - Codex / opencode / Pi: a fresh process per turn (exec/run with a resume id);
  *    the turn ends when that process exits.
- * Tool calls are auto-approved (per-CLI bypass flag). Gemini is not wired.
+ * Tool calls are auto-approved (per-CLI bypass flag).
  */
 interface ChatState {
   cliId: CliId
@@ -224,7 +224,6 @@ function spawnTurn(s: ChatState, id: string, text: string): void {
 // ---------- public API ----------
 
 export function startChat(wc: WebContents, opts: ChatStartOptions): string {
-  if (opts.cliId === 'gemini') throw new Error('Gemini CLI 暂不支持 UI 聊天，请使用终端')
   const cfg = loadConfig()
   const install = cfg.install[opts.cliId]
   if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} 尚未安装`)

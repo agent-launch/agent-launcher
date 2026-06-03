@@ -22,11 +22,6 @@ function cliVars(cliId: CliId): EnvPair[] {
     out.push({ key: 'CODEX_HOME', value: configDir })
     if (p?.baseUrl) out.push({ key: 'OPENAI_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'OPENAI_API_KEY', value: p.apiKey, secret: true })
-  } else if (cliId === 'gemini') {
-    out.push({ key: 'GEMINI_CLI_HOME', value: configDir })
-    if (p?.baseUrl) out.push({ key: 'GOOGLE_GEMINI_BASE_URL', value: p.baseUrl })
-    if (p?.apiKey) out.push({ key: 'GEMINI_API_KEY', value: p.apiKey, secret: true })
-    if (p?.model) out.push({ key: 'GEMINI_MODEL', value: p.model })
   } else if (cliId === 'opencode') {
     // opencode honors XDG dirs; isolate config/data/cache/state into the sandbox.
     // Relay/key live in opencode.json (see native-config), pointed to here.
@@ -53,8 +48,8 @@ export function resolvedEnvPreview(cliId: CliId): EnvPair[] {
 
 /**
  * Full process env for spawning the CLI: the injected vars over a copy of the
- * current env, plus our sandbox node/bin prepended to PATH (Gemini's JS entry
- * needs `node`). The user never exports any of this.
+ * current env, plus our sandbox node/bin prepended to PATH (node-npm CLIs like
+ * Pi exec their JS entry via `node`). The user never exports any of this.
  */
 export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env }

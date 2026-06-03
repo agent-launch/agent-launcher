@@ -245,7 +245,7 @@ export async function listSessions(cliId: CliId): Promise<SessionInfo[]> {
     if (cliId === 'codex') return listCodex()
     if (cliId === 'pi') return listPi()
     if (cliId === 'opencode') return await listOpencode()
-    return [] // Gemini CLI resume not wired yet
+    return []
   } catch {
     return []
   }

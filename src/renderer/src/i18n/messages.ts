@@ -35,7 +35,6 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.openTerminal': '打开终端',
     'shell.launch': '启动 {name}',
     'shell.installFirst': '请先在引导中安装',
-    'shell.noResume': '该 CLI 暂不支持恢复历史会话',
     'shell.noHistory': '还没有 {name} 历史会话，点右上角启动一个新会话开始吧',
     'shell.loadingSessions': '读取中…',
     'shell.resume': '恢复 →',
@@ -78,7 +77,6 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- in-UI chat ----
     'chat.start': '在 UI 中聊天',
-    'chat.onlyClaude': 'Gemini CLI 暂不支持 UI 聊天，请使用终端',
     'chat.newChat': '新对话',
     'chat.continued': '继续对话',
     'chat.placeholder': '输入消息，Enter 发送，Shift+Enter 换行',
@@ -102,7 +100,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: welcome ----
     'onboarding.welcomeTitle': '欢迎使用 AgentLauncher',
     'onboarding.welcomeDesc':
-      '不用装 Node、不用配环境变量、不用碰命令行。接下来几分钟，我们帮你装好并配好 Claude Code / Codex / Gemini CLI，直接开跑。',
+      '不用装 Node、不用配环境变量、不用碰命令行。接下来几分钟，我们帮你装好并配好 Claude Code、Codex、opencode、Pi，直接开跑。',
 
     // ---- onboarding: detect ----
     'onboarding.detectTitle': '检测你的环境',
@@ -196,7 +194,6 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.openTerminal': 'Open terminal',
     'shell.launch': 'Launch {name}',
     'shell.installFirst': 'Install it in setup first',
-    'shell.noResume': "This CLI can't resume past sessions yet",
     'shell.noHistory': 'No {name} sessions yet — start one from the top-right.',
     'shell.loadingSessions': 'Loading…',
     'shell.resume': 'Resume →',
@@ -239,7 +236,6 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- in-UI chat ----
     'chat.start': 'Chat here',
-    'chat.onlyClaude': "Gemini CLI doesn't support in-UI chat yet; use the terminal",
     'chat.newChat': 'New chat',
     'chat.continued': 'Continued chat',
     'chat.placeholder': 'Type a message — Enter to send, Shift+Enter for newline',
@@ -263,7 +259,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: welcome ----
     'onboarding.welcomeTitle': 'Welcome to AgentLauncher',
     'onboarding.welcomeDesc':
-      "No installing Node, no environment variables, no command line. In the next few minutes we'll install and configure Claude Code / Codex / Gemini CLI for you, ready to go.",
+      "No installing Node, no environment variables, no command line. In the next few minutes we'll install and configure Claude Code, Codex, opencode and Pi for you, ready to go.",
 
     // ---- onboarding: detect ----
     'onboarding.detectTitle': 'Detect your environment',

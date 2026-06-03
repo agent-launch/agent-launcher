@@ -12,7 +12,7 @@ import { ChatView } from '@/components/chat/ChatView'
 import { useT } from '@/i18n'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
-/** In-UI chat is implemented for these CLIs (Gemini falls back to the terminal). */
+/** In-UI chat is implemented for every supported CLI. */
 const CHAT_CLIS = new Set<CliId>(['claude-code', 'codex', 'opencode', 'pi'])
 
 interface ActiveTerminal {
@@ -89,7 +89,7 @@ export function Shell() {
 
   // Click a saved session. One clear path per mode:
   //  - UI mode + chat-capable CLI → open it in the chat view (history + continue).
-  //  - UI mode + non-chat CLI (e.g. Gemini) → read-only transcript.
+  //  - UI mode + non-chat CLI → read-only transcript (defensive; all current CLIs chat).
   //  - terminal mode → resume straight in the terminal.
   const resume = (s: SessionInfo) => {
     if (renderTranscript && CHAT_CLIS.has(s.cliId)) {
@@ -219,9 +219,7 @@ export function Shell() {
                   <div className="px-1 text-[12px] text-text-weak">{t('shell.loadingSessions')}</div>
                 ) : sessions.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[12px] text-text-weak">
-                    {active.id === 'gemini'
-                      ? t('shell.noResume')
-                      : t('shell.noHistory', { name: active.name })}
+                    {t('shell.noHistory', { name: active.name })}
                   </div>
                 ) : (
                   <div className="space-y-1.5">

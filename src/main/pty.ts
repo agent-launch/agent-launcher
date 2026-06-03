@@ -35,8 +35,6 @@ function yoloArgs(cliId: CliId): string[] | null {
       return ['--dangerously-skip-permissions']
     case 'codex':
       return ['--dangerously-bypass-approvals-and-sandbox']
-    case 'gemini':
-      return ['--yolo']
     case 'opencode':
       return ['--dangerously-skip-permissions']
     default:
@@ -61,7 +59,7 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
   }
   const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
   const yolo = getPrefs(opts.cliId).yolo ? (yoloArgs(opts.cliId) ?? []) : []
-  // Node-based CLIs (Gemini, Pi) run through the bundled node via their JS entry.
+  // Node-based CLIs (Pi) run through the bundled node via their JS entry.
   if (install.nodeEntry) {
     const extra: string[] = [...(resume ?? []), ...yolo]
     if (opts.cliId === 'pi') {

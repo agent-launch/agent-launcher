@@ -12,7 +12,7 @@ import type {
 } from '@shared/types'
 
 const SCHEMA = 2
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'gemini', 'opencode', 'pi']
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi']
 
 function emptyConfig(): AppConfig {
   const install = {} as Record<CliId, CliInstallState>

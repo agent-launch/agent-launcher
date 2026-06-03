@@ -8,7 +8,7 @@ import type { CliId } from '@shared/types'
  *
  *   ~/.agent-launcher/
  *     config.json            app config (provider/key/model, install state)
- *     node/                  bundled portable Node (only fetched if Gemini)
+ *     node/                  bundled portable Node (only fetched for node-npm CLIs, e.g. Pi)
  *     npm-cache/             isolated npm cache
  *     cli/<id>/              each CLI's install
  *     cli-config/<id>/       each CLI's redirected config dir (CLAUDE_CONFIG_DIR etc.)

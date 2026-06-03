@@ -93,45 +93,6 @@ async function installCodex(onProgress: Progress): Promise<InstallResult> {
   return { ok: true, cliId: 'codex', version, binPath }
 }
 
-/** Gemini: real Node app — bundled portable Node + npm install into sandbox. */
-async function installGemini(onProgress: Progress): Promise<InstallResult> {
-  onProgress('node', '准备便携 Node…')
-  const { nodeBin } = await ensureNode((msg, f) => onProgress('node', msg, f))
-  const dir = paths.cliInstall('gemini')
-  mkdirSync(dir, { recursive: true })
-  mkdirSync(paths.npmCache, { recursive: true })
-  // Empty userconfig so we never read the user's ~/.npmrc (proxies/registries).
-  const emptyNpmrc = join(paths.root, '.npmrc-empty')
-  writeFileSync(emptyNpmrc, '')
-
-  onProgress('npm', 'npm 安装 Gemini CLI…')
-  const { npmCli } = await ensureNode()
-  await run(nodeBin, [
-    npmCli,
-    'install',
-    '@google/gemini-cli@latest',
-    '--prefix',
-    dir,
-    '--no-audit',
-    '--no-fund',
-    '--no-update-notifier',
-    `--cache=${paths.npmCache}`,
-    `--userconfig=${emptyNpmrc}`
-  ])
-
-  const entry = join(dir, 'node_modules', '@google', 'gemini-cli', 'bundle', 'gemini.js')
-  if (!existsSync(entry)) throw new Error('gemini entry missing after npm install')
-  onProgress('verify', '验证…')
-  let version = 'installed'
-  try {
-    version = (await run(nodeBin, [entry, '--version'])).trim() || version
-  } catch {
-    /* ignore */
-  }
-  setInstallState('gemini', { installed: true, version, binPath: nodeBin, nodeEntry: entry })
-  return { ok: true, cliId: 'gemini', version, binPath: nodeBin }
-}
-
 /** opencode: native binary from the platform optional-dep package (no Node). */
 async function installOpencode(onProgress: Progress): Promise<InstallResult> {
   const p = detectPlatform()
@@ -198,7 +159,6 @@ export async function installCli(id: CliId, onProgress: Progress): Promise<Insta
   try {
     if (id === 'claude-code') return await installClaude(onProgress)
     if (id === 'codex') return await installCodex(onProgress)
-    if (id === 'gemini') return await installGemini(onProgress)
     if (id === 'opencode') return await installOpencode(onProgress)
     if (id === 'pi') return await installPi(onProgress)
     throw new Error(`Unknown CLI: ${id}`)

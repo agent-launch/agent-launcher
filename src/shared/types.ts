@@ -1,6 +1,6 @@
 // Shared IPC contract types — imported by both main and renderer.
 
-export type CliId = 'claude-code' | 'codex' | 'gemini' | 'opencode' | 'pi'
+export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi'
 
 export type InstallStrategy = 'native-binary' | 'node-npm'
 
@@ -29,7 +29,7 @@ export interface CliInstallState {
   installed: boolean
   version?: string
   binPath?: string
-  /** For gemini: the bundled-node entry we exec. */
+  /** For node-npm CLIs (Pi): the bundled-node entry we exec. */
   nodeEntry?: string
 }
 

@@ -31,15 +31,6 @@ export const CLIS: CliMeta[] = [
     install: 'native-binary'
   },
   {
-    id: 'gemini',
-    name: 'Gemini CLI',
-    vendor: 'Google',
-    glyph: 'G',
-    accent: '#4285f4',
-    envPrefix: 'GEMINI_* / GOOGLE_*',
-    install: 'node-npm'
-  },
-  {
     id: 'opencode',
     name: 'opencode',
     vendor: 'SST',
@@ -65,7 +56,6 @@ export const CLIS: CliMeta[] = [
 export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> = {
   'claude-code': { supported: true, note: '--dangerously-skip-permissions' },
   codex: { supported: true, note: '--dangerously-bypass-approvals-and-sandbox' },
-  gemini: { supported: true, note: '--yolo' },
   opencode: { supported: true, note: '--dangerously-skip-permissions' },
   pi: { supported: false, note: '该 CLI 无自动批准开关（仅工具白/黑名单）' }
 }

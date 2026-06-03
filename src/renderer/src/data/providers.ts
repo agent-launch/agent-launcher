@@ -115,29 +115,9 @@ const CODEX: Provider[] = [
   CUSTOM
 ]
 
-// Gemini uses GOOGLE_GEMINI_BASE_URL.
-const GEMINI: Provider[] = [
-  { id: 'official', name: 'Google 官方', category: 'official', baseUrl: '', websiteUrl: 'https://ai.google.dev/gemini-api', note: '官方 API Key 或 OAuth' },
-  { id: 'shengsuanyun', name: 'Shengsuanyun 胜算云', category: 'aggregator', baseUrl: 'https://router.shengsuanyun.com/api', websiteUrl: 'https://shengsuanyun.com' },
-  { id: 'packycode', name: 'PackyCode', category: 'third_party', baseUrl: 'https://www.packyapi.com', websiteUrl: 'https://packyapi.com' },
-  { id: 'apikeyfun', name: 'APIKEY.FUN', category: 'third_party', baseUrl: 'https://api.apikey.fun', websiteUrl: 'https://apikey.fun' },
-  { id: 'apinebula', name: 'APINebula', category: 'third_party', baseUrl: 'https://apinebula.com', websiteUrl: 'https://apinebula.com' },
-  { id: 'sudocode', name: 'SudoCode', category: 'third_party', baseUrl: 'https://sudocode.us', websiteUrl: 'https://sudocode.us' },
-  { id: 'cubence', name: 'Cubence', category: 'third_party', baseUrl: 'https://api.cubence.com', websiteUrl: 'https://cubence.com' },
-  { id: 'aigocode', name: 'AIGoCode', category: 'third_party', baseUrl: 'https://api.aigocode.com', websiteUrl: 'https://aigocode.com' },
-  { id: 'aicodemirror', name: 'AICodeMirror', category: 'third_party', baseUrl: 'https://api.aicodemirror.com/api/gemini', websiteUrl: 'https://aicodemirror.com' },
-  { id: 'crazyrouter', name: 'CrazyRouter', category: 'third_party', baseUrl: 'https://cn.crazyrouter.com', websiteUrl: 'https://crazyrouter.com' },
-  { id: 'ctok', name: 'CTok.ai', category: 'third_party', baseUrl: 'https://api.ctok.ai/v1beta', websiteUrl: 'https://ctok.ai' },
-  { id: 'lemondata', name: 'LemonData', category: 'third_party', baseUrl: 'https://api.lemondata.cc', websiteUrl: 'https://lemondata.cc' },
-  { id: 'openrouter', name: 'OpenRouter', category: 'aggregator', baseUrl: 'https://openrouter.ai/api', websiteUrl: 'https://openrouter.ai' },
-  { id: 'therouter', name: 'TheRouter', category: 'aggregator', baseUrl: 'https://api.therouter.ai', websiteUrl: 'https://therouter.ai' },
-  CUSTOM
-]
-
 export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   'claude-code': CLAUDE,
   codex: CODEX,
-  gemini: GEMINI,
   // opencode & pi consume OpenAI-compatible relays (the /v1 endpoints), so the
   // Codex relay list applies to them too.
   opencode: CODEX,
