@@ -129,24 +129,9 @@ export function Shell() {
                 />
               </div>
             ) : (
-              <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center gap-6 overflow-y-auto px-8 py-10">
-                <div className="text-center">
-                  <div className="font-mono text-[13px] text-text-weak">
-                    <span style={{ color: 'var(--accent)' }}>$</span> 准备运行 {active.name}
-                  </div>
-                  <p className="mt-1 text-[12px] text-text-weak">env 已由 app 注入，无需 export。</p>
-                  <div className="mt-4 flex justify-center gap-2">
-                    <Button onClick={() => start('cli')} disabled={!installed}>
-                      {installed ? `启动 ${active.name}（新会话）` : '请先在引导中安装'}
-                    </Button>
-                    <Button variant="secondary" onClick={() => start('shell')}>
-                      打开终端
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="w-full">
-                  <div className="mb-2 flex items-center justify-between px-1">
+              <div className="flex h-full w-full flex-col gap-4 overflow-y-auto px-6 py-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-baseline gap-3">
                     <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">
                       历史会话
                     </span>
@@ -157,40 +142,48 @@ export function Shell() {
                       刷新
                     </button>
                   </div>
-
-                  {loadingSessions ? (
-                    <div className="px-1 text-[12px] text-text-weak">读取中…</div>
-                  ) : sessions.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[12px] text-text-weak">
-                      {active.id === 'gemini'
-                        ? '该 CLI 暂不支持恢复历史会话'
-                        : `还没有 ${active.name} 历史会话，启动一个新会话开始吧`}
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {sessions.map((s) => (
-                        <button
-                          key={s.id}
-                          onClick={() => resume(s)}
-                          className="flex w-full items-center gap-3 rounded-lg border border-border-weak bg-surface px-3 py-2 text-left hover:border-border-selected"
-                          title="恢复这个会话"
-                        >
-                          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
-                            <CliIcon cliId={active.id as CliId} size={15} />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13px] text-text-strong">{s.name}</div>
-                            <div className="truncate text-[11px] text-text-weak">
-                              {fmtTime(s.updatedAt)}
-                              {s.cwd ? ` · ${s.cwd}` : ''}
-                            </div>
-                          </div>
-                          <span className="shrink-0 text-[11px] text-text-weak">恢复 →</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" onClick={() => start('shell')}>
+                      打开终端
+                    </Button>
+                    <Button onClick={() => start('cli')} disabled={!installed}>
+                      {installed ? `启动 ${active.name}` : '请先在引导中安装'}
+                    </Button>
+                  </div>
                 </div>
+
+                {loadingSessions ? (
+                  <div className="px-1 text-[12px] text-text-weak">读取中…</div>
+                ) : sessions.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[12px] text-text-weak">
+                    {active.id === 'gemini'
+                      ? '该 CLI 暂不支持恢复历史会话'
+                      : `还没有 ${active.name} 历史会话，点右上角启动一个新会话开始吧`}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {sessions.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => resume(s)}
+                        className="flex w-full items-center gap-3 rounded-lg border border-border-weak bg-surface px-3 py-2 text-left hover:border-border-selected"
+                        title="恢复这个会话"
+                      >
+                        <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                          <CliIcon cliId={active.id as CliId} size={15} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] text-text-strong">{s.name}</div>
+                          <div className="truncate text-[11px] text-text-weak">
+                            {fmtTime(s.updatedAt)}
+                            {s.cwd ? ` · ${s.cwd}` : ''}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-[11px] text-text-weak">恢复 →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
