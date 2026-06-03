@@ -46,15 +46,15 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-[18px] font-semibold text-text-strong">{t('config.title')}</h2>
         <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={() => window.api.config.reveal()}>
-            {t('config.revealFolder')}
+          <Button size="sm" variant="ghost" onClick={() => window.api.config.revealNative(cliId)}>
+            {t('config.openAgentDir')}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => window.api.config.openFile()}>
             {t('config.openConfig')}
           </Button>
         </div>
       </div>
-      <p className="mb-5 text-[13px] text-text-weak">{t('config.intro')}</p>
+      <p className="mb-5 text-[13px] text-text-weak">{t('config.intro', { cliId })}</p>
 
       {/* Profiles */}
       <div className="space-y-2">

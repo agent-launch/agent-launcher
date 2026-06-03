@@ -124,10 +124,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- config view ----
     'config.title': '配置管理',
-    'config.revealFolder': '在文件夹中显示',
-    'config.openConfig': '打开 config.json',
+    'config.openAgentDir': '打开本 agent 目录',
+    'config.openConfig': '应用配置 config.json',
     'config.intro':
-      '每个 CLI 可存多套配置，一键切换当前生效的那套。配置以明文 JSON 存在 ~/.agent-launcher/config.json。',
+      '每个 CLI 可存多套配置，一键切换当前生效的那套。配置统一存在全局 ~/.agent-launcher/config.json（所有 agent 共用，明文 JSON）；该 agent 实际读取的文件在 ~/.agent-launcher/cli-config/{cliId}/。',
     'config.noProfiles': '还没有配置，点下方「新增配置」。',
     'config.setActive': '设为当前生效',
     'config.active': '生效中',
@@ -274,10 +274,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- config view ----
     'config.title': 'Configuration',
-    'config.revealFolder': 'Show in folder',
-    'config.openConfig': 'Open config.json',
+    'config.openAgentDir': "Open this agent's folder",
+    'config.openConfig': 'App config (config.json)',
     'config.intro':
-      'Each CLI can hold multiple configs; switch the active one with a click. Configs are stored as plaintext JSON in ~/.agent-launcher/config.json.',
+      'Each CLI can hold multiple configs; switch the active one with a click. All configs are stored together in the global ~/.agent-launcher/config.json (shared by every agent, plaintext JSON); the files this agent actually reads live in ~/.agent-launcher/cli-config/{cliId}/.',
     'config.noProfiles': 'No configs yet — click "Add config" below.',
     'config.setActive': 'Set as active',
     'config.active': 'Active',

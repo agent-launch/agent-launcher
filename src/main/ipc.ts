@@ -1,4 +1,5 @@
 import { ipcMain, dialog, shell, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { mkdirSync } from 'node:fs'
 import {
   loadConfig,
   addProfile,
@@ -51,9 +52,13 @@ export function registerIpc(): void {
   ipcMain.handle('config:nativeFiles', (_e, id: CliId) =>
     hasNativeConfig(id) ? readNativeFiles(id) : null
   )
-  ipcMain.handle('config:revealNative', (_e, id: CliId) =>
-    shell.openPath(paths.cliConfig(id))
-  )
+  ipcMain.handle('config:revealNative', (_e, id: CliId) => {
+    // Ensure the per-CLI sandbox dir exists so the button works even before
+    // the CLI has been launched (e.g. claude/gemini with no native files yet).
+    const dir = paths.cliConfig(id)
+    mkdirSync(dir, { recursive: true })
+    return shell.openPath(dir)
+  })
 
   ipcMain.handle('install:cli', async (e: IpcMainInvokeEvent, id: CliId) => {
     const send = (p: InstallProgress) => {
