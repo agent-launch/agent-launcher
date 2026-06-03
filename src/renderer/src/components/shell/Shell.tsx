@@ -8,8 +8,12 @@ import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { SettingsModal } from '@/components/settings/SettingsModal'
 import { TranscriptView } from '@/components/transcript/TranscriptView'
+import { ChatView } from '@/components/chat/ChatView'
 import { useT } from '@/i18n'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
+
+/** In-UI chat is implemented for these CLIs (others fall back to the terminal). */
+const CHAT_CLIS = new Set<CliId>(['claude-code'])
 
 interface ActiveTerminal {
   key: string
@@ -29,6 +33,7 @@ export function Shell() {
   const [view, setView] = useState<'run' | 'config'>('run')
   const [terminal, setTerminal] = useState<ActiveTerminal | null>(null)
   const [transcriptFor, setTranscriptFor] = useState<SessionInfo | null>(null)
+  const [chatFor, setChatFor] = useState<{ key: string; cwd?: string; resumeId?: string } | null>(null)
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
 
@@ -48,14 +53,17 @@ export function Shell() {
   }, [active.id])
 
   useEffect(() => {
-    if (view === 'run' && !terminal) refreshSessions()
-  }, [view, terminal, refreshSessions])
+    if (view === 'run' && !terminal && !chatFor && !transcriptFor) refreshSessions()
+  }, [view, terminal, chatFor, transcriptFor, refreshSessions])
 
-  // Switching CLI closes the current terminal/transcript (back to the landing).
+  // Switching CLI closes the current terminal/transcript/chat (back to landing).
   useEffect(() => {
     setTerminal(null)
     setTranscriptFor(null)
+    setChatFor(null)
   }, [activeCli])
+
+  const chatSupported = CHAT_CLIS.has(active.id as CliId)
 
   const installed = cfg?.install[active.id as CliId]?.installed ?? false
 
@@ -69,15 +77,26 @@ export function Shell() {
   const start = (mode: 'cli' | 'shell') =>
     setTerminal({ key: newKey(), mode, cwd: cwd || undefined })
 
-  // Launch the CLI resuming a saved session in the terminal.
-  const resumeInTerminal = (s: SessionInfo) => {
+  // Start a fresh in-UI chat (programmatic mode) in the chosen project dir.
+  const startChat = () => setChatFor({ key: newKey(), cwd: cwd || undefined })
+
+  // Open a terminal resuming a session (or fresh when no id), closing chat/transcript.
+  const openTerminal = (resumeId?: string, dir?: string) => {
     setTranscriptFor(null)
-    setTerminal({ key: newKey(), mode: 'cli', cwd: s.cwd, resumeId: s.id })
+    setChatFor(null)
+    setTerminal({ key: newKey(), mode: 'cli', cwd: dir ?? cwd ?? undefined, resumeId })
   }
 
-  // Click a saved session: render its transcript first (if enabled), else resume.
+  // "Continue" from a saved session: in-UI chat where supported, else terminal.
+  const continueSession = (s: SessionInfo) => {
+    setTranscriptFor(null)
+    if (CHAT_CLIS.has(s.cliId)) setChatFor({ key: newKey(), cwd: s.cwd, resumeId: s.id })
+    else setTerminal({ key: newKey(), mode: 'cli', cwd: s.cwd, resumeId: s.id })
+  }
+
+  // Click a saved session: render its transcript first (if enabled), else continue.
   const resume = (s: SessionInfo) =>
-    renderTranscript ? setTranscriptFor(s) : resumeInTerminal(s)
+    renderTranscript ? setTranscriptFor(s) : continueSession(s)
 
   // CLI exited — drop the dead terminal, return to the list (which refetches).
   const onTerminalExit = () => setTerminal(null)
@@ -142,13 +161,24 @@ export function Shell() {
                   onExit={onTerminalExit}
                 />
               </div>
+            ) : chatFor ? (
+              <div className="absolute inset-0">
+                <ChatView
+                  key={chatFor.key}
+                  cliId={active.id as CliId}
+                  cwd={chatFor.cwd}
+                  resumeId={chatFor.resumeId}
+                  onBack={() => setChatFor(null)}
+                  onOpenTerminal={(rid) => openTerminal(rid, chatFor.cwd)}
+                />
+              </div>
             ) : transcriptFor ? (
               <div className="absolute inset-0">
                 <TranscriptView
                   cliId={active.id as CliId}
                   sessionId={transcriptFor.id}
                   name={transcriptFor.name}
-                  onResume={() => resumeInTerminal(transcriptFor)}
+                  onResume={() => continueSession(transcriptFor)}
                   onBack={() => setTranscriptFor(null)}
                 />
               </div>
@@ -170,9 +200,14 @@ export function Shell() {
                     <Button variant="secondary" onClick={() => start('shell')}>
                       {t('shell.openTerminal')}
                     </Button>
-                    <Button onClick={() => start('cli')} disabled={!installed}>
+                    <Button variant="secondary" onClick={() => start('cli')} disabled={!installed}>
                       {installed ? t('shell.launch', { name: active.name }) : t('shell.installFirst')}
                     </Button>
+                    {chatSupported && (
+                      <Button onClick={startChat} disabled={!installed}>
+                        {t('chat.start')}
+                      </Button>
+                    )}
                   </div>
                 </div>
 

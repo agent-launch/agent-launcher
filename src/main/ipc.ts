@@ -21,7 +21,8 @@ import {
   killSession,
   type SpawnOptions
 } from './pty'
-import type { CliId, CliProfilePatch, InstallProgress } from '@shared/types'
+import { startChat, sendChat, stopChat } from './chat'
+import type { CliId, ChatStartOptions, CliProfilePatch, InstallProgress } from '@shared/types'
 
 export function registerIpc(): void {
   ipcMain.handle('detect', () => detectEnvironment())
@@ -88,4 +89,9 @@ export function registerIpc(): void {
     resizeSession(id, cols, rows)
   )
   ipcMain.on('pty:kill', (_e, id: string) => killSession(id))
+
+  // ---- in-UI chat (programmatic CLI mode) ----
+  ipcMain.handle('chat:start', (e, opts: ChatStartOptions) => startChat(e.sender, opts))
+  ipcMain.on('chat:send', (_e, id: string, text: string) => sendChat(id, text))
+  ipcMain.on('chat:stop', (_e, id: string) => stopChat(id))
 }

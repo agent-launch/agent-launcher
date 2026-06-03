@@ -103,6 +103,22 @@ export interface Transcript {
   truncated: boolean
 }
 
+/** Options for starting an in-UI chat session with a CLI (programmatic mode). */
+export interface ChatStartOptions {
+  cliId: CliId
+  cwd?: string
+  /** Resume an existing CLI session instead of starting fresh. */
+  resumeId?: string
+}
+
+/** Streamed events from a running in-UI chat, normalized across CLIs. */
+export type ChatEvent =
+  | { type: 'session'; sessionId: string }
+  | { type: 'part'; role: TranscriptRole; part: TranscriptPart; streaming?: boolean }
+  | { type: 'turn-end' }
+  | { type: 'error'; message: string }
+  | { type: 'exit' }
+
 /** One resolved env var pair for the "Resolved Environment" preview. */
 export interface EnvPair {
   key: string

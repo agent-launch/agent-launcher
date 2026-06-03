@@ -75,6 +75,16 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'transcript.role.assistant': '助手',
     'transcript.role.system': '系统',
 
+    // ---- in-UI chat ----
+    'chat.start': '在 UI 中聊天',
+    'chat.onlyClaude': '暂仅支持 Claude Code，其它 CLI 请用终端',
+    'chat.newChat': '新对话',
+    'chat.placeholder': '输入消息，Enter 发送，Shift+Enter 换行',
+    'chat.send': '发送',
+    'chat.openInTerminal': '在终端打开',
+    'chat.streaming': '正在思考…',
+    'chat.empty': '发条消息开始对话吧',
+
     // ---- onboarding: steps ----
     'onboarding.step.welcome': '欢迎',
     'onboarding.step.detect': '检测环境',
@@ -224,6 +234,16 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'transcript.role.user': 'You',
     'transcript.role.assistant': 'Assistant',
     'transcript.role.system': 'System',
+
+    // ---- in-UI chat ----
+    'chat.start': 'Chat here',
+    'chat.onlyClaude': 'Only Claude Code is supported for now; use the terminal for other CLIs',
+    'chat.newChat': 'New chat',
+    'chat.placeholder': 'Type a message — Enter to send, Shift+Enter for newline',
+    'chat.send': 'Send',
+    'chat.openInTerminal': 'Open in terminal',
+    'chat.streaming': 'Thinking…',
+    'chat.empty': 'Send a message to start the conversation',
 
     // ---- onboarding: steps ----
     'onboarding.step.welcome': 'Welcome',

@@ -9,7 +9,9 @@ import type {
   InstallResult,
   NativeFiles,
   SessionInfo,
-  Transcript
+  Transcript,
+  ChatEvent,
+  ChatStartOptions
 } from '../shared/types'
 
 interface SpawnOptions {
@@ -82,6 +84,18 @@ const api = {
       ipcRenderer.on('pty:exit', l)
       return () => {
         ipcRenderer.removeListener('pty:exit', l)
+      }
+    }
+  },
+  chat: {
+    start: (opts: ChatStartOptions): Promise<string> => ipcRenderer.invoke('chat:start', opts),
+    send: (id: string, text: string) => ipcRenderer.send('chat:send', id, text),
+    stop: (id: string) => ipcRenderer.send('chat:stop', id),
+    onEvent: (cb: (id: string, ev: ChatEvent) => void) => {
+      const l = (_e: unknown, id: string, ev: ChatEvent) => cb(id, ev)
+      ipcRenderer.on('chat:event', l)
+      return () => {
+        ipcRenderer.removeListener('chat:event', l)
       }
     }
   }

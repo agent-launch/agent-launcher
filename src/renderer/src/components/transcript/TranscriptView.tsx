@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, SquareTerminal, Wrench } from 'lucide-react'
+import { ArrowLeft, SquareTerminal } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CliIcon } from '@/components/CliIcon'
-import { Markdown } from '@/components/ui/Markdown'
+import { MessageList } from '@/components/chat/MessageList'
 import { useT } from '@/i18n'
-import type { CliId, Transcript, TranscriptMessage, TranscriptPart } from '@shared/types'
+import type { CliId, Transcript } from '@shared/types'
 
 interface Props {
   cliId: CliId
@@ -61,69 +61,16 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
         ) : data.messages.length === 0 ? (
           <div className="px-6 py-8 text-center text-[13px] text-text-weak">{t('transcript.empty')}</div>
         ) : (
-          <div className="mx-auto w-full max-w-3xl space-y-4 px-6 py-6">
+          <div className="w-full space-y-5 px-8 py-6 lg:px-16">
             {data.truncated && (
               <div className="rounded-md border border-dashed border-border-weak px-3 py-1.5 text-center text-[12px] text-text-weak">
                 {t('transcript.truncated')}
               </div>
             )}
-            {data.messages.map((m, i) => (
-              <MessageBlock key={i} msg={m} />
-            ))}
+            <MessageList messages={data.messages} />
           </div>
         )}
       </div>
     </div>
   )
-}
-
-function MessageBlock({ msg }: { msg: TranscriptMessage }) {
-  const t = useT()
-  const isUser = msg.role === 'user'
-  const label =
-    msg.role === 'user'
-      ? t('transcript.role.user')
-      : msg.role === 'assistant'
-        ? t('transcript.role.assistant')
-        : t('transcript.role.system')
-  return (
-    <div>
-      <div className="mb-1 px-1 text-[11px] font-medium uppercase tracking-wide text-text-weak">{label}</div>
-      <div
-        className={`rounded-lg border px-3.5 py-2.5 ${
-          isUser ? 'border-border-selected/40 bg-surface-weak' : 'border-border-weak bg-surface'
-        }`}
-      >
-        <div className="space-y-2">
-          {msg.parts.map((p, i) => (
-            <PartView key={i} part={p} />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function PartView({ part }: { part: TranscriptPart }) {
-  const t = useT()
-  if (part.kind === 'thinking') {
-    return (
-      <details className="rounded-md bg-surface-weak/60 px-2 py-1">
-        <summary className="cursor-pointer select-none text-[12px] text-text-weak">
-          {t('transcript.thinking')}
-        </summary>
-        <Markdown className="md-sm mt-1">{part.text ?? ''}</Markdown>
-      </details>
-    )
-  }
-  if (part.kind === 'tool') {
-    return (
-      <div className="flex items-center gap-2 font-mono text-[12px] text-text-weak">
-        <Wrench size={12} className="shrink-0" />
-        <span className="text-text-base">{part.tool}</span>
-        {part.detail && <span className="truncate">{part.detail}</span>}
-      </div>
-    )
-  }
-  return <Markdown>{part.text ?? ''}</Markdown>
 }

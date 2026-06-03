@@ -2,6 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { registerIpc } from './ipc'
 import { killAll } from './pty'
+import { killAllChats } from './chat'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -65,9 +66,13 @@ app.whenReady().then(() => {
   })
 })
 
-app.on('before-quit', () => killAll())
+app.on('before-quit', () => {
+  killAll()
+  killAllChats()
+})
 
 app.on('window-all-closed', () => {
   killAll()
+  killAllChats()
   if (process.platform !== 'darwin') app.quit()
 })
