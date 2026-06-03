@@ -79,6 +79,30 @@ export interface SessionInfo {
   cwd?: string
 }
 
+/** A normalized, read-only view of a CLI's saved conversation (for in-UI render). */
+export type TranscriptRole = 'user' | 'assistant' | 'system'
+export interface TranscriptPart {
+  kind: 'text' | 'thinking' | 'tool'
+  /** Body for kind=text/thinking. */
+  text?: string
+  /** Tool name for kind=tool. */
+  tool?: string
+  /** One-line tool target/args for kind=tool. */
+  detail?: string
+}
+export interface TranscriptMessage {
+  role: TranscriptRole
+  parts: TranscriptPart[]
+  ts?: number
+}
+export interface Transcript {
+  cliId: CliId
+  id: string
+  messages: TranscriptMessage[]
+  /** True if we capped a very long conversation. */
+  truncated: boolean
+}
+
 /** One resolved env var pair for the "Resolved Environment" preview. */
 export interface EnvPair {
   key: string

@@ -25,6 +25,8 @@ interface AppState {
   themeMode: ThemeMode
   /** zh/en/system language preference. */
   localeMode: LocaleMode
+  /** Render a session's chat history in-UI on click (vs. straight to terminal). */
+  renderTranscript: boolean
   completeOnboarding: () => void
   skipOnboarding: () => void
   /** Dev helper — re-trigger the wizard. */
@@ -36,6 +38,7 @@ interface AppState {
   setSettingsOpen: (o: boolean) => void
   setThemeMode: (m: ThemeMode) => void
   setLocaleMode: (m: LocaleMode) => void
+  setRenderTranscript: (on: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -48,6 +51,7 @@ export const useAppStore = create<AppState>()(
       settingsOpen: false,
       themeMode: 'system',
       localeMode: 'system',
+      renderTranscript: true,
       completeOnboarding: () => set({ onboarded: true }),
       skipOnboarding: () => set({ onboarded: true }),
       resetOnboarding: () => set({ onboarded: false }),
@@ -57,7 +61,8 @@ export const useAppStore = create<AppState>()(
       setSidebarCollapsed: (c) => set({ sidebarCollapsed: c }),
       setSettingsOpen: (o) => set({ settingsOpen: o }),
       setThemeMode: (m) => set({ themeMode: m }),
-      setLocaleMode: (m) => set({ localeMode: m })
+      setLocaleMode: (m) => set({ localeMode: m }),
+      setRenderTranscript: (on) => set({ renderTranscript: on })
     }),
     {
       name: 'agent-launcher:app',
@@ -67,7 +72,8 @@ export const useAppStore = create<AppState>()(
         sidebarWidth: s.sidebarWidth,
         sidebarCollapsed: s.sidebarCollapsed,
         themeMode: s.themeMode,
-        localeMode: s.localeMode
+        localeMode: s.localeMode,
+        renderTranscript: s.renderTranscript
       })
     }
   )

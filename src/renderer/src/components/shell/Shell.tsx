@@ -7,6 +7,7 @@ import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { SettingsModal } from '@/components/settings/SettingsModal'
+import { TranscriptView } from '@/components/transcript/TranscriptView'
 import { useT } from '@/i18n'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
@@ -20,12 +21,14 @@ interface ActiveTerminal {
 export function Shell() {
   const t = useT()
   const activeCli = useAppStore((s) => s.activeCli)
+  const renderTranscript = useAppStore((s) => s.renderTranscript)
   const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
 
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [cwd, setCwd] = useState<string>('')
   const [view, setView] = useState<'run' | 'config'>('run')
   const [terminal, setTerminal] = useState<ActiveTerminal | null>(null)
+  const [transcriptFor, setTranscriptFor] = useState<SessionInfo | null>(null)
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
 
@@ -48,8 +51,11 @@ export function Shell() {
     if (view === 'run' && !terminal) refreshSessions()
   }, [view, terminal, refreshSessions])
 
-  // Switching CLI closes the current terminal (back to that CLI's landing).
-  useEffect(() => setTerminal(null), [activeCli])
+  // Switching CLI closes the current terminal/transcript (back to the landing).
+  useEffect(() => {
+    setTerminal(null)
+    setTranscriptFor(null)
+  }, [activeCli])
 
   const installed = cfg?.install[active.id as CliId]?.installed ?? false
 
@@ -63,9 +69,15 @@ export function Shell() {
   const start = (mode: 'cli' | 'shell') =>
     setTerminal({ key: newKey(), mode, cwd: cwd || undefined })
 
-  // Resume a saved session — restores its previous conversation in the CLI.
-  const resume = (s: SessionInfo) =>
+  // Launch the CLI resuming a saved session in the terminal.
+  const resumeInTerminal = (s: SessionInfo) => {
+    setTranscriptFor(null)
     setTerminal({ key: newKey(), mode: 'cli', cwd: s.cwd, resumeId: s.id })
+  }
+
+  // Click a saved session: render its transcript first (if enabled), else resume.
+  const resume = (s: SessionInfo) =>
+    renderTranscript ? setTranscriptFor(s) : resumeInTerminal(s)
 
   // CLI exited — drop the dead terminal, return to the list (which refetches).
   const onTerminalExit = () => setTerminal(null)
@@ -128,6 +140,16 @@ export function Shell() {
                   resumeId={terminal.resumeId}
                   sessionKey={terminal.key}
                   onExit={onTerminalExit}
+                />
+              </div>
+            ) : transcriptFor ? (
+              <div className="absolute inset-0">
+                <TranscriptView
+                  cliId={active.id as CliId}
+                  sessionId={transcriptFor.id}
+                  name={transcriptFor.name}
+                  onResume={() => resumeInTerminal(transcriptFor)}
+                  onBack={() => setTranscriptFor(null)}
                 />
               </div>
             ) : (

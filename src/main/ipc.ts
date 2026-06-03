@@ -10,7 +10,7 @@ import {
 import { paths } from './sandbox'
 import { resolvedEnvPreview } from './cli-env'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
-import { listSessions } from './sessions-history'
+import { listSessions, readTranscript } from './sessions-history'
 import { detectEnvironment } from './install/detect'
 import { installCli } from './install/installer'
 import {
@@ -74,6 +74,7 @@ export function registerIpc(): void {
 
   // ---- sessions (CLI-native conversation history) ----
   ipcMain.handle('sessions:list', (_e, id: CliId) => listSessions(id))
+  ipcMain.handle('sessions:transcript', (_e, id: CliId, sid: string) => readTranscript(id, sid))
 
   // ---- PTY terminal ----
   ipcMain.handle('pty:create', (e, opts: SpawnOptions) => createSession(e.sender, opts))

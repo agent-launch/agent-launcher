@@ -61,6 +61,19 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
       '开启后，对应 CLI 会自动批准所有操作（执行命令、改文件等），不再逐次确认。省事但有风险，只在你信任当前项目时开启。每个 CLI 独立设置。',
     'settings.yolo.unsupported': '该 CLI 无自动批准开关（仅工具白/黑名单）',
     'settings.yolo.notSupported': '不支持',
+    'settings.renderTranscript': '在 UI 中渲染聊天记录',
+    'settings.renderTranscriptDesc': '点击历史会话时，先在界面里展示对话内容；关闭则直接在终端恢复会话。',
+
+    // ---- transcript view ----
+    'transcript.back': '返回',
+    'transcript.resume': '在终端继续',
+    'transcript.loading': '读取对话中…',
+    'transcript.empty': '无法解析这个会话的对话内容',
+    'transcript.truncated': '对话较长，仅显示最近的部分',
+    'transcript.thinking': '思考过程',
+    'transcript.role.user': '你',
+    'transcript.role.assistant': '助手',
+    'transcript.role.system': '系统',
 
     // ---- onboarding: steps ----
     'onboarding.step.welcome': '欢迎',
@@ -197,6 +210,20 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
       'When on, the CLI auto-approves every action (running commands, editing files, etc.) without asking each time. Convenient but risky — only enable it for projects you trust. Set per CLI.',
     'settings.yolo.unsupported': 'This CLI has no auto-approve switch (allow/deny lists only)',
     'settings.yolo.notSupported': 'Unsupported',
+    'settings.renderTranscript': 'Render chat history in UI',
+    'settings.renderTranscriptDesc':
+      'When you click a past session, show the conversation in the app first; off resumes straight in the terminal.',
+
+    // ---- transcript view ----
+    'transcript.back': 'Back',
+    'transcript.resume': 'Continue in terminal',
+    'transcript.loading': 'Loading conversation…',
+    'transcript.empty': "Couldn't parse this session's conversation",
+    'transcript.truncated': 'Long conversation — showing the most recent part',
+    'transcript.thinking': 'Thinking',
+    'transcript.role.user': 'You',
+    'transcript.role.assistant': 'Assistant',
+    'transcript.role.system': 'System',
 
     // ---- onboarding: steps ----
     'onboarding.step.welcome': 'Welcome',

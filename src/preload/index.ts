@@ -8,7 +8,8 @@ import type {
   InstallProgress,
   InstallResult,
   NativeFiles,
-  SessionInfo
+  SessionInfo,
+  Transcript
 } from '../shared/types'
 
 interface SpawnOptions {
@@ -49,7 +50,9 @@ const api = {
     revealNative: (id: CliId): Promise<string> => ipcRenderer.invoke('config:revealNative', id)
   },
   sessions: {
-    list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id)
+    list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id),
+    transcript: (id: CliId, sid: string): Promise<Transcript> =>
+      ipcRenderer.invoke('sessions:transcript', id, sid)
   },
   install: {
     cli: (id: CliId): Promise<InstallResult> => ipcRenderer.invoke('install:cli', id),

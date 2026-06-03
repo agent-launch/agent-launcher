@@ -16,6 +16,8 @@ export function SettingsModal() {
   const setThemeMode = useAppStore((s) => s.setThemeMode)
   const localeMode = useAppStore((s) => s.localeMode)
   const setLocaleMode = useAppStore((s) => s.setLocaleMode)
+  const renderTranscript = useAppStore((s) => s.renderTranscript)
+  const setRenderTranscript = useAppStore((s) => s.setRenderTranscript)
   const [cfg, setCfg] = useState<AppConfig | null>(null)
 
   useEffect(() => {
@@ -47,6 +49,17 @@ export function SettingsModal() {
         <Row label={t('settings.language')}>
           <Segmented options={localeOptions} value={localeMode} onChange={setLocaleMode} />
         </Row>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-[13px] font-medium text-text-strong">{t('settings.renderTranscript')}</div>
+            <p className="mt-0.5 text-[12px] leading-relaxed text-text-weak">
+              {t('settings.renderTranscriptDesc')}
+            </p>
+          </div>
+          <div className="pt-0.5">
+            <Switch checked={renderTranscript} onChange={setRenderTranscript} />
+          </div>
+        </div>
       </section>
 
       <section className="mt-6 border-t border-border-weak pt-5">

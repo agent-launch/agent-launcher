@@ -2,7 +2,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { paths } from './sandbox'
-import type { CliId, SessionInfo } from '@shared/types'
+import type {
+  CliId,
+  SessionInfo,
+  Transcript,
+  TranscriptMessage,
+  TranscriptPart,
+  TranscriptRole
+} from '@shared/types'
 
 const MAX_LIST = 50 // only parse the most-recently-touched files
 
@@ -229,6 +236,259 @@ export async function listSessions(cliId: CliId): Promise<SessionInfo[]> {
   } catch {
     return []
   }
+}
+
+// ---------------------------------------------------------------------------
+// Transcript reading: normalize each CLI's stored conversation into a common
+// read-only model so the renderer can show it without launching the CLI.
+// ---------------------------------------------------------------------------
+
+const MAX_MSG = 800 // cap very long conversations
+
+/** Append a part, merging into the previous message when the role matches. */
+function pushPart(msgs: TranscriptMessage[], role: TranscriptRole, part: TranscriptPart): void {
+  if (part.kind !== 'tool' && !part.text?.trim()) return
+  const last = msgs[msgs.length - 1]
+  if (last && last.role === role) last.parts.push(part)
+  else msgs.push({ role, parts: [part] })
+}
+
+function safeJson(s: unknown): unknown {
+  if (typeof s !== 'string') return s
+  try {
+    return JSON.parse(s)
+  } catch {
+    return s
+  }
+}
+
+/** Pick a one-line summary of a tool's input/args for compact display. */
+function toolDetail(input: unknown): string | undefined {
+  if (input == null) return undefined
+  if (typeof input === 'string') return input.slice(0, 140)
+  if (typeof input === 'object') {
+    const o = input as Record<string, unknown>
+    for (const k of ['file_path', 'path', 'command', 'pattern', 'url', 'query', 'prompt', 'description']) {
+      if (typeof o[k] === 'string') return (o[k] as string).slice(0, 140)
+    }
+    try {
+      return JSON.stringify(o).slice(0, 140)
+    } catch {
+      return undefined
+    }
+  }
+  return undefined
+}
+
+/** Strip Claude's slash-command / system-reminder wrappers from user text. */
+function stripCmd(s: string): string {
+  return s
+    .replace(/<command-message>[\s\S]*?<\/command-message>/g, '')
+    .replace(/<command-name>([\s\S]*?)<\/command-name>/g, '$1')
+    .replace(/<command-args>[\s\S]*?<\/command-args>/g, '')
+    .replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, '')
+    .replace(/<local-command-[\s\S]*?>[\s\S]*?<\/local-command-[\s\S]*?>/g, '')
+    .trim()
+}
+
+function done(cliId: CliId, id: string, messages: TranscriptMessage[], truncated = false): Transcript {
+  return { cliId, id, messages, truncated }
+}
+
+/** Claude: locate <id>.jsonl across projects/*, map message.content blocks. */
+function claudeTranscript(id: string): Transcript {
+  const root = join(paths.cliConfig('claude-code'), 'projects')
+  let file: string | null = null
+  if (existsSync(root)) {
+    for (const proj of readdirSync(root)) {
+      const candidate = join(root, proj, `${id}.jsonl`)
+      if (existsSync(candidate)) {
+        file = candidate
+        break
+      }
+    }
+  }
+  const msgs: TranscriptMessage[] = []
+  if (!file) return done('claude-code', id, msgs)
+  for (const rec of readLines(file)) {
+    const o = rec as Record<string, any>
+    if (o.type !== 'user' && o.type !== 'assistant') continue
+    const role: TranscriptRole = o.type === 'assistant' ? 'assistant' : 'user'
+    const content = o.message?.content
+    if (typeof content === 'string') {
+      pushPart(msgs, role, { kind: 'text', text: stripCmd(content) })
+    } else if (Array.isArray(content)) {
+      for (const b of content) {
+        if (b.type === 'text') pushPart(msgs, role, { kind: 'text', text: b.text })
+        else if (b.type === 'thinking') pushPart(msgs, role, { kind: 'thinking', text: b.thinking })
+        else if (b.type === 'tool_use')
+          pushPart(msgs, role, { kind: 'tool', tool: b.name, detail: toolDetail(b.input) })
+        else if (b.type === 'image') pushPart(msgs, role, { kind: 'text', text: '[image]' })
+        // tool_result blocks (carried on user messages) are intentionally skipped
+      }
+    }
+    if (msgs.length >= MAX_MSG) return done('claude-code', id, msgs, true)
+  }
+  return done('claude-code', id, msgs)
+}
+
+/** Codex: find rollout file containing the uuid; map events + response items. */
+function codexTranscript(id: string): Transcript {
+  const root = join(paths.cliConfig('codex'), 'sessions')
+  let file: string | null = null
+  if (existsSync(root)) {
+    const walk = (dir: string): void => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (file) return
+        const full = join(dir, e.name)
+        if (e.isDirectory()) walk(full)
+        else if (e.name.endsWith('.jsonl') && e.name.includes(id)) file = full
+      }
+    }
+    try {
+      walk(root)
+    } catch {
+      /* ignore */
+    }
+  }
+  const msgs: TranscriptMessage[] = []
+  if (!file) return done('codex', id, msgs)
+  for (const rec of readLines(file)) {
+    const o = rec as Record<string, any>
+    const p = o.payload ?? {}
+    if (o.type === 'event_msg' && p.type === 'user_message' && p.message) {
+      pushPart(msgs, 'user', { kind: 'text', text: String(p.message) })
+    } else if (o.type === 'response_item' && p.type === 'message' && p.role === 'assistant') {
+      const blocks = Array.isArray(p.content) ? p.content : []
+      for (const b of blocks) {
+        if (b.type === 'output_text' || b.type === 'text')
+          pushPart(msgs, 'assistant', { kind: 'text', text: b.text })
+      }
+    } else if (o.type === 'response_item' && p.type === 'reasoning') {
+      const txt = Array.isArray(p.summary)
+        ? p.summary.map((s: any) => (typeof s === 'string' ? s : s?.text)).filter(Boolean).join('\n')
+        : typeof p.summary === 'string'
+          ? p.summary
+          : Array.isArray(p.content)
+            ? p.content.map((c: any) => c?.text).filter(Boolean).join('\n')
+            : ''
+      pushPart(msgs, 'assistant', { kind: 'thinking', text: txt })
+    } else if (o.type === 'response_item' && p.type === 'function_call') {
+      pushPart(msgs, 'assistant', {
+        kind: 'tool',
+        tool: p.name || 'tool',
+        detail: toolDetail(safeJson(p.arguments))
+      })
+    }
+    if (msgs.length >= MAX_MSG) return done('codex', id, msgs, true)
+  }
+  return done('codex', id, msgs)
+}
+
+/** Pi: id is the file path; map message records (text + tool, defensive). */
+function piTranscript(file: string): Transcript {
+  const msgs: TranscriptMessage[] = []
+  if (!existsSync(file)) return done('pi', file, msgs)
+  for (const rec of readLines(file)) {
+    const o = rec as Record<string, any>
+    if (o.type !== 'message' || !o.message) continue
+    const r = o.message.role
+    const role: TranscriptRole = r === 'assistant' ? 'assistant' : r === 'user' ? 'user' : 'system'
+    const c = o.message.content
+    if (typeof c === 'string') {
+      pushPart(msgs, role, { kind: 'text', text: c })
+    } else if (Array.isArray(c)) {
+      for (const b of c) {
+        if (b.type === 'text') pushPart(msgs, role, { kind: 'text', text: b.text })
+        else if (b.type === 'thinking' || b.type === 'reasoning')
+          pushPart(msgs, role, { kind: 'thinking', text: b.text ?? b.thinking })
+        else if (b.type === 'tool_use' || b.type === 'tool_call')
+          pushPart(msgs, role, {
+            kind: 'tool',
+            tool: b.name ?? b.tool ?? 'tool',
+            detail: toolDetail(b.input ?? b.arguments)
+          })
+      }
+    }
+    if (msgs.length >= MAX_MSG) return done('pi', file, msgs, true)
+  }
+  return done('pi', file, msgs)
+}
+
+/** opencode: join message + part (data JSON) by session_id, ordered by time. */
+async function opencodeTranscript(id: string): Promise<Transcript> {
+  const dbPath = join(paths.cliConfig('opencode'), 'xdg-data', 'opencode', 'opencode.db')
+  const msgs: TranscriptMessage[] = []
+  if (!existsSync(dbPath)) return done('opencode', id, msgs)
+  const SQL = await getSql()
+  const db = new SQL.Database(readFileSync(dbPath))
+  try {
+    const roleById = new Map<string, TranscriptRole>()
+    const order: string[] = []
+    const mstmt = db.prepare('SELECT id, data FROM message WHERE session_id = $sid ORDER BY time_created')
+    mstmt.bind({ $sid: id })
+    while (mstmt.step()) {
+      const row = mstmt.getAsObject() as { id: string; data: string }
+      let role: TranscriptRole = 'assistant'
+      try {
+        const d = JSON.parse(row.data)
+        role = d.role === 'user' ? 'user' : d.role === 'assistant' ? 'assistant' : 'system'
+      } catch {
+        /* keep default */
+      }
+      roleById.set(String(row.id), role)
+      order.push(String(row.id))
+    }
+    mstmt.free()
+
+    const partsByMsg = new Map<string, TranscriptPart[]>()
+    const pstmt = db.prepare('SELECT message_id, data FROM part WHERE session_id = $sid ORDER BY time_created')
+    pstmt.bind({ $sid: id })
+    while (pstmt.step()) {
+      const row = pstmt.getAsObject() as { message_id: string; data: string }
+      let part: TranscriptPart | null = null
+      try {
+        const d = JSON.parse(row.data)
+        if (d.type === 'text' && d.text) part = { kind: 'text', text: d.text }
+        else if (d.type === 'reasoning' && d.text) part = { kind: 'thinking', text: d.text }
+        else if (d.type === 'tool')
+          part = {
+            kind: 'tool',
+            tool: d.tool || 'tool',
+            detail: toolDetail(d.state?.input) ?? (typeof d.state?.title === 'string' ? d.state.title : undefined)
+          }
+      } catch {
+        /* skip bad part */
+      }
+      if (!part) continue
+      const arr = partsByMsg.get(String(row.message_id)) ?? []
+      arr.push(part)
+      partsByMsg.set(String(row.message_id), arr)
+    }
+    pstmt.free()
+
+    for (const mid of order) {
+      const role = roleById.get(mid) ?? 'assistant'
+      for (const part of partsByMsg.get(mid) ?? []) pushPart(msgs, role, part)
+      if (msgs.length >= MAX_MSG) return done('opencode', id, msgs, true)
+    }
+  } finally {
+    db.close()
+  }
+  return done('opencode', id, msgs)
+}
+
+/** Read a session's conversation as a normalized, read-only transcript. */
+export async function readTranscript(cliId: CliId, id: string): Promise<Transcript> {
+  try {
+    if (cliId === 'claude-code') return claudeTranscript(id)
+    if (cliId === 'codex') return codexTranscript(id)
+    if (cliId === 'pi') return piTranscript(id)
+    if (cliId === 'opencode') return await opencodeTranscript(id)
+  } catch {
+    /* fall through to empty transcript */
+  }
+  return done(cliId, id, [])
 }
 
 /** Args to resume a given session, or null if the CLI can't resume by id. */
