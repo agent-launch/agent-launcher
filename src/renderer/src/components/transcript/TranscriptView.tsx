@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, SquareTerminal, Wrench } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CliIcon } from '@/components/CliIcon'
+import { Markdown } from '@/components/ui/Markdown'
 import { useT } from '@/i18n'
 import type { CliId, Transcript, TranscriptMessage, TranscriptPart } from '@shared/types'
 
@@ -111,9 +112,7 @@ function PartView({ part }: { part: TranscriptPart }) {
         <summary className="cursor-pointer select-none text-[12px] text-text-weak">
           {t('transcript.thinking')}
         </summary>
-        <div className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-text-base">
-          {part.text}
-        </div>
+        <Markdown className="md-sm mt-1">{part.text ?? ''}</Markdown>
       </details>
     )
   }
@@ -126,9 +125,5 @@ function PartView({ part }: { part: TranscriptPart }) {
       </div>
     )
   }
-  return (
-    <div className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text-strong">
-      {part.text}
-    </div>
-  )
+  return <Markdown>{part.text ?? ''}</Markdown>
 }

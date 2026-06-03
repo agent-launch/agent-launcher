@@ -23,6 +23,8 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "lucide-react": "^1.17.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
     "sql.js": "^1.14.1",
     "zustand": "^5.0.8"
   },
