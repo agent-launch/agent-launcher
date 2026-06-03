@@ -60,23 +60,36 @@ function listClaude(): SessionInfo[] {
     }
   }
   return recentJsonl(refs).map((ref) => {
-    let name: string | null = null
+    // Mirror `claude --resume`'s title priority: customTitle → aiTitle →
+    // lastPrompt → summary → first (cleaned) user prompt. Relays often don't
+    // generate aiTitle, in which case claude shows the LATEST prompt — not the
+    // first raw message (which may just be a slash-command wrapper).
+    let aiTitle: string | null = null
+    let customTitle: string | null = null
+    let lastPrompt: string | null = null
+    let summary: string | null = null
     let cwd: string | undefined
     let firstUser: string | null = null
     for (const rec of readLines(ref.full)) {
       const o = rec as Record<string, any>
-      if (o.type === 'ai-title' && o.aiTitle) name = o.aiTitle
+      if (o.type === 'ai-title' && o.aiTitle) aiTitle = o.aiTitle
+      else if (o.type === 'last-prompt' && typeof o.lastPrompt === 'string') lastPrompt = o.lastPrompt
+      else if (o.type === 'summary' && typeof o.summary === 'string') summary = o.summary
+      if (typeof o.customTitle === 'string' && o.customTitle) customTitle = o.customTitle
       if (!cwd && typeof o.cwd === 'string') cwd = o.cwd
       if (!firstUser && o.type === 'user' && o.message) {
         const c = o.message.content
-        firstUser =
+        const raw =
           typeof c === 'string' ? c : Array.isArray(c) ? (c.find((x) => x.type === 'text')?.text ?? null) : null
+        const cleaned = raw ? stripCmd(raw) : null
+        if (cleaned) firstUser = cleaned
       }
     }
+    const title = customTitle || aiTitle || lastPrompt || summary || firstUser || '未命名会话'
     return {
       id: ref.id,
       cliId: 'claude-code' as CliId,
-      name: (name || firstUser || '未命名会话').trim().slice(0, 80),
+      name: title.trim().slice(0, 80),
       updatedAt: ref.mtimeMs,
       cwd
     }
