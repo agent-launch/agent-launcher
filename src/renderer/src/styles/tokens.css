@@ -67,6 +67,14 @@
   --danger: var(--ember-9);
   --warning: var(--solaris-9);
 
+  /* ---- syntax highlighting (github-light) ---- */
+  --syntax-comment: #6a737d;
+  --syntax-keyword: #d73a49;
+  --syntax-string: #032f62;
+  --syntax-number: #005cc5;
+  --syntax-title: #6f42c1;
+  --syntax-symbol: #e36209;
+
   color-scheme: light;
 }
 
@@ -102,4 +110,12 @@
 
     --cobalt-9: #2f6bff;
     --accent: var(--cobalt-9);
+
+    /* ---- syntax highlighting (github-dark) ---- */
+    --syntax-comment: #8b949e;
+    --syntax-keyword: #ff7b72;
+    --syntax-string: #a5d6ff;
+    --syntax-number: #79c0ff;
+    --syntax-title: #d2a8ff;
+    --syntax-symbol: #ffa657;
 }

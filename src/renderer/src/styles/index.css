@@ -183,3 +183,36 @@
 .md img { max-width: 100%; border-radius: var(--radius-md); }
 /* Compact variant for the collapsed "thinking" body. */
 .md-sm { font-size: 12px; color: var(--text-base); }
+
+/* Syntax highlighting (rehype-highlight → highlight.js classes). Theme-aware
+   via the --syntax-* tokens defined per [data-theme] in tokens.css. */
+.md .hljs-comment,
+.md .hljs-quote { color: var(--syntax-comment); font-style: italic; }
+.md .hljs-keyword,
+.md .hljs-selector-tag,
+.md .hljs-literal,
+.md .hljs-section,
+.md .hljs-doctag,
+.md .hljs-name { color: var(--syntax-keyword); }
+.md .hljs-string,
+.md .hljs-attr,
+.md .hljs-template-string,
+.md .hljs-regexp,
+.md .hljs-addition { color: var(--syntax-string); }
+.md .hljs-number,
+.md .hljs-built_in,
+.md .hljs-type,
+.md .hljs-meta,
+.md .hljs-link { color: var(--syntax-number); }
+.md .hljs-title,
+.md .hljs-selector-id,
+.md .hljs-selector-class,
+.md .hljs-title.function_,
+.md .hljs-title.class_ { color: var(--syntax-title); }
+.md .hljs-variable,
+.md .hljs-symbol,
+.md .hljs-bullet,
+.md .hljs-attribute { color: var(--syntax-symbol); }
+.md .hljs-deletion { color: var(--danger); }
+.md .hljs-emphasis { font-style: italic; }
+.md .hljs-strong { font-weight: 600; }
