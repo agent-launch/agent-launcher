@@ -4,13 +4,15 @@
 // With a configured profile it does a real one-turn call.
 // Run: npx tsx scripts/smoke-chat.ts
 import { startChat, sendChat, stopChat } from '../src/main/chat'
+import type { CliId } from '../src/shared/types'
 
+const cliId = (process.argv[2] as CliId) || 'claude-code'
 const wc: any = {
   isDestroyed: () => false,
   send: (_ch: string, id: string, ev: any) => console.log('EVENT', id, JSON.stringify(ev))
 }
 
-const id = startChat(wc, { cliId: 'claude-code', cwd: process.cwd() })
+const id = startChat(wc, { cliId, cwd: process.cwd() })
 console.log('started handle:', id)
 setTimeout(() => {
   console.log('--> sending turn')
@@ -20,4 +22,4 @@ setTimeout(() => {
   stopChat(id)
   console.log('done')
   process.exit(0)
-}, 10000)
+}, Number(process.env.STOP_MS) || 10000)

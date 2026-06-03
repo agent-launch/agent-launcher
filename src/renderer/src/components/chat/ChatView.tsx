@@ -40,7 +40,12 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
         setMessages((prev) => {
           const last = prev[prev.length - 1]
           if (ev.role !== 'user' && last && last.role === ev.role) {
-            return [...prev.slice(0, -1), { ...last, parts: [...last.parts, ev.part] }]
+            // Streamed updates carry a stable id (opencode) → replace same-id part
+            // in place; otherwise append (Claude/Codex/Pi emit final parts).
+            let parts = last.parts
+            const idx = ev.part.id ? parts.findIndex((p) => p.id === ev.part.id) : -1
+            parts = idx >= 0 ? parts.map((p, i) => (i === idx ? ev.part : p)) : [...parts, ev.part]
+            return [...prev.slice(0, -1), { ...last, parts }]
           }
           return [...prev, { role: ev.role, parts: [ev.part] }]
         })

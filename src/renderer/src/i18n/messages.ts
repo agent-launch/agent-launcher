@@ -77,7 +77,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- in-UI chat ----
     'chat.start': '在 UI 中聊天',
-    'chat.onlyClaude': '暂仅支持 Claude Code，其它 CLI 请用终端',
+    'chat.onlyClaude': 'Gemini CLI 暂不支持 UI 聊天，请使用终端',
     'chat.newChat': '新对话',
     'chat.placeholder': '输入消息，Enter 发送，Shift+Enter 换行',
     'chat.send': '发送',
@@ -237,7 +237,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- in-UI chat ----
     'chat.start': 'Chat here',
-    'chat.onlyClaude': 'Only Claude Code is supported for now; use the terminal for other CLIs',
+    'chat.onlyClaude': "Gemini CLI doesn't support in-UI chat yet; use the terminal",
     'chat.newChat': 'New chat',
     'chat.placeholder': 'Type a message — Enter to send, Shift+Enter for newline',
     'chat.send': 'Send',

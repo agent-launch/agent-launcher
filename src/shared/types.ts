@@ -89,6 +89,8 @@ export interface TranscriptPart {
   tool?: string
   /** One-line tool target/args for kind=tool. */
   detail?: string
+  /** Stable part id; when set, a streamed update replaces the same-id part (opencode). */
+  id?: string
 }
 export interface TranscriptMessage {
   role: TranscriptRole

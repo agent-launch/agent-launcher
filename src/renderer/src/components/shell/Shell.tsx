@@ -12,8 +12,8 @@ import { ChatView } from '@/components/chat/ChatView'
 import { useT } from '@/i18n'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
-/** In-UI chat is implemented for these CLIs (others fall back to the terminal). */
-const CHAT_CLIS = new Set<CliId>(['claude-code'])
+/** In-UI chat is implemented for these CLIs (Gemini falls back to the terminal). */
+const CHAT_CLIS = new Set<CliId>(['claude-code', 'codex', 'opencode', 'pi'])
 
 interface ActiveTerminal {
   key: string
