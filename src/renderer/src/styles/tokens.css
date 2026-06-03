@@ -67,11 +67,16 @@
   --danger: var(--ember-9);
   --warning: var(--solaris-9);
 
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+/*
+ * Dark theme. Applied via the data-theme attribute on <html> (set by
+ * src/theme.ts) rather than a media query, so the user can force light/dark
+ * or follow the system. "system" resolves to a concrete light|dark in JS.
+ */
+:root[data-theme='dark'] {
+    color-scheme: dark;
     --background-base: #101010;
     --background-strong: #121212;
     --background-stronger: #161616;
@@ -97,5 +102,4 @@
 
     --cobalt-9: #2f6bff;
     --accent: var(--cobalt-9);
-  }
 }

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
+import { useT } from '@/i18n'
 
 interface Props {
   open: boolean
@@ -10,6 +11,7 @@ interface Props {
 
 /** Centered dialog with a dimmed backdrop (opencode-style). Esc / backdrop closes. */
 export function Modal({ open, onClose, title, children }: Props) {
+  const t = useT()
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
@@ -36,7 +38,7 @@ export function Modal({ open, onClose, title, children }: Props) {
           <button
             onClick={onClose}
             className="grid size-7 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
-            title="关闭"
+            title={t('common.close')}
           >
             <X size={16} />
           </button>

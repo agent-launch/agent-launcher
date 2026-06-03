@@ -2,18 +2,26 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store/app'
 import { Button } from '@/components/ui/Button'
 import { CLIS } from '@/data/clis'
-import { PROVIDERS_BY_CLI, CATEGORY_LABEL } from '@/data/providers'
+import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { CliIcon } from '@/components/CliIcon'
+import { useT } from '@/i18n'
 import type { CliId, DetectResult, InstallProgress } from '@shared/types'
 
-const STEPS = ['欢迎', '检测环境', '自动安装', '配置中转', '开跑'] as const
+const STEP_KEYS = [
+  'onboarding.step.welcome',
+  'onboarding.step.detect',
+  'onboarding.step.install',
+  'onboarding.step.config',
+  'onboarding.step.run'
+] as const
 
 export function Onboarding() {
+  const t = useT()
   const complete = useAppStore((s) => s.completeOnboarding)
   const skip = useAppStore((s) => s.skipOnboarding)
   const [step, setStep] = useState(0)
 
-  const last = step === STEPS.length - 1
+  const last = step === STEP_KEYS.length - 1
   const next = () => (last ? complete() : setStep((s) => s + 1))
   const back = () => setStep((s) => Math.max(0, s - 1))
 
@@ -21,13 +29,13 @@ export function Onboarding() {
     <div className="flex h-full flex-col bg-base">
       <div className="flex flex-1 overflow-hidden">
         <aside className="flex w-56 shrink-0 flex-col gap-1 border-r border-border-weak bg-strong p-4 pt-6">
-          <div className="mb-5 px-2 text-[13px] font-medium text-text-weak">首次设置</div>
-          {STEPS.map((label, i) => {
+          <div className="mb-5 px-2 text-[13px] font-medium text-text-weak">{t('onboarding.setupHeading')}</div>
+          {STEP_KEYS.map((key, i) => {
             const done = i < step
             const active = i === step
             return (
               <div
-                key={label}
+                key={key}
                 className={`flex items-center gap-3 rounded-md px-2 py-2 text-[13px] ${
                   active ? 'bg-surface-weak text-text-strong' : 'text-text-base'
                 }`}
@@ -40,7 +48,7 @@ export function Onboarding() {
                 >
                   {done ? '✓' : i + 1}
                 </span>
-                {label}
+                {t(key)}
               </div>
             )
           })}
@@ -57,15 +65,15 @@ export function Onboarding() {
 
       <footer className="flex shrink-0 items-center justify-between border-t border-border-weak bg-strong px-6 py-3">
         <Button variant="ghost" size="sm" onClick={skip}>
-          跳过引导
+          {t('onboarding.skip')}
         </Button>
         <div className="flex items-center gap-2">
           {step > 0 && (
             <Button variant="secondary" onClick={back}>
-              上一步
+              {t('onboarding.back')}
             </Button>
           )}
-          <Button onClick={next}>{last ? '完成，进入主界面' : '下一步'}</Button>
+          <Button onClick={next}>{last ? t('onboarding.finish') : t('onboarding.next')}</Button>
         </div>
       </footer>
     </div>
@@ -73,6 +81,7 @@ export function Onboarding() {
 }
 
 function Welcome() {
+  const t = useT()
   return (
     <div className="mx-auto max-w-xl pt-10 text-center">
       <div
@@ -81,24 +90,24 @@ function Welcome() {
       >
         A
       </div>
-      <h1 className="text-[28px] font-semibold text-text-strong">欢迎使用 AgentLauncher</h1>
+      <h1 className="text-[28px] font-semibold text-text-strong">{t('onboarding.welcomeTitle')}</h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-base">
-        不用装 Node、不用配环境变量、不用碰命令行。接下来几分钟，我们帮你装好并配好 Claude Code /
-        Codex / Gemini CLI，直接开跑。
+        {t('onboarding.welcomeDesc')}
       </p>
     </div>
   )
 }
 
 function DetectStep() {
+  const t = useT()
   const [result, setResult] = useState<DetectResult | null>(null)
   useEffect(() => {
     window.api.detect().then(setResult)
   }, [])
   return (
-    <StepShell title="检测你的环境" desc="看看系统里已经有什么、还缺什么。缺的我们会自动补上。">
+    <StepShell title={t('onboarding.detectTitle')} desc={t('onboarding.detectDesc')}>
       {!result ? (
-        <div className="text-[13px] text-text-weak">检测中…</div>
+        <div className="text-[13px] text-text-weak">{t('onboarding.detecting')}</div>
       ) : (
         <ul className="space-y-2">
           {result.items.map((it) => (
@@ -131,6 +140,7 @@ interface CliInstallUi {
 }
 
 function InstallStep() {
+  const t = useT()
   const [ui, setUi] = useState<Record<string, CliInstallUi>>({})
 
   // Seed from persisted install state so already-installed CLIs show "已安装".
@@ -178,7 +188,7 @@ function InstallStep() {
   }
 
   return (
-    <StepShell title="一键安装 CLI" desc="全部装进独立沙盒 ~/.agent-launcher，不污染你已有的环境。">
+    <StepShell title={t('onboarding.installTitle')} desc={t('onboarding.installDesc')}>
       <div className="space-y-2">
         {CLIS.map((c) => {
           const s = ui[c.id] ?? {}
@@ -197,30 +207,37 @@ function InstallStep() {
                     <span style={{ color: 'var(--danger)' }}>{s.error}</span>
                   ) : s.phase === 'done' ? (
                     <span style={{ color: 'var(--success)' }}>
-                      已安装{s.version && s.version !== 'installed' ? ` ${s.version}` : ''}
+                      {t('onboarding.installed', {
+                        version: s.version && s.version !== 'installed' ? ` ${s.version}` : ''
+                      })}
                     </span>
                   ) : s.busy ? (
-                    `${s.message ?? '安装中'}${s.fraction != null ? ` ${Math.round(s.fraction * 100)}%` : ''}`
+                    `${s.message ?? t('onboarding.installing')}${s.fraction != null ? ` ${Math.round(s.fraction * 100)}%` : ''}`
                   ) : (
-                    `${c.vendor} · ${c.install === 'native-binary' ? '原生二进制（无需 Node）' : '便携 Node + npm'}`
+                    `${c.vendor} · ${c.install === 'native-binary' ? t('onboarding.nativeBinary') : t('onboarding.portableNode')}`
                   )}
                 </div>
               </div>
               <Button size="sm" variant="secondary" disabled={s.busy} onClick={() => installOne(c.id as CliId)}>
-                {s.phase === 'done' ? '重装' : s.busy ? '安装中…' : '安装'}
+                {s.phase === 'done'
+                  ? t('onboarding.reinstallBtn')
+                  : s.busy
+                    ? t('onboarding.installBusy')
+                    : t('onboarding.installBtn')}
               </Button>
             </div>
           )
         })}
       </div>
       <Button className="mt-4" onClick={installAll}>
-        Install All
+        {t('onboarding.installAll')}
       </Button>
     </StepShell>
   )
 }
 
 function ConfigStep() {
+  const t = useT()
   const [cliId, setCliId] = useState<CliId>('claude-code')
   const [providerId, setProviderId] = useState<string>('')
   const [baseUrl, setBaseUrl] = useState('')
@@ -239,7 +256,7 @@ function ConfigStep() {
   const save = async () => {
     const p = providers.find((x) => x.id === providerId)
     await window.api.config.addProfile(cliId, {
-      name: p?.name ?? '自定义',
+      name: p?.name ?? t('category.custom'),
       providerId,
       baseUrl,
       apiKey
@@ -248,10 +265,7 @@ function ConfigStep() {
   }
 
   return (
-    <StepShell
-      title="选个中转，粘上 Key"
-      desc="国内直连不了官方？选一家中转，粘上 API Key。配置存在本地（明文 JSON），env 由 app 注入。"
-    >
+    <StepShell title={t('onboarding.configTitle')} desc={t('onboarding.configDesc')}>
       <div className="mb-3 flex gap-1">
         {CLIS.map((c) => (
           <button
@@ -281,7 +295,7 @@ function ConfigStep() {
             }`}
           >
             <div className="truncate text-[13px] font-medium text-text-strong">{p.name}</div>
-            <div className="mt-0.5 text-[11px] text-text-weak">{CATEGORY_LABEL[p.category]}</div>
+            <div className="mt-0.5 text-[11px] text-text-weak">{t('category.' + p.category)}</div>
           </button>
         ))}
       </div>
@@ -308,8 +322,8 @@ function ConfigStep() {
             />
           </label>
           <div className="flex items-center gap-3">
-            <Button onClick={save}>保存配置</Button>
-            {saved && <span className="text-[13px] text-success">已保存 ✓</span>}
+            <Button onClick={save}>{t('onboarding.saveConfig')}</Button>
+            {saved && <span className="text-[13px] text-success">{t('onboarding.saved')}</span>}
           </div>
         </div>
       )}
@@ -318,14 +332,15 @@ function ConfigStep() {
 }
 
 function Done() {
+  const t = useT()
   return (
     <div className="mx-auto max-w-xl pt-10 text-center">
       <div className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl bg-success text-2xl text-white">
         ✓
       </div>
-      <h1 className="text-[28px] font-semibold text-text-strong">一切就绪</h1>
+      <h1 className="text-[28px] font-semibold text-text-strong">{t('onboarding.doneTitle')}</h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-base">
-        点「完成」进入主界面，选个项目目录就能开始和 Claude Code 对话了。环境变量我们已经替你注入，你永远不用 export。
+        {t('onboarding.doneDesc')}
       </p>
     </div>
   )

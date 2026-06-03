@@ -144,11 +144,5 @@ export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   pi: CODEX
 }
 
-export const CATEGORY_LABEL: Record<ProviderCategory, string> = {
-  official: '官方',
-  cn_official: '国内官方',
-  aggregator: '聚合',
-  third_party: '中转',
-  cloud_provider: '云厂商',
-  custom: '自定义'
-}
+// Category display labels now live in the i18n tables (key `category.<id>`),
+// looked up via t('category.' + provider.category) at the call site.

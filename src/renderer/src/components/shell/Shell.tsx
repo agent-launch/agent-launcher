@@ -7,6 +7,7 @@ import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
 import { SettingsModal } from '@/components/settings/SettingsModal'
+import { useT } from '@/i18n'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
 interface ActiveTerminal {
@@ -17,6 +18,7 @@ interface ActiveTerminal {
 }
 
 export function Shell() {
+  const t = useT()
   const activeCli = useAppStore((s) => s.activeCli)
   const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
 
@@ -92,7 +94,7 @@ export function Shell() {
                     : 'text-text-base hover:text-text-strong'
                 }`}
               >
-                {v === 'run' ? '运行' : '配置'}
+                {v === 'run' ? t('shell.tabRun') : t('shell.tabConfig')}
               </button>
             ))}
           </div>
@@ -100,14 +102,14 @@ export function Shell() {
             <button
               onClick={pickDir}
               className="no-drag rounded-md bg-surface-weak px-2 py-1 text-[12px] text-text-base hover:text-text-strong"
-              title="选择项目目录"
+              title={t('shell.pickDir')}
             >
-              {cwd || '~/选择项目目录'}
+              {cwd || t('shell.pickDirEmpty')}
             </button>
           )}
           <div className="ml-auto flex items-center gap-2">
             <Chip label={active.name} color={active.accent} />
-            <Chip label={installed ? '已安装' : '未安装'} />
+            <Chip label={installed ? t('sidebar.installed') : t('sidebar.notInstalled')} />
           </div>
         </div>
 
@@ -133,32 +135,32 @@ export function Shell() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-baseline gap-3">
                     <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">
-                      历史会话
+                      {t('shell.history')}
                     </span>
                     <button
                       onClick={refreshSessions}
                       className="text-[12px] text-text-weak hover:text-text-strong"
                     >
-                      刷新
+                      {t('shell.refresh')}
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="secondary" onClick={() => start('shell')}>
-                      打开终端
+                      {t('shell.openTerminal')}
                     </Button>
                     <Button onClick={() => start('cli')} disabled={!installed}>
-                      {installed ? `启动 ${active.name}` : '请先在引导中安装'}
+                      {installed ? t('shell.launch', { name: active.name }) : t('shell.installFirst')}
                     </Button>
                   </div>
                 </div>
 
                 {loadingSessions ? (
-                  <div className="px-1 text-[12px] text-text-weak">读取中…</div>
+                  <div className="px-1 text-[12px] text-text-weak">{t('shell.loadingSessions')}</div>
                 ) : sessions.length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[12px] text-text-weak">
                     {active.id === 'gemini'
-                      ? '该 CLI 暂不支持恢复历史会话'
-                      : `还没有 ${active.name} 历史会话，点右上角启动一个新会话开始吧`}
+                      ? t('shell.noResume')
+                      : t('shell.noHistory', { name: active.name })}
                   </div>
                 ) : (
                   <div className="space-y-1.5">
@@ -167,7 +169,7 @@ export function Shell() {
                         key={s.id}
                         onClick={() => resume(s)}
                         className="flex w-full items-center gap-3 rounded-lg border border-border-weak bg-surface px-3 py-2 text-left hover:border-border-selected"
-                        title="恢复这个会话"
+                        title={t('shell.resumeTitle')}
                       >
                         <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
                           <CliIcon cliId={active.id as CliId} size={15} />
@@ -179,7 +181,7 @@ export function Shell() {
                             {s.cwd ? ` · ${s.cwd}` : ''}
                           </div>
                         </div>
-                        <span className="shrink-0 text-[11px] text-text-weak">恢复 →</span>
+                        <span className="shrink-0 text-[11px] text-text-weak">{t('shell.resume')}</span>
                       </button>
                     ))}
                   </div>

@@ -4,9 +4,11 @@ import { useAppStore, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_COLLAPSED } from '@/stor
 import { CLIS } from '@/data/clis'
 import { CliIcon } from '@/components/CliIcon'
 import { ResizeHandle } from '@/components/ui/ResizeHandle'
+import { useT } from '@/i18n'
 import type { AppConfig, CliId } from '@shared/types'
 
 export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
+  const t = useT()
   const activeCli = useAppStore((s) => s.activeCli)
   const setActiveCli = useAppStore((s) => s.setActiveCli)
   const resetOnboarding = useAppStore((s) => s.resetOnboarding)
@@ -27,12 +29,12 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
     >
       <div className={`flex h-10 items-center ${collapsed ? 'justify-center' : 'justify-between px-3'}`}>
         {!collapsed && (
-          <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">Agents</span>
+          <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">{t('sidebar.agents')}</span>
         )}
         <button
           onClick={toggle}
           className="no-drag grid size-6 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
-          title={collapsed ? '展开侧栏' : '收起侧栏'}
+          title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
         >
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
         </button>
@@ -81,7 +83,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
                   <span
                     className="size-1.5 rounded-full"
                     style={{ background: isInstalled ? 'var(--success)' : 'var(--border-base)' }}
-                    title={isInstalled ? '已安装' : '未安装'}
+                    title={isInstalled ? t('sidebar.installed') : t('sidebar.notInstalled')}
                   />
                 </>
               )}
@@ -98,23 +100,23 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
       <div className="flex flex-col gap-0.5 border-t border-border-weak p-2">
         <button
           onClick={() => setSettingsOpen(true)}
-          title={collapsed ? '设置' : undefined}
+          title={collapsed ? t('sidebar.settings') : undefined}
           className={`no-drag flex w-full items-center gap-2 rounded-md py-1.5 text-[12px] text-text-base hover:bg-surface-weak hover:text-text-strong ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
         >
           <Settings size={14} className="shrink-0" />
-          {!collapsed && <span>设置</span>}
+          {!collapsed && <span>{t('sidebar.settings')}</span>}
         </button>
         <button
           onClick={resetOnboarding}
-          title={collapsed ? '重新运行引导' : undefined}
+          title={collapsed ? t('sidebar.rerunOnboarding') : undefined}
           className={`no-drag flex w-full items-center gap-2 rounded-md py-1.5 text-[12px] text-text-weak hover:bg-surface-weak hover:text-text-base ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
         >
           <RotateCcw size={13} className="shrink-0" />
-          {!collapsed && <span>重新运行引导</span>}
+          {!collapsed && <span>{t('sidebar.rerunOnboarding')}</span>}
         </button>
       </div>
 

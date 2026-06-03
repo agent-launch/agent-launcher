@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { PROVIDERS_BY_CLI, CATEGORY_LABEL } from '@/data/providers'
+import { PROVIDERS_BY_CLI } from '@/data/providers'
+import { useT } from '@/i18n'
 import type { AppConfig, CliId, CliProfile, EnvPair } from '@shared/types'
 
 interface NativeFiles {
@@ -9,6 +10,7 @@ interface NativeFiles {
 }
 
 export function ConfigView({ cliId }: { cliId: CliId }) {
+  const t = useT()
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [env, setEnv] = useState<EnvPair[]>([])
   const [nativeFiles, setNativeFiles] = useState<NativeFiles | null>(null)
@@ -25,7 +27,7 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
     refresh()
   }, [refresh])
 
-  if (!cfg) return <div className="p-6 text-[13px] text-text-weak">加载中…</div>
+  if (!cfg) return <div className="p-6 text-[13px] text-text-weak">{t('common.loading')}</div>
 
   const cli = cfg.clis[cliId]
   const activeId = cli.activeProfileId
@@ -42,25 +44,23 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
   return (
     <div className="mx-auto max-w-3xl px-8 py-6">
       <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-[18px] font-semibold text-text-strong">配置管理</h2>
+        <h2 className="text-[18px] font-semibold text-text-strong">{t('config.title')}</h2>
         <div className="flex gap-2">
           <Button size="sm" variant="ghost" onClick={() => window.api.config.reveal()}>
-            在文件夹中显示
+            {t('config.revealFolder')}
           </Button>
           <Button size="sm" variant="secondary" onClick={() => window.api.config.openFile()}>
-            打开 config.json
+            {t('config.openConfig')}
           </Button>
         </div>
       </div>
-      <p className="mb-5 text-[13px] text-text-weak">
-        每个 CLI 可存多套配置，一键切换当前生效的那套。配置以明文 JSON 存在 ~/.agent-launcher/config.json。
-      </p>
+      <p className="mb-5 text-[13px] text-text-weak">{t('config.intro')}</p>
 
       {/* Profiles */}
       <div className="space-y-2">
         {cli.profiles.length === 0 && (
           <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[13px] text-text-weak">
-            还没有配置，点下方「新增配置」。
+            {t('config.noProfiles')}
           </div>
         )}
         {cli.profiles.map((p) =>
@@ -88,7 +88,7 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
                 style={{
                   borderColor: activeId === p.id ? 'var(--accent)' : 'var(--border-base)'
                 }}
-                title="设为当前生效"
+                title={t('config.setActive')}
               >
                 {activeId === p.id && (
                   <span className="size-2.5 rounded-full" style={{ background: 'var(--accent)' }} />
@@ -99,25 +99,25 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
                   {p.name}
                   {activeId === p.id && (
                     <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-success">
-                      生效中
+                      {t('config.active')}
                     </span>
                   )}
                 </div>
                 <div className="truncate text-[12px] text-text-weak">
-                  {p.baseUrl || '官方默认'} {p.model ? `· ${p.model}` : ''}
+                  {p.baseUrl || t('config.officialDefault')} {p.model ? `· ${p.model}` : ''}
                 </div>
               </div>
               <button
                 onClick={() => setEditId(p.id)}
                 className="text-[12px] text-text-weak hover:text-text-strong"
               >
-                编辑
+                {t('common.edit')}
               </button>
               <button
                 onClick={() => remove(p.id)}
                 className="text-[12px] text-text-weak hover:text-danger"
               >
-                删除
+                {t('common.delete')}
               </button>
             </div>
           )
@@ -137,19 +137,19 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
         </div>
       ) : (
         <Button className="mt-3" variant="secondary" onClick={() => setAdding(true)}>
-          + 新增配置
+          {t('config.addProfile')}
         </Button>
       )}
 
       {/* Resolved environment preview */}
       <div className="mt-8">
-        <h3 className="mb-2 text-[14px] font-medium text-text-strong">Resolved Environment</h3>
+        <h3 className="mb-2 text-[14px] font-medium text-text-strong">{t('config.resolvedEnv')}</h3>
         <p className="mb-3 text-[12px] text-text-weak">
-          启动 {cliId} 时实际注入的环境变量（密钥已脱敏）。你永远不需要手动 export。
+          {t('config.resolvedEnvDesc', { cliId })}
         </p>
         <div className="rounded-lg border border-border-weak bg-surface p-3 font-mono text-[12px]">
           {env.length === 0 ? (
-            <span className="text-text-weak">（当前配置无注入项）</span>
+            <span className="text-text-weak">{t('config.noEnv')}</span>
           ) : (
             env.map((e) => (
               <div key={e.key} className="flex gap-2 py-0.5">
@@ -166,13 +166,13 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
       {nativeFiles && nativeFiles.files.length > 0 && (
         <div className="mt-8">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[14px] font-medium text-text-strong">原生配置文件</h3>
+            <h3 className="text-[14px] font-medium text-text-strong">{t('config.nativeFiles')}</h3>
             <Button size="sm" variant="ghost" onClick={() => window.api.config.revealNative(cliId)}>
-              打开目录
+              {t('config.openDir')}
             </Button>
           </div>
           <p className="mb-3 text-[12px] text-text-weak">
-            该 CLI 从这个目录读自己的配置文件（非纯环境变量）。切换配置时会自动写入：
+            {t('config.nativeFilesDesc')}
             <span className="font-mono">{nativeFiles.dir}</span>
           </p>
           <div className="space-y-3">
@@ -210,6 +210,7 @@ function ProfileForm({
   onCancel: () => void
   onDone: () => void
 }) {
+  const t = useT()
   const providers = PROVIDERS_BY_CLI[cliId]
   const [providerId, setProviderId] = useState(initial?.providerId ?? '')
   const [name, setName] = useState(initial?.name ?? '')
@@ -237,22 +238,32 @@ function ProfileForm({
     <div className="rounded-lg border border-border-selected bg-surface p-4">
       <div className="grid grid-cols-2 gap-3">
         <label className="col-span-2 block">
-          <span className="text-[12px] text-text-weak">中转商</span>
+          <span className="text-[12px] text-text-weak">{t('config.provider')}</span>
           <select
             value={providerId}
             onChange={(e) => onProvider(e.target.value)}
             className="mt-1 w-full rounded-md border border-border-weak bg-surface px-2 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
           >
-            <option value="">— 选择 —</option>
+            <option value="">{t('config.selectPlaceholder')}</option>
             {providers.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}（{CATEGORY_LABEL[p.category]}）
+                {p.name} · {t('category.' + p.category)}
               </option>
             ))}
           </select>
         </label>
-        <Field label="配置名称" value={name} onChange={setName} placeholder="如 AiHubMix · Opus" />
-        <Field label="Model（可选）" value={model} onChange={setModel} placeholder="如 opus" />
+        <Field
+          label={t('config.profileName')}
+          value={name}
+          onChange={setName}
+          placeholder={t('config.profileNamePlaceholder')}
+        />
+        <Field
+          label={t('config.modelOptional')}
+          value={model}
+          onChange={setModel}
+          placeholder={t('config.modelPlaceholder')}
+        />
         <label className="col-span-2 block">
           <span className="text-[12px] text-text-weak">Base URL</span>
           <input
@@ -275,10 +286,10 @@ function ProfileForm({
       </div>
       <div className="mt-3 flex gap-2">
         <Button size="sm" onClick={submit}>
-          {initial ? '保存' : '添加'}
+          {initial ? t('common.save') : t('common.add')}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel}>
-          取消
+          {t('common.cancel')}
         </Button>
       </div>
     </div>

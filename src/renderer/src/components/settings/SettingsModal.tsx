@@ -4,12 +4,18 @@ import { Modal } from '@/components/ui/Modal'
 import { Switch } from '@/components/ui/Switch'
 import { CliIcon } from '@/components/CliIcon'
 import { CLIS, YOLO_SUPPORT } from '@/data/clis'
-import { useAppStore } from '@/store/app'
+import { useAppStore, type ThemeMode, type LocaleMode } from '@/store/app'
+import { useT } from '@/i18n'
 import type { AppConfig, CliId } from '@shared/types'
 
 export function SettingsModal() {
+  const t = useT()
   const open = useAppStore((s) => s.settingsOpen)
   const setOpen = useAppStore((s) => s.setSettingsOpen)
+  const themeMode = useAppStore((s) => s.themeMode)
+  const setThemeMode = useAppStore((s) => s.setThemeMode)
+  const localeMode = useAppStore((s) => s.localeMode)
+  const setLocaleMode = useAppStore((s) => s.setLocaleMode)
   const [cfg, setCfg] = useState<AppConfig | null>(null)
 
   useEffect(() => {
@@ -21,20 +27,40 @@ export function SettingsModal() {
     setCfg(next)
   }
 
+  const themeOptions: { value: ThemeMode; label: string }[] = [
+    { value: 'system', label: t('settings.theme.system') },
+    { value: 'light', label: t('settings.theme.light') },
+    { value: 'dark', label: t('settings.theme.dark') }
+  ]
+  const localeOptions: { value: LocaleMode; label: string }[] = [
+    { value: 'system', label: t('settings.locale.system') },
+    { value: 'zh', label: t('settings.locale.zh') },
+    { value: 'en', label: t('settings.locale.en') }
+  ]
+
   return (
-    <Modal open={open} onClose={() => setOpen(false)} title="设置">
-      <section>
+    <Modal open={open} onClose={() => setOpen(false)} title={t('settings.title')}>
+      <section className="space-y-4">
+        <Row label={t('settings.appearance')}>
+          <Segmented options={themeOptions} value={themeMode} onChange={setThemeMode} />
+        </Row>
+        <Row label={t('settings.language')}>
+          <Segmented options={localeOptions} value={localeMode} onChange={setLocaleMode} />
+        </Row>
+      </section>
+
+      <section className="mt-6 border-t border-border-weak pt-5">
         <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-medium text-text-strong">YOLO 模式</h3>
+          <h3 className="text-[14px] font-medium text-text-strong">{t('settings.yolo.title')}</h3>
           <span
             className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
             style={{ background: 'color-mix(in srgb, var(--warning) 22%, transparent)', color: 'var(--text-strong)' }}
           >
-            <TriangleAlert size={11} /> 危险
+            <TriangleAlert size={11} /> {t('settings.yolo.danger')}
           </span>
         </div>
         <p className="mt-1.5 mb-3 text-[12px] leading-relaxed text-text-weak">
-          开启后，对应 CLI 会自动批准所有操作（执行命令、改文件等），不再逐次确认。省事但有风险，只在你信任当前项目时开启。每个 CLI 独立设置。
+          {t('settings.yolo.desc')}
         </p>
 
         <div className="space-y-1.5">
@@ -51,12 +77,14 @@ export function SettingsModal() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="text-[13px] text-text-strong">{c.name}</div>
-                  <div className="truncate font-mono text-[11px] text-text-weak">{sup?.note}</div>
+                  <div className="truncate font-mono text-[11px] text-text-weak">
+                    {sup?.supported ? sup.note : t('settings.yolo.unsupported')}
+                  </div>
                 </div>
                 {sup?.supported ? (
                   <Switch checked={on} onChange={(v) => toggleYolo(c.id as CliId, v)} />
                 ) : (
-                  <span className="text-[11px] text-text-weak">不支持</span>
+                  <span className="text-[11px] text-text-weak">{t('settings.yolo.notSupported')}</span>
                 )}
               </div>
             )
@@ -64,5 +92,42 @@ export function SettingsModal() {
         </div>
       </section>
     </Modal>
+  )
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-[13px] font-medium text-text-strong">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function Segmented<T extends string>({
+  options,
+  value,
+  onChange
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex rounded-lg border border-border-weak bg-surface p-0.5">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          className={`rounded-md px-3 py-1 text-[12px] transition-colors ${
+            value === o.value
+              ? 'bg-surface-weak text-text-strong'
+              : 'text-text-weak hover:text-text-strong'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   )
 }

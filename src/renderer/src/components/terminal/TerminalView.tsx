@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
+import { useT } from '@/i18n'
 import type { CliId } from '@shared/types'
 
 interface Props {
@@ -22,6 +23,11 @@ function readVar(name: string, fallback: string): string {
 
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
+  // Keep the latest translator in a ref so the once-per-session effect (which
+  // intentionally excludes deps) always reads the current locale.
+  const t = useT()
+  const tRef = useRef(t)
+  tRef.current = t
 
   useEffect(() => {
     const host = hostRef.current
@@ -56,7 +62,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     offs.push(
       window.api.pty.onExit((id, code) => {
         if (id === ptyId) {
-          term.write(`\r\n\x1b[90m[进程已退出 code=${code}]\x1b[0m\r\n`)
+          term.write(`\r\n\x1b[90m${tRef.current('terminal.exited', { code })}\x1b[0m\r\n`)
           onExit?.(code)
         }
       })
@@ -75,7 +81,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
         term.focus()
       })
       .catch((e: Error) => {
-        term.write(`\r\n\x1b[31m启动失败: ${e.message}\x1b[0m\r\n`)
+        term.write(`\r\n\x1b[31m${tRef.current('terminal.launchFailed', { error: e.message })}\x1b[0m\r\n`)
       })
 
     const onResize = () => {
