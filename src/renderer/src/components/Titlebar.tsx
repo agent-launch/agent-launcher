@@ -17,22 +17,24 @@ export function Titlebar() {
 
   return (
     <div
-      className="drag-region flex h-10 shrink-0 items-center border-b border-border-weak bg-strong"
+      className="drag-region flex h-10 shrink-0 items-center bg-strong"
       style={{
         paddingLeft: isMac ? '78px' : '12px',
         // Leave room for the Windows/Linux overlay controls on the right.
         paddingRight: isMac ? '12px' : '140px'
       }}
     >
-      <div className="flex items-center gap-2 text-[13px] font-medium text-text-strong">
-        <span
-          className="grid size-5 place-items-center rounded-md text-[11px] font-semibold text-white"
-          style={{ background: 'var(--accent)' }}
-        >
-          A
-        </span>
-        AgentLauncher
-      </div>
+      {!isMac && (
+        <div className="flex items-center gap-2 text-[13px] font-medium text-text-strong">
+          <span
+            className="grid size-5 place-items-center rounded-md text-[11px] font-semibold text-white"
+            style={{ background: 'var(--accent)' }}
+          >
+            A
+          </span>
+          AgentLauncher
+        </div>
+      )}
     </div>
   )
 }

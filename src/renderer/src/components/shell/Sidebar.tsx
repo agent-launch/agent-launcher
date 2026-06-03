@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen, RotateCcw, Settings } from 'lucide-react'
 import { useAppStore, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_COLLAPSED } from '@/store/app'
 import { CLIS } from '@/data/clis'
@@ -15,10 +16,13 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
   const toggle = useAppStore((s) => s.toggleSidebar)
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed)
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
+  const [dragging, setDragging] = useState(false)
 
   return (
     <aside
-      className="relative flex shrink-0 flex-col border-r border-border-weak bg-strong transition-[width] duration-150 ease-out"
+      className={`relative flex shrink-0 flex-col border-r border-border-weak bg-strong ${
+        dragging ? '' : 'transition-[width] duration-150 ease-out'
+      }`}
       style={{ width: collapsed ? SIDEBAR_COLLAPSED : width }}
     >
       <div className={`flex h-10 items-center ${collapsed ? 'justify-center' : 'justify-between px-3'}`}>
@@ -122,6 +126,8 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
           onResize={setWidth}
           onCollapse={() => setCollapsed(true)}
           collapseThreshold={SIDEBAR_MIN - 20}
+          onDragStart={() => setDragging(true)}
+          onDragEnd={() => setDragging(false)}
         />
       )}
     </aside>
