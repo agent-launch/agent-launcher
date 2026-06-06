@@ -26,23 +26,42 @@ export function Onboarding() {
   const back = () => setStep((s) => Math.max(0, s - 1))
 
   return (
-    <div className="flex h-full flex-col bg-base">
+    <div className="flex h-full flex-col" style={{ background: 'var(--canvas-gradient)' }}>
       <div className="flex flex-1 overflow-hidden">
-        <aside className="flex w-56 shrink-0 flex-col gap-1 border-r border-border-weak bg-strong p-4 pt-6">
-          <div className="mb-5 px-2 text-[13px] font-medium text-text-weak">{t('onboarding.setupHeading')}</div>
+        <aside className="flex w-60 shrink-0 flex-col gap-1 border-r border-border-weak bg-strong p-4 pt-6">
+          <div className="mb-6 flex items-center gap-2 px-2">
+            <span
+              className="grid size-7 place-items-center rounded-lg text-[13px] font-bold text-white shadow-sm"
+              style={{
+                background:
+                  'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c3aed))'
+              }}
+            >
+              A
+            </span>
+            <span className="text-[14px] font-semibold text-text-strong">AgentLauncher</span>
+          </div>
           {STEP_KEYS.map((key, i) => {
             const done = i < step
             const active = i === step
             return (
               <div
                 key={key}
-                className={`flex items-center gap-3 rounded-md px-2 py-2 text-[13px] ${
-                  active ? 'bg-surface-weak text-text-strong' : 'text-text-base'
+                className={`flex items-center gap-3 rounded-lg px-2.5 py-2 text-[13px] transition-colors ${
+                  active
+                    ? 'bg-accent-soft font-medium text-text-strong'
+                    : done
+                      ? 'text-text-base'
+                      : 'text-text-weak'
                 }`}
               >
                 <span
-                  className={`grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${
-                    done ? 'bg-success text-white' : active ? 'text-white' : 'bg-surface-weak text-text-weak'
+                  className={`grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-semibold transition-colors ${
+                    done
+                      ? 'bg-success text-white'
+                      : active
+                        ? 'text-white shadow-sm'
+                        : 'bg-surface-weak text-text-weak'
                   }`}
                   style={active ? { background: 'var(--accent)' } : undefined}
                 >
@@ -83,14 +102,19 @@ export function Onboarding() {
 function Welcome() {
   const t = useT()
   return (
-    <div className="mx-auto max-w-xl pt-10 text-center">
+    <div className="mx-auto max-w-xl pt-16 text-center">
       <div
-        className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl text-2xl font-bold text-white"
-        style={{ background: 'var(--accent)' }}
+        className="mx-auto mb-7 grid size-20 place-items-center rounded-3xl text-3xl font-bold text-white"
+        style={{
+          background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c3aed))',
+          boxShadow: '0 16px 40px var(--accent-soft), var(--shadow-md)'
+        }}
       >
         A
       </div>
-      <h1 className="text-[28px] font-semibold text-text-strong">{t('onboarding.welcomeTitle')}</h1>
+      <h1 className="text-[30px] font-semibold tracking-tight text-text-strong">
+        {t('onboarding.welcomeTitle')}
+      </h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-base">
         {t('onboarding.welcomeDesc')}
       </p>
@@ -113,10 +137,16 @@ function DetectStep() {
           {result.items.map((it) => (
             <li
               key={it.key}
-              className="flex items-center justify-between rounded-lg border border-border-weak bg-surface px-4 py-3 text-[14px]"
+              className="flex items-center justify-between rounded-xl border border-border-weak bg-surface px-4 py-3 text-[14px] shadow-[var(--shadow-sm)]"
             >
-              <span className="flex items-center gap-2 text-text-strong">
-                <span style={{ color: it.present ? 'var(--success)' : 'var(--text-weak)' }}>
+              <span className="flex items-center gap-2.5 text-text-strong">
+                <span
+                  className="grid size-5 place-items-center rounded-full text-[11px]"
+                  style={{
+                    background: it.present ? 'var(--success)' : 'var(--surface-weak)',
+                    color: it.present ? '#fff' : 'var(--text-weak)'
+                  }}
+                >
                   {it.present ? '✓' : '○'}
                 </span>
                 {it.label}
@@ -195,9 +225,13 @@ function InstallStep() {
           return (
             <div
               key={c.id}
-              className="flex items-center gap-3 rounded-lg border border-border-weak bg-surface px-4 py-3"
+              className="flex items-center gap-3 rounded-xl border border-border-weak bg-surface px-4 py-3 shadow-[var(--shadow-sm)]"
             >
-              <span className="grid size-8 place-items-center rounded-md bg-surface-weak text-text-strong">
+              <span
+                className={`grid size-9 place-items-center rounded-lg ${
+                  s.phase === 'done' ? 'bg-success/15 text-success' : 'bg-accent-soft text-accent'
+                }`}
+              >
                 <CliIcon cliId={c.id as CliId} size={18} />
               </span>
               <div className="min-w-0 flex-1">
@@ -276,8 +310,8 @@ function ConfigStep() {
               setBaseUrl('')
               setSaved(false)
             }}
-            className={`rounded-md px-3 py-1.5 text-[13px] ${
-              cliId === c.id ? 'bg-surface-weak text-text-strong' : 'text-text-base hover:bg-surface-weak/60'
+            className={`rounded-lg px-3 py-1.5 text-[13px] font-medium transition-colors ${
+              cliId === c.id ? 'bg-accent-soft text-accent' : 'text-text-base hover:bg-surface-weak'
             }`}
           >
             {c.name}
@@ -290,8 +324,10 @@ function ConfigStep() {
           <button
             key={p.id}
             onClick={() => select(p.id)}
-            className={`rounded-lg border bg-surface px-3 py-2 text-left ${
-              providerId === p.id ? 'border-border-selected' : 'border-border-weak hover:border-border-base'
+            className={`rounded-xl border bg-surface px-3 py-2.5 text-left transition-all ${
+              providerId === p.id
+                ? 'border-border-selected bg-accent-soft shadow-[var(--shadow-card)]'
+                : 'border-border-weak hover:border-border-base hover:shadow-[var(--shadow-sm)]'
             }`}
           >
             <div className="truncate text-[13px] font-medium text-text-strong">{p.name}</div>
@@ -308,7 +344,7 @@ function ConfigStep() {
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://..."
-              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
+              className="selectable mt-1 w-full rounded-lg border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
             />
           </label>
           <label className="block">
@@ -318,7 +354,7 @@ function ConfigStep() {
               onChange={(e) => setApiKey(e.target.value)}
               type="password"
               placeholder="sk-..."
-              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
+              className="selectable mt-1 w-full rounded-lg border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
             />
           </label>
           <div className="flex items-center gap-3">
@@ -334,11 +370,14 @@ function ConfigStep() {
 function Done() {
   const t = useT()
   return (
-    <div className="mx-auto max-w-xl pt-10 text-center">
-      <div className="mx-auto mb-6 grid size-16 place-items-center rounded-2xl bg-success text-2xl text-white">
+    <div className="mx-auto max-w-xl pt-16 text-center">
+      <div
+        className="mx-auto mb-7 grid size-20 place-items-center rounded-3xl bg-success text-3xl text-white"
+        style={{ boxShadow: '0 16px 40px var(--success-soft, rgba(18,138,74,0.18)), var(--shadow-md)' }}
+      >
         ✓
       </div>
-      <h1 className="text-[28px] font-semibold text-text-strong">{t('onboarding.doneTitle')}</h1>
+      <h1 className="text-[30px] font-semibold tracking-tight text-text-strong">{t('onboarding.doneTitle')}</h1>
       <p className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-text-base">
         {t('onboarding.doneDesc')}
       </p>
