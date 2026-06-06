@@ -122,10 +122,10 @@ export function Shell() {
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className={`no-drag rounded-md px-2.5 py-1 text-[13px] ${
+                className={`no-drag rounded-lg px-3 py-1 text-[13px] font-medium transition-colors ${
                   view === v
-                    ? 'bg-surface-weak text-text-strong'
-                    : 'text-text-base hover:text-text-strong'
+                    ? 'bg-accent-soft text-accent'
+                    : 'text-text-base hover:bg-surface-weak hover:text-text-strong'
                 }`}
               >
                 {v === 'run' ? t('shell.tabRun') : t('shell.tabConfig')}
@@ -135,7 +135,7 @@ export function Shell() {
           {view === 'run' && (
             <button
               onClick={pickDir}
-              className="no-drag rounded-md bg-surface-weak px-2 py-1 text-[12px] text-text-base hover:text-text-strong"
+              className="no-drag max-w-[40ch] truncate rounded-lg border border-border-weak bg-surface-weak px-2.5 py-1 text-[12px] text-text-base hover:border-border-base hover:text-text-strong"
               title={t('shell.pickDir')}
             >
               {cwd || t('shell.pickDirEmpty')}
@@ -148,11 +148,11 @@ export function Shell() {
         </div>
 
         {view === 'config' ? (
-          <div className="flex-1 overflow-y-auto bg-base">
+          <div className="flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
             <ConfigView cliId={active.id as CliId} />
           </div>
         ) : (
-          <div className="relative flex-1 bg-base">
+          <div className="relative flex-1" style={{ background: 'var(--canvas-gradient)' }}>
             {terminal ? (
               <div className="absolute inset-0 p-2">
                 <TerminalView
@@ -218,19 +218,19 @@ export function Shell() {
                 {loadingSessions ? (
                   <div className="px-1 text-[12px] text-text-weak">{t('shell.loadingSessions')}</div>
                 ) : sessions.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[12px] text-text-weak">
+                  <div className="rounded-xl border border-dashed border-border-weak px-4 py-10 text-center text-[12px] text-text-weak">
                     {t('shell.noHistory', { name: active.name })}
                   </div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {sessions.map((s) => (
                       <button
                         key={s.id}
                         onClick={() => resume(s)}
-                        className="flex w-full items-center gap-3 rounded-lg border border-border-weak bg-surface px-3 py-2 text-left hover:border-border-selected"
+                        className="group flex w-full items-center gap-3 rounded-xl border border-border-weak bg-surface px-3 py-2.5 text-left transition-all hover:border-border-selected hover:shadow-[var(--shadow-card)]"
                         title={t('shell.resumeTitle')}
                       >
-                        <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-weak text-text-strong group-hover:bg-accent-soft group-hover:text-accent">
                           <CliIcon cliId={active.id as CliId} size={15} />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -240,7 +240,9 @@ export function Shell() {
                             {s.cwd ? ` · ${s.cwd}` : ''}
                           </div>
                         </div>
-                        <span className="shrink-0 text-[11px] text-text-weak">{t('shell.resume')}</span>
+                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] text-text-weak transition-colors group-hover:bg-accent-soft group-hover:text-accent">
+                          {t('shell.resume')}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -256,7 +258,7 @@ export function Shell() {
 
 function Chip({ label, color }: { label: string; color?: string }) {
   return (
-    <span className="flex items-center gap-1.5 rounded-full border border-border-weak px-2.5 py-1 text-[12px] text-text-base">
+    <span className="flex items-center gap-1.5 rounded-full border border-border-weak bg-surface px-2.5 py-1 text-[12px] text-text-base shadow-[var(--shadow-sm)]">
       {color && <span className="size-2 rounded-full" style={{ background: color }} />}
       {label}
     </span>

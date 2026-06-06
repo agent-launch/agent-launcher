@@ -25,12 +25,12 @@ export function Modal({ open, onClose, title, children }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm"
       onMouseDown={onClose}
-      style={{ background: 'rgba(0,0,0,0.45)' }}
+      style={{ background: 'rgba(8,12,20,0.5)' }}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border-weak bg-stronger shadow-[var(--shadow-md)]"
+        className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border-weak bg-stronger shadow-[var(--shadow-md)]"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-weak px-5">

@@ -117,12 +117,12 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
       <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak px-3">
         <button
           onClick={onBack}
-          className="no-drag grid size-7 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
+          className="no-drag grid size-7 place-items-center rounded-lg text-text-weak hover:bg-surface-weak hover:text-text-strong"
           title={t('transcript.back')}
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+        <span className="grid size-6 shrink-0 place-items-center rounded-lg bg-surface-weak text-text-strong">
           <CliIcon cliId={cliId} size={14} />
         </span>
         <span className="min-w-0 flex-1 truncate text-[13px] text-text-strong">
@@ -130,7 +130,7 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
         </span>
         <button
           onClick={() => onOpenTerminal(sessionRef.current)}
-          className="no-drag grid size-7 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
+          className="no-drag grid size-7 place-items-center rounded-lg text-text-weak hover:bg-surface-weak hover:text-text-strong"
           title={t('chat.openInTerminal')}
         >
           <SquareTerminal size={15} />
@@ -160,24 +160,26 @@ export function ChatView({ cliId, cwd, resumeId, onBack, onOpenTerminal }: Props
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border-weak p-3">
-        <div className="mx-auto flex w-full items-end gap-2 lg:max-w-4xl">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            rows={1}
-            placeholder={t('chat.placeholder')}
-            className="selectable max-h-40 min-h-[40px] flex-1 resize-none rounded-lg border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
-          />
-          <button
-            onClick={submit}
-            disabled={!input.trim() || streaming}
-            className="grid size-10 shrink-0 place-items-center rounded-lg bg-[var(--button-primary-base)] text-[var(--button-primary-text)] disabled:opacity-40"
-            title={t('chat.send')}
-          >
-            <Send size={16} />
-          </button>
+      <div className="shrink-0 px-3 pb-4 pt-2">
+        <div className="mx-auto w-full lg:max-w-3xl">
+          <div className="flex items-end gap-2 rounded-2xl border border-border-base bg-surface p-2 shadow-[var(--shadow-composer)] transition-colors focus-within:border-border-selected">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={1}
+              placeholder={t('chat.placeholder')}
+              className="selectable max-h-40 min-h-[36px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13px] text-text-strong outline-none placeholder:text-text-weak"
+            />
+            <button
+              onClick={submit}
+              disabled={!input.trim() || streaming}
+              className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-sm transition-all hover:brightness-110 disabled:opacity-40"
+              title={t('chat.send')}
+            >
+              <Send size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </div>

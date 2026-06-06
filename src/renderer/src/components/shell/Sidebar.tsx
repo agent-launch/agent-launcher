@@ -48,23 +48,25 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
             <button
               key={c.id}
               onClick={() => setActiveCli(c.id)}
-              className={`group relative flex items-center gap-3 rounded-md py-2 text-left text-[14px] transition-colors ${
+              className={`group relative flex items-center gap-3 rounded-lg py-2 text-left text-[14px] transition-colors ${
                 collapsed ? 'justify-center px-0' : 'px-2'
-              } ${selected ? 'bg-surface-weak text-text-strong' : 'text-text-base hover:bg-surface-weak/60'}`}
+              } ${
+                selected
+                  ? 'bg-accent-soft font-medium text-text-strong'
+                  : 'text-text-base hover:bg-surface-weak/70'
+              }`}
             >
               {selected && (
                 <span
-                  className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full"
+                  className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full"
                   style={{ background: 'var(--accent)' }}
                 />
               )}
               <span
-                className="relative grid size-7 shrink-0 place-items-center rounded-md text-text-strong"
-                style={{
-                  background: selected
-                    ? 'color-mix(in srgb, var(--accent) 20%, transparent)'
-                    : 'var(--surface-weak)'
-                }}
+                className={`relative grid size-7 shrink-0 place-items-center rounded-lg ${
+                  selected ? 'text-accent' : 'text-text-base'
+                }`}
+                style={{ background: selected ? 'var(--accent-soft)' : 'var(--surface-weak)' }}
               >
                 <CliIcon cliId={c.id as CliId} size={16} />
                 {collapsed && (
@@ -101,7 +103,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
         <button
           onClick={() => setSettingsOpen(true)}
           title={collapsed ? t('sidebar.settings') : undefined}
-          className={`no-drag flex w-full items-center gap-2 rounded-md py-1.5 text-[12px] text-text-base hover:bg-surface-weak hover:text-text-strong ${
+          className={`no-drag flex w-full items-center gap-2 rounded-lg py-1.5 text-[12px] text-text-base hover:bg-surface-weak hover:text-text-strong ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
         >
@@ -111,7 +113,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
         <button
           onClick={resetOnboarding}
           title={collapsed ? t('sidebar.rerunOnboarding') : undefined}
-          className={`no-drag flex w-full items-center gap-2 rounded-md py-1.5 text-[12px] text-text-weak hover:bg-surface-weak hover:text-text-base ${
+          className={`no-drag flex w-full items-center gap-2 rounded-lg py-1.5 text-[12px] text-text-weak hover:bg-surface-weak hover:text-text-base ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
         >

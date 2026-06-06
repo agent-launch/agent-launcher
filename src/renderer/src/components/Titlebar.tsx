@@ -17,7 +17,7 @@ export function Titlebar() {
 
   return (
     <div
-      className="drag-region flex h-10 shrink-0 items-center bg-strong"
+      className="drag-region flex h-10 shrink-0 items-center border-b border-border-weak bg-strong"
       style={{
         paddingLeft: isMac ? '78px' : '12px',
         // Leave room for the Windows/Linux overlay controls on the right.
@@ -25,10 +25,10 @@ export function Titlebar() {
       }}
     >
       {!isMac && (
-        <div className="flex items-center gap-2 text-[13px] font-medium text-text-strong">
+        <div className="flex items-center gap-2 text-[13px] font-semibold text-text-strong">
           <span
-            className="grid size-5 place-items-center rounded-md text-[11px] font-semibold text-white"
-            style={{ background: 'var(--accent)' }}
+            className="grid size-5 place-items-center rounded-lg text-[11px] font-bold text-white shadow-sm"
+            style={{ background: 'linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #7c3aed))' }}
           >
             A
           </span>
