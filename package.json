@@ -30,12 +30,6 @@
     "sql.js": "^1.14.1",
     "zustand": "^5.0.8"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "esbuild"
-    ]
-  },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.13",
     "@types/node": "^22.10.0",
