@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { Button } from '@/components/ui/Button'
+import { Markdown } from '@/components/ui/Markdown'
+import { Modal } from '@/components/ui/Modal'
 import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { useT } from '@/i18n'
-import type { AppConfig, CliId, CliProfile, EnvPair } from '@shared/types'
+import type { AppConfig, CliId, CliProfile } from '@shared/types'
 
 interface NativeFiles {
   dir: string
@@ -12,14 +15,13 @@ interface NativeFiles {
 export function ConfigView({ cliId }: { cliId: CliId }) {
   const t = useT()
   const [cfg, setCfg] = useState<AppConfig | null>(null)
-  const [env, setEnv] = useState<EnvPair[]>([])
   const [nativeFiles, setNativeFiles] = useState<NativeFiles | null>(null)
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     setCfg(await window.api.config.get())
-    setEnv(await window.api.config.resolvedEnv(cliId))
     setNativeFiles(await window.api.config.nativeFiles(cliId))
   }, [cliId])
 
@@ -27,7 +29,19 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
     refresh()
   }, [refresh])
 
-  if (!cfg) return <div className="p-6 text-[13px] text-text-weak">{t('common.loading')}</div>
+  useEffect(() => {
+    setAdding(false)
+    setEditId(null)
+    setDeleteId(null)
+  }, [cliId])
+
+  if (!cfg) {
+    return (
+      <div className="mx-auto w-full max-w-[980px] px-7 py-6 text-[13px] text-text-weak">
+        {t('common.loading')}
+      </div>
+    )
+  }
 
   const cli = cfg.clis[cliId]
   const activeId = cli.activeProfileId
@@ -38,28 +52,23 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
   }
   const remove = async (pid: string) => {
     await window.api.config.deleteProfile(cliId, pid)
+    setDeleteId(null)
     refresh()
   }
 
+  const deletingProfile = cli.profiles.find((p) => p.id === deleteId)
+
   return (
-    <div className="mx-auto max-w-3xl px-8 py-6">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-[18px] font-semibold text-text-strong">{t('config.title')}</h2>
-        <div className="flex gap-2">
-          <Button size="sm" variant="ghost" onClick={() => window.api.config.revealNative(cliId)}>
-            {t('config.openAgentDir')}
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => window.api.config.openFile()}>
-            {t('config.openConfig')}
-          </Button>
-        </div>
+    <div className="mx-auto w-full max-w-[980px] px-7 py-6">
+      <div className="mb-1">
+        <h2 className="font-display text-[18px] font-semibold text-text-strong">{t('config.title')}</h2>
       </div>
-      <p className="mb-5 text-[13px] text-text-weak">{t('config.intro', { cliId })}</p>
+      <p className="mb-6 text-[13px] leading-relaxed text-text-weak">{t('config.intro', { cliId })}</p>
 
       {/* Profiles */}
       <div className="space-y-2">
         {cli.profiles.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border-weak px-4 py-6 text-center text-[13px] text-text-weak">
+          <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-7 text-center text-[13px] text-text-weak">
             {t('config.noProfiles')}
           </div>
         )}
@@ -78,12 +87,24 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
           ) : (
             <div
               key={p.id}
-              className={`flex items-center gap-3 rounded-lg border bg-surface px-4 py-3 ${
-                activeId === p.id ? 'border-border-selected' : 'border-border-weak'
-              }`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setActive(p.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setActive(p.id)
+                }
+              }}
+              className={`flex items-center gap-3 rounded-lg border bg-surface/90 px-4 py-3 ${
+                activeId === p.id ? 'border-border-selected bg-selection/35' : 'border-border-weak'
+              } cursor-pointer transition-colors hover:border-border-selected/70 hover:bg-surface-weak/60`}
             >
               <button
-                onClick={() => setActive(p.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActive(p.id)
+                }}
                 className="grid size-5 shrink-0 place-items-center rounded-full border"
                 style={{
                   borderColor: activeId === p.id ? 'var(--accent)' : 'var(--border-base)'
@@ -108,13 +129,19 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
                 </div>
               </div>
               <button
-                onClick={() => setEditId(p.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditId(p.id)
+                }}
                 className="text-[12px] text-text-weak hover:text-text-strong"
               >
                 {t('common.edit')}
               </button>
               <button
-                onClick={() => remove(p.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setDeleteId(p.id)
+                }}
                 className="text-[12px] text-text-weak hover:text-danger"
               >
                 {t('common.delete')}
@@ -141,40 +168,33 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
         </Button>
       )}
 
-      {/* Resolved environment preview */}
-      <div className="mt-8">
-        <h3 className="mb-2 text-[14px] font-medium text-text-strong">{t('config.resolvedEnv')}</h3>
-        <p className="mb-3 text-[12px] text-text-weak">
-          {t('config.resolvedEnvDesc', { cliId })}
+      <Modal open={!!deletingProfile} onClose={() => setDeleteId(null)} title={t('config.deleteProfileTitle')}>
+        <p className="text-[13px] leading-relaxed text-text-weak">
+          {t('config.deleteProfileMessage', { name: deletingProfile?.name ?? '' })}
         </p>
-        <div className="rounded-lg border border-border-weak bg-surface p-3 font-mono text-[12px]">
-          {env.length === 0 ? (
-            <span className="text-text-weak">{t('config.noEnv')}</span>
-          ) : (
-            env.map((e) => (
-              <div key={e.key} className="flex gap-2 py-0.5">
-                <span style={{ color: 'var(--text-interactive-base)' }}>{e.key}</span>
-                <span className="text-text-weak">=</span>
-                <span className="truncate text-text-strong">{e.value}</span>
-              </div>
-            ))
-          )}
+        <div className="mt-5 flex justify-end gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setDeleteId(null)}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            size="sm"
+            className="bg-danger text-white hover:brightness-110"
+            onClick={() => {
+              if (deletingProfile) remove(deletingProfile.id)
+            }}
+          >
+            {t('common.delete')}
+          </Button>
         </div>
-      </div>
+      </Modal>
 
       {/* CLIs configured by files (Codex/opencode/pi) — show them. */}
       {nativeFiles && nativeFiles.files.length > 0 && (
         <div className="mt-8">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2">
             <h3 className="text-[14px] font-medium text-text-strong">{t('config.nativeFiles')}</h3>
-            <Button size="sm" variant="ghost" onClick={() => window.api.config.revealNative(cliId)}>
-              {t('config.openDir')}
-            </Button>
           </div>
-          <p className="mb-3 text-[12px] text-text-weak">
-            {t('config.nativeFilesDesc')}
-            <span className="font-mono">{nativeFiles.dir}</span>
-          </p>
+          <p className="mb-3 text-[12px] text-text-weak">{t('config.nativeFilesDesc')}</p>
           <div className="space-y-3">
             {nativeFiles.files.map((f) => (
               <FileBlock key={f.name} name={f.name} content={f.content} />
@@ -187,16 +207,29 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
 }
 
 function FileBlock({ name, content }: { name: string; content: string }) {
+  const lang = languageForFile(name)
   return (
-    <div className="overflow-hidden rounded-lg border border-border-weak bg-surface">
+    <div className="overflow-hidden rounded-lg border border-border-weak bg-surface/90">
       <div className="border-b border-border-weak px-3 py-1.5 font-mono text-[11px] text-text-weak">
         {name}
       </div>
-      <pre className="selectable overflow-x-auto px-3 py-2 font-mono text-[12px] text-text-strong">
-        {content}
-      </pre>
+      <Markdown className="config-code selectable">{codeFence(content, lang)}</Markdown>
     </div>
   )
+}
+
+function languageForFile(name: string): string {
+  if (name.endsWith('.json')) return 'json'
+  if (name.endsWith('.toml')) return 'ini'
+  if (name.endsWith('.yaml') || name.endsWith('.yml')) return 'yaml'
+  return 'text'
+}
+
+function codeFence(content: string, lang: string): string {
+  const ticks = content.match(/`{3,}/g)
+  const fenceLength = ticks ? Math.max(3, ...ticks.map((x) => x.length + 1)) : 3
+  const fence = '`'.repeat(fenceLength)
+  return `${fence}${lang}\n${content.trimEnd()}\n${fence}`
 }
 
 function ProfileForm({
@@ -228,14 +261,37 @@ function ProfileForm({
   }
 
   const submit = async () => {
-    const patch = { name: name || '未命名', providerId, baseUrl, apiKey, model }
+    const nextName = name.trim()
+    const nextProviderId = providerId.trim()
+    const nextBaseUrl = baseUrl.trim()
+    const nextApiKey = apiKey.trim()
+    const nextModel = model.trim()
+    const hasPresetProvider = Boolean(nextProviderId && nextProviderId !== 'custom')
+    const hasManualConfig = Boolean(nextBaseUrl || nextApiKey || nextModel)
+
+    if (!initial && !hasPresetProvider && !hasManualConfig) {
+      toast.error(t('config.emptyProfileToast'))
+      return
+    }
+
+    const patch = {
+      name: nextName || '未命名',
+      providerId: nextProviderId || undefined,
+      baseUrl: nextBaseUrl,
+      apiKey: nextApiKey,
+      model: nextModel
+    }
     if (initial) await window.api.config.updateProfile(cliId, initial.id, patch)
-    else await window.api.config.addProfile(cliId, patch)
+    else {
+      const cfg = await window.api.config.addProfile(cliId, patch)
+      const active = cfg.clis[cliId].activeProfileId
+      if (active) await window.api.config.setActiveProfile(cliId, active)
+    }
     onDone()
   }
 
   return (
-    <div className="rounded-lg border border-border-selected bg-surface p-4">
+    <div className="rounded-lg border border-border-selected bg-surface/90 p-4">
       <div className="grid grid-cols-2 gap-3">
         <label className="col-span-2 block">
           <span className="text-[12px] text-text-weak">{t('config.provider')}</span>

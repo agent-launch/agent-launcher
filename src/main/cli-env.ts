@@ -1,7 +1,33 @@
 import { delimiter, join } from 'node:path'
 import { paths } from './sandbox'
-import { getActiveProfile } from './store'
+import { getActiveProfile, getAuthMode, getInstallSource } from './store'
 import type { CliId, EnvPair } from '@shared/types'
+
+function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  if (process.platform === 'win32') return env
+  const common = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+  const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
+  const seen = new Set(existing)
+  env.PATH = [...existing, ...common.filter((dir) => !seen.has(dir))].join(delimiter)
+  return env
+}
+
+function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
+  if (cliId === 'claude-code') {
+    delete env.ANTHROPIC_BASE_URL
+    delete env.ANTHROPIC_AUTH_TOKEN
+    delete env.ANTHROPIC_API_KEY
+    delete env.ANTHROPIC_MODEL
+    delete env.ANTHROPIC_DEFAULT_HAIKU_MODEL
+    delete env.ANTHROPIC_DEFAULT_SONNET_MODEL
+    delete env.ANTHROPIC_DEFAULT_OPUS_MODEL
+  } else if (cliId === 'codex') {
+    delete env.OPENAI_BASE_URL
+    delete env.OPENAI_API_KEY
+    delete env.OPENAI_ORG_ID
+    delete env.OPENAI_PROJECT_ID
+  }
+}
 
 /**
  * The CLI-specific env vars we inject (config dir + relay endpoint + auth +
@@ -9,19 +35,20 @@ import type { CliId, EnvPair } from '@shared/types'
  * preview in the UI. Uses the CLI's ACTIVE profile.
  */
 function cliVars(cliId: CliId): EnvPair[] {
+  if (getInstallSource(cliId) === 'system') return []
+
   const p = getActiveProfile(cliId)
   const configDir = paths.cliConfig(cliId)
   const out: EnvPair[] = []
 
   if (cliId === 'claude-code') {
     out.push({ key: 'CLAUDE_CONFIG_DIR', value: configDir })
+    if (getAuthMode(cliId) === 'official') return out
     if (p?.baseUrl) out.push({ key: 'ANTHROPIC_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'ANTHROPIC_AUTH_TOKEN', value: p.apiKey, secret: true })
     if (p?.model) out.push({ key: 'ANTHROPIC_MODEL', value: p.model })
   } else if (cliId === 'codex') {
     out.push({ key: 'CODEX_HOME', value: configDir })
-    if (p?.baseUrl) out.push({ key: 'OPENAI_BASE_URL', value: p.baseUrl })
-    if (p?.apiKey) out.push({ key: 'OPENAI_API_KEY', value: p.apiKey, secret: true })
   } else if (cliId === 'opencode') {
     // opencode honors XDG dirs; isolate config/data/cache/state into the sandbox.
     // Relay/key live in opencode.json (see native-config), pointed to here.
@@ -52,7 +79,10 @@ export function resolvedEnvPreview(cliId: CliId): EnvPair[] {
  * Pi exec their JS entry via `node`). The user never exports any of this.
  */
 export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env }
+  const env: NodeJS.ProcessEnv = withCommonPath({ ...process.env })
+  clearManagedAuthEnv(env, cliId)
+  if (getInstallSource(cliId) === 'system') return env
+
   const nodeBinDir = process.platform === 'win32' ? paths.node : join(paths.node, 'bin')
   env.PATH = [nodeBinDir, env.PATH].filter(Boolean).join(delimiter)
   for (const { key, value } of cliVars(cliId)) env[key] = value

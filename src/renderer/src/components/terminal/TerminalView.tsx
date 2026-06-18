@@ -21,8 +21,35 @@ function readVar(name: string, fallback: string): string {
   return v || fallback
 }
 
+function terminalTheme() {
+  return {
+    background: readVar('--terminal-background', '#1e1e1e'),
+    foreground: readVar('--terminal-foreground', '#cccccc'),
+    cursor: readVar('--terminal-cursor', '#cccccc'),
+    cursorAccent: readVar('--terminal-cursor-accent', '#1e1e1e'),
+    selectionBackground: readVar('--terminal-selection-background', '#264f78'),
+    black: readVar('--terminal-black', '#000000'),
+    red: readVar('--terminal-red', '#cd3131'),
+    green: readVar('--terminal-green', '#0dbc79'),
+    yellow: readVar('--terminal-yellow', '#e5e510'),
+    blue: readVar('--terminal-blue', '#2472c8'),
+    magenta: readVar('--terminal-magenta', '#bc3fbc'),
+    cyan: readVar('--terminal-cyan', '#11a8cd'),
+    white: readVar('--terminal-white', '#e5e5e5'),
+    brightBlack: readVar('--terminal-bright-black', '#666666'),
+    brightRed: readVar('--terminal-bright-red', '#f14c4c'),
+    brightGreen: readVar('--terminal-bright-green', '#23d18b'),
+    brightYellow: readVar('--terminal-bright-yellow', '#f5f543'),
+    brightBlue: readVar('--terminal-bright-blue', '#3b8eea'),
+    brightMagenta: readVar('--terminal-bright-magenta', '#d670d6'),
+    brightCyan: readVar('--terminal-bright-cyan', '#29b8db'),
+    brightWhite: readVar('--terminal-bright-white', '#e5e5e5')
+  }
+}
+
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const termRef = useRef<Terminal | null>(null)
   // Keep the latest translator in a ref so the once-per-session effect (which
   // intentionally excludes deps) always reads the current locale.
   const t = useT()
@@ -36,15 +63,14 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     const term = new Terminal({
       fontFamily: readVar('--font-family-mono', 'monospace'),
       fontSize: 13,
+      lineHeight: 1.25,
+      letterSpacing: 0,
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10000,
-      theme: {
-        background: readVar('--background-base', '#101010'),
-        foreground: readVar('--text-strong', '#ededed'),
-        cursor: readVar('--accent', '#2f6bff')
-      }
+      theme: terminalTheme()
     })
+    termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host)
@@ -97,9 +123,21 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       offs.forEach((off) => off())
       if (ptyId) window.api.pty.kill(ptyId)
       term.dispose()
+      termRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionKey])
+
+  useEffect(() => {
+    const applyTheme = () => {
+      const term = termRef.current
+      if (term) term.options.theme = terminalTheme()
+    }
+    const observer = new MutationObserver(applyTheme)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    applyTheme()
+    return () => observer.disconnect()
+  }, [])
 
   return <div ref={hostRef} className="h-full w-full" />
 }

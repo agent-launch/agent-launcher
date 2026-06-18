@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { registerIpc } from './ipc'
 import { killAll } from './pty'
 import { killAllChats } from './chat'
+import { killAllAuth } from './auth'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -12,11 +13,11 @@ function createWindow(): BrowserWindow {
     minHeight: 560,
     show: false,
     title: 'AgentLauncher',
-    backgroundColor: '#101010',
+    backgroundColor: '#ffffff',
     // Frameless with a custom titlebar (see renderer Titlebar component).
     titleBarStyle: 'hidden',
     // Windows / Linux: keep native min/max/close controls via the overlay.
-    titleBarOverlay: { color: '#10101000', symbolColor: '#9a9a9a', height: 40 },
+    titleBarOverlay: { color: '#ffffff00', symbolColor: '#6e6e73', height: 40 },
     // macOS: inset the traffic lights to line up with our 40px titlebar.
     trafficLightPosition: { x: 12, y: 13 },
     webPreferences: {
@@ -69,10 +70,12 @@ app.whenReady().then(() => {
 app.on('before-quit', () => {
   killAll()
   killAllChats()
+  killAllAuth()
 })
 
 app.on('window-all-closed', () => {
   killAll()
   killAllChats()
+  killAllAuth()
   if (process.platform !== 'darwin') app.quit()
 })

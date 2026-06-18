@@ -5,16 +5,23 @@
    bg-base / text-strong / border-weak / text-accent resolve to the tokens. */
 @theme inline {
   --font-sans: var(--font-family-sans);
+  --font-display: var(--font-family-display);
   --font-mono: var(--font-family-mono);
 
+  --color-background-base: var(--background-base);
   --color-base: var(--background-base);
   --color-strong: var(--background-strong);
   --color-stronger: var(--background-stronger);
+  --color-sidebar: var(--sidebar-background);
   --color-surface: var(--surface-base);
   --color-surface-weak: var(--surface-weak);
+  --color-surface-hover: var(--surface-hover);
+  --color-selection: var(--selection-base);
+  --color-message-user: var(--message-user);
 
   --color-text-base: var(--text-base);
   --color-text-weak: var(--text-weak);
+  --color-text-muted: var(--text-muted);
   --color-text-strong: var(--text-strong);
   --color-text-interactive: var(--text-interactive-base);
 
@@ -53,17 +60,31 @@
     color: var(--text-strong);
     background: var(--background-base);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* The whole window is frameless; nothing should be draggable by default. */
-    user-select: none;
+    user-select: text;
     cursor: default;
   }
-  /* Inputs / editable areas opt back into selection. */
+  /* Inputs / editable areas keep native text selection. */
   input,
   textarea,
+  select,
   [contenteditable],
   .selectable {
     user-select: text;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: var(--text-strong);
+    background: var(--surface-base);
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--text-muted);
   }
 
   /* All buttons (and button-like / select controls) use a pointer cursor. */
@@ -72,6 +93,7 @@
   select,
   summary {
     cursor: pointer;
+    user-select: none;
   }
   button:disabled,
   [role='button'][aria-disabled='true'] {
@@ -82,9 +104,71 @@
 /* Custom titlebar drag regions (Electron). */
 .drag-region {
   -webkit-app-region: drag;
+  user-select: none;
 }
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* Shared modal treatment: subtle desktop glass backdrop and a short system-like
+   scale/fade motion. */
+.modal-backdrop {
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--background-stronger) 18%, transparent), transparent 38%),
+    color-mix(in srgb, #1d1d1f 28%, transparent);
+  transition: opacity 0.15s ease;
+}
+.modal-backdrop--open {
+  opacity: 1;
+}
+.modal-backdrop--closed {
+  opacity: 0;
+}
+.modal-panel {
+  box-shadow:
+    0 32px 90px rgba(0, 0, 0, 0.18),
+    0 10px 34px rgba(0, 0, 0, 0.09),
+    0 0 0 1px color-mix(in srgb, var(--background-stronger) 34%, transparent) inset;
+  transform-origin: 50% 46%;
+  will-change: opacity, transform;
+}
+.modal-panel--open {
+  animation: modal-panel-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.modal-panel--closed {
+  animation: modal-panel-out 0.15s ease both;
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-backdrop {
+    transition: none;
+  }
+  .modal-panel--open,
+  .modal-panel--closed {
+    animation-duration: 1ms;
+  }
 }
 
 /* Sidebar resize handle (opencode-style): 8px hit area, 3px accent line on hover. */
@@ -115,24 +199,24 @@
 
 /* Thin, theme-aware scrollbars. */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-base);
+  background: color-mix(in srgb, var(--text-muted) 42%, transparent);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-weak);
+  background: color-mix(in srgb, var(--text-weak) 70%, transparent);
   background-clip: content-box;
 }
 
 /* Markdown rendering for transcript text (see components/ui/Markdown.tsx). */
 .md {
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.62;
   color: var(--text-strong);
   word-break: break-word;
 }
@@ -157,7 +241,7 @@
   font-family: var(--font-family-mono);
   font-size: 0.9em;
   background: var(--surface-weak);
-  padding: 0.1em 0.35em;
+  padding: 0.08em 0.36em;
   border-radius: var(--radius-sm);
 }
 .md pre {
@@ -168,6 +252,36 @@
   border-radius: var(--radius-md);
   overflow-x: auto;
 }
+.md .md-codeblock {
+  position: relative;
+  margin: 0.6em 0;
+}
+.md .md-codeblock pre {
+  margin: 0;
+  padding-inline-end: 2.8rem;
+}
+.md .md-codeblock-copy {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 1;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 1px solid var(--border-weak);
+  border-radius: var(--radius-sm);
+  color: var(--text-weak);
+  background: var(--surface-base);
+  opacity: 0.68;
+  transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.md .md-codeblock-copy:hover {
+  color: var(--text-strong);
+  border-color: var(--border-base);
+  background: var(--background-base);
+  opacity: 1;
+}
 .md pre code {
   background: transparent;
   padding: 0;
@@ -177,7 +291,7 @@
 .md blockquote {
   margin: 0.6em 0;
   padding-inline-start: 0.8em;
-  border-inline-start: 3px solid var(--border-base);
+  border-inline-start: 2px solid var(--border-base);
   color: var(--text-base);
 }
 .md hr { border: none; border-top: 1px solid var(--border-weak); margin: 0.9em 0; }
@@ -220,3 +334,12 @@
 .md .hljs-deletion { color: var(--danger); }
 .md .hljs-emphasis { font-style: italic; }
 .md .hljs-strong { font-weight: 600; }
+
+.config-code .md-codeblock {
+  margin: 0;
+}
+.config-code .md-codeblock pre {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}

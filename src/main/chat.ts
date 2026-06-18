@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import type { WebContents } from 'electron'
 import { paths } from './sandbox'
-import { loadConfig, getActiveProfile } from './store'
+import { loadConfig, getActiveProfile, getInstallSource } from './store'
 import { buildCliEnv } from './cli-env'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
 import type { ChatEvent, ChatStartOptions, CliId, TranscriptPart, TranscriptRole } from '@shared/types'
@@ -40,7 +40,39 @@ function send(wc: WebContents, id: string, ev: ChatEvent): void {
 
 function emitPart(s: ChatState, id: string, role: TranscriptRole, part: TranscriptPart): void {
   s.sawText = true
-  send(s.wc, id, { type: 'part', role, part })
+  send(s.wc, id, { type: 'part', role, part, ts: Date.now() })
+}
+
+function stringifyToolPayload(value: unknown): string | undefined {
+  if (value == null) return undefined
+  if (typeof value === 'string') return value.trim() || undefined
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
+function extractToolResultText(content: unknown): string | undefined {
+  if (typeof content === 'string') return content.trim() || undefined
+  if (!Array.isArray(content)) return stringifyToolPayload(content)
+  const out: string[] = []
+  for (const item of content) {
+    if (typeof item === 'string') {
+      if (item.trim()) out.push(item.trim())
+      continue
+    }
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+    const record = item as Record<string, unknown>
+    for (const key of ['text', 'content', 'value']) {
+      const value = record[key]
+      if (typeof value === 'string' && value.trim()) {
+        out.push(value.trim())
+        break
+      }
+    }
+  }
+  return out.length ? out.join('\n\n') : undefined
 }
 
 function toolDetail(input: unknown): string | undefined {
@@ -48,7 +80,7 @@ function toolDetail(input: unknown): string | undefined {
   if (typeof input === 'string') return input.slice(0, 140)
   if (typeof input === 'object') {
     const o = input as Record<string, unknown>
-    for (const k of ['file_path', 'path', 'command', 'pattern', 'url', 'query', 'prompt', 'description']) {
+    for (const k of ['file_path', 'filePath', 'filepath', 'path', 'command', 'cmd', 'pattern', 'url', 'query', 'prompt', 'description']) {
       if (typeof o[k] === 'string') return (o[k] as string).slice(0, 140)
     }
     try {
@@ -78,7 +110,30 @@ function handleClaude(s: ChatState, id: string, o: Record<string, any>): void {
       else if (b.type === 'thinking' && b.thinking)
         emitPart(s, id, 'assistant', { kind: 'thinking', text: b.thinking })
       else if (b.type === 'tool_use')
-        emitPart(s, id, 'assistant', { kind: 'tool', tool: b.name || 'tool', detail: toolDetail(b.input) })
+        emitPart(s, id, 'assistant', {
+          kind: 'tool',
+          tool: b.name || 'tool',
+          detail: toolDetail(b.input),
+          input: stringifyToolPayload(b.input),
+          id: typeof b.id === 'string' ? b.id : undefined,
+          status: 'running'
+        })
+    }
+    return
+  }
+  if (o.type === 'user' && o.message) {
+    const blocks = Array.isArray(o.message.content) ? o.message.content : []
+    for (const b of blocks) {
+      if (b.type !== 'tool_result') continue
+      const toolId = typeof b.tool_use_id === 'string' ? b.tool_use_id : undefined
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: 'tool',
+        result: extractToolResultText(b.content),
+        isError: b.is_error === true,
+        status: b.is_error === true ? 'error' : 'completed',
+        id: toolId
+      })
     }
     return
   }
@@ -94,15 +149,77 @@ function handleCodex(s: ChatState, id: string, o: Record<string, any>): void {
     } else if (it.type === 'reasoning') {
       if (it.text) emitPart(s, id, 'assistant', { kind: 'thinking', text: it.text })
     } else if (it.type === 'command_execution') {
-      emitPart(s, id, 'assistant', { kind: 'tool', tool: 'shell', detail: toolDetail(it.command ?? it) })
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: 'shell',
+        detail: toolDetail(it.command ?? it),
+        input: stringifyToolPayload(it.command ?? it),
+        result: extractToolResultText(it.output ?? it.result),
+        status: it.status === 'failed' ? 'error' : 'completed',
+        isError: it.status === 'failed',
+        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+      })
     } else if (it.type === 'file_change') {
-      emitPart(s, id, 'assistant', { kind: 'tool', tool: 'edit', detail: toolDetail(it.path ?? it.changes ?? it) })
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: 'edit',
+        detail: toolDetail(it.path ?? it.changes ?? it),
+        input: stringifyToolPayload(it.path ?? it.changes ?? it),
+        result: extractToolResultText(it.output ?? it.result),
+        status: it.status === 'failed' ? 'error' : 'completed',
+        isError: it.status === 'failed',
+        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+      })
     } else if (it.type === 'mcp_tool_call') {
-      emitPart(s, id, 'assistant', { kind: 'tool', tool: it.tool || it.server || 'mcp', detail: toolDetail(it.arguments) })
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: it.tool || it.server || 'mcp',
+        detail: toolDetail(it.arguments),
+        input: stringifyToolPayload(it.arguments),
+        result: extractToolResultText(it.output ?? it.result),
+        status: it.status === 'failed' ? 'error' : 'completed',
+        isError: it.status === 'failed',
+        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+      })
     } else if (it.type === 'web_search') {
-      emitPart(s, id, 'assistant', { kind: 'tool', tool: 'web_search', detail: toolDetail(it.query) })
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: 'web_search',
+        detail: toolDetail(it.query),
+        input: stringifyToolPayload(it.query),
+        result: extractToolResultText(it.output ?? it.result),
+        status: it.status === 'failed' ? 'error' : 'completed',
+        isError: it.status === 'failed',
+        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+      })
     }
     return
+  }
+  if (o.type === 'response_item' && o.payload) {
+    const p = o.payload
+    if (p.type === 'function_call' || p.type === 'custom_tool_call') {
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: p.name || 'tool',
+        detail: toolDetail(p.arguments ?? p.input),
+        input: stringifyToolPayload(p.arguments ?? p.input),
+        id: typeof p.call_id === 'string' ? p.call_id : typeof p.id === 'string' ? p.id : undefined,
+        status: p.status === 'failed' ? 'error' : 'running',
+        isError: p.status === 'failed'
+      })
+      return
+    }
+    if (p.type === 'function_call_output' || p.type === 'custom_tool_call_output') {
+      emitPart(s, id, 'assistant', {
+        kind: 'tool',
+        tool: 'tool',
+        result: extractToolResultText(p.output ?? p.content),
+        id: typeof p.call_id === 'string' ? p.call_id : typeof p.id === 'string' ? p.id : undefined,
+        status: p.status === 'failed' ? 'error' : 'completed',
+        isError: p.status === 'failed'
+      })
+      return
+    }
   }
   if (o.type === 'turn.failed') send(s.wc, id, { type: 'error', message: String(o.error?.message ?? 'turn failed') })
   else if (o.type === 'error' && o.message && !String(o.message).startsWith('Reconnecting'))
@@ -123,7 +240,23 @@ function handlePi(s: ChatState, id: string, o: Record<string, any>): void {
         else if (b.type === 'thinking' || b.type === 'reasoning')
           emitPart(s, id, role, { kind: 'thinking', text: b.text ?? b.thinking })
         else if (b.type === 'tool_use' || b.type === 'tool_call')
-          emitPart(s, id, role, { kind: 'tool', tool: b.name ?? b.tool ?? 'tool', detail: toolDetail(b.input ?? b.arguments) })
+          emitPart(s, id, role, {
+            kind: 'tool',
+            tool: b.name ?? b.tool ?? 'tool',
+            detail: toolDetail(b.input ?? b.arguments),
+            input: stringifyToolPayload(b.input ?? b.arguments),
+            id: typeof b.id === 'string' ? b.id : typeof b.tool_use_id === 'string' ? b.tool_use_id : undefined,
+            status: 'running'
+          })
+        else if (b.type === 'tool_result')
+          emitPart(s, id, role, {
+            kind: 'tool',
+            tool: b.name ?? b.tool ?? 'tool',
+            result: extractToolResultText(b.content ?? b.output ?? b.result),
+            isError: b.is_error === true,
+            status: b.is_error === true ? 'error' : 'completed',
+            id: typeof b.tool_use_id === 'string' ? b.tool_use_id : typeof b.id === 'string' ? b.id : undefined
+          })
       }
   }
 }
@@ -140,6 +273,14 @@ function handleOpencode(s: ChatState, id: string, o: Record<string, any>): void 
         kind: 'tool',
         tool: p.tool || 'tool',
         detail: toolDetail(p.state?.input) ?? (typeof p.state?.title === 'string' ? p.state.title : undefined),
+        input: stringifyToolPayload(p.state?.input),
+        result: extractToolResultText(p.state?.output ?? p.state?.result),
+        isError: p.state?.status === 'error' || p.state?.status === 'failed',
+        status: p.state?.status === 'completed'
+          ? 'completed'
+          : p.state?.status === 'error' || p.state?.status === 'failed'
+            ? 'error'
+            : 'running',
         id: p.id
       })
     return
@@ -188,11 +329,14 @@ function turnTarget(s: ChatState, text: string): { file: string; args: string[] 
     const sess = s.sessionId ? ['--session', s.sessionId] : []
     return { file: bin, args: ['run', text, '--format', 'json', ...sess] }
   }
-  // pi (node app): node + cli.js entry
-  const entry = install.nodeEntry as string
   const sess = s.sessionId ? ['--session', s.sessionId] : []
-  const model = getActiveProfile('pi')?.model
-  const modelArgs = model ? ['--model', `agentlauncher/${model}`] : []
+  const profile = getActiveProfile('pi')
+  const modelArgs = profile?.baseUrl && profile.model ? ['--model', `agentlauncher/${profile.model}`] : []
+  if (install.source === 'system') {
+    return { file: bin, args: ['--mode', 'json', '-p', text, ...sess, ...modelArgs] }
+  }
+  // Sandboxed pi (node app): node + cli.js entry.
+  const entry = install.nodeEntry as string
   return { file: bin, args: [entry, '--mode', 'json', '-p', text, ...sess, ...modelArgs] }
 }
 
@@ -229,7 +373,10 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
   if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} 尚未安装`)
 
   const cwd = opts.cwd && opts.cwd.length ? opts.cwd : homedir()
-  mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
+  if (hasNativeConfig(opts.cliId)) writeNativeConfig(opts.cliId)
+  if (getInstallSource(opts.cliId) !== 'system') {
+    mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
+  }
 
   const id = `chat-${++seq}`
   const s: ChatState = { cliId: opts.cliId, wc, cwd, sessionId: opts.resumeId, buf: '', sawText: false, stderr: '' }

@@ -1,5 +1,7 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
+import { spawn } from 'node:child_process'
+import { join } from 'node:path'
 import * as pty from '@lydell/node-pty'
 import type { WebContents } from 'electron'
 import { paths } from './sandbox'
@@ -36,7 +38,9 @@ function yoloArgs(cliId: CliId): string[] | null {
     case 'codex':
       return ['--dangerously-bypass-approvals-and-sandbox']
     case 'opencode':
-      return ['--dangerously-skip-permissions']
+      // opencode only accepts this flag for `opencode run`; the interactive
+      // TUI rejects it and exits after printing help.
+      return null
     default:
       return null // pi has no auto-approve flag
   }
@@ -59,34 +63,125 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
   }
   const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
   const yolo = getPrefs(opts.cliId).yolo ? (yoloArgs(opts.cliId) ?? []) : []
-  // Node-based CLIs (Pi) run through the bundled node via their JS entry.
-  if (install.nodeEntry) {
+  // Sandboxed node-based CLIs (Pi) run through bundled node + JS entry. A
+  // system Pi install is already an executable wrapper, so run binPath directly.
+  if (install.nodeEntry && install.source !== 'system') {
     const extra: string[] = [...(resume ?? []), ...yolo]
     if (opts.cliId === 'pi') {
-      const model = getActiveProfile('pi')?.model
-      if (model) extra.push('--model', `agentlauncher/${model}`)
+      const profile = getActiveProfile('pi')
+      if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
     }
     return { file: install.binPath, args: [install.nodeEntry, ...extra] }
   }
-  return { file: install.binPath, args: [...(resume ?? []), ...yolo] }
+  const extra: string[] = [...(resume ?? []), ...yolo]
+  if (opts.cliId === 'pi') {
+    const profile = getActiveProfile('pi')
+    if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
+  }
+  return { file: install.binPath, args: extra }
+}
+
+function quoteSh(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
+function quotePs(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function launchEnvEntries(env: NodeJS.ProcessEnv): Array<[string, string]> {
+  return Object.entries(env).filter(
+    (entry): entry is [string, string] => /^[A-Za-z_][A-Za-z0-9_]*$/.test(entry[0]) && typeof entry[1] === 'string'
+  )
+}
+
+function prepareCliLaunch(opts: SpawnOptions): { cwd: string; file: string; args: string[]; env: NodeJS.ProcessEnv } {
+  const cwd = opts.cwd && opts.cwd.length ? opts.cwd : homedir()
+  const target = resolveTarget({ ...opts, mode: 'cli' })
+
+  if (hasNativeConfig(opts.cliId)) {
+    writeNativeConfig(opts.cliId)
+  }
+
+  return { cwd, file: target.file, args: target.args, env: buildCliEnv(opts.cliId) }
+}
+
+function embeddedTerminalEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return {
+    ...env,
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    CLICOLOR: '1'
+  }
+}
+
+export function openExternalAgent(opts: SpawnOptions): void {
+  const { cwd, file, args, env } = prepareCliLaunch(opts)
+  const dir = join(paths.root, 'launchers')
+  mkdirSync(dir, { recursive: true })
+
+  if (process.platform === 'win32') {
+    const script = join(dir, `agent-${opts.cliId}-${Date.now()}.ps1`)
+    const envLines = launchEnvEntries(env)
+      .map(([key, value]) => `$env:${key} = ${quotePs(value as string)}`)
+      .join('\r\n')
+    const argv = [file, ...args].map(quotePs).join(', ')
+    writeFileSync(
+      script,
+      [
+        '$ErrorActionPreference = "Stop"',
+        envLines,
+        `Set-Location ${quotePs(cwd)}`,
+        `$argv = @(${argv})`,
+        '& $argv[0] @($argv[1..($argv.Length - 1)])',
+        'Read-Host "Press Enter to close"'
+      ].join('\r\n')
+    )
+    spawn('cmd.exe', ['/c', 'start', '', 'powershell.exe', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', script], {
+      detached: true,
+      stdio: 'ignore'
+    }).unref()
+    return
+  }
+
+  const script = join(dir, `agent-${opts.cliId}-${Date.now()}.command`)
+  const envLines = launchEnvEntries(env)
+    .map(([key, value]) => `export ${key}=${quoteSh(value as string)}`)
+    .join('\n')
+  writeFileSync(
+    script,
+    [
+      '#!/bin/sh',
+      'set -e',
+      envLines,
+      `cd ${quoteSh(cwd)}`,
+      `exec ${[file, ...args].map(quoteSh).join(' ')}`
+    ].join('\n'),
+    { mode: 0o700 }
+  )
+
+  if (process.platform === 'darwin') {
+    spawn('open', ['-a', 'Terminal', script], { detached: true, stdio: 'ignore' }).unref()
+  } else {
+    spawn('sh', ['-lc', `x-terminal-emulator -e ${quoteSh(script)} || gnome-terminal -- ${quoteSh(script)} || konsole -e ${quoteSh(script)} || xterm -e ${quoteSh(script)}`], {
+      detached: true,
+      stdio: 'ignore'
+    }).unref()
+  }
 }
 
 export function createSession(wc: WebContents, opts: SpawnOptions): string {
-  const cwd = opts.cwd && opts.cwd.length ? opts.cwd : homedir()
-  const { file, args } = resolveTarget(opts)
-  const env = buildCliEnv(opts.cliId)
+  const prepared =
+    opts.mode === 'shell'
+      ? { cwd: opts.cwd && opts.cwd.length ? opts.cwd : homedir(), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
+      : prepareCliLaunch(opts)
 
-  // Ensure the isolated config dir exists before the CLI tries to write it.
-  mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
-  // CLIs configured by files (Codex/opencode/pi) — materialize them first.
-  if (hasNativeConfig(opts.cliId)) writeNativeConfig(opts.cliId)
-
-  const proc = pty.spawn(file, args, {
+  const proc = pty.spawn(prepared.file, prepared.args, {
     name: 'xterm-256color',
     cols: opts.cols ?? 80,
     rows: opts.rows ?? 24,
-    cwd,
-    env: env as { [key: string]: string }
+    cwd: prepared.cwd,
+    env: embeddedTerminalEnv(prepared.env) as { [key: string]: string }
   })
 
   const id = `pty-${++seq}`

@@ -32,9 +32,9 @@ export const CLIS: CliMeta[] = [
   },
   {
     id: 'opencode',
-    name: 'opencode',
+    name: 'OpenCode',
     vendor: 'SST',
-    glyph: 'o',
+    glyph: 'O',
     accent: '#f2a60d',
     envPrefix: 'XDG_* / OPENCODE_CONFIG',
     install: 'native-binary'

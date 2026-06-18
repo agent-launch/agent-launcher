@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, SquareTerminal } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { CliIcon } from '@/components/CliIcon'
 import { MessageList } from '@/components/chat/MessageList'
+import { CLIS } from '@/data/clis'
 import { useT } from '@/i18n'
 import type { CliId, Transcript } from '@shared/types'
 
@@ -22,6 +23,7 @@ interface Props {
  */
 export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Props) {
   const t = useT()
+  const active = useMemo(() => CLIS.find((c) => c.id === cliId), [cliId])
   const [data, setData] = useState<Transcript | null>(null)
 
   useEffect(() => {
@@ -36,19 +38,19 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
   }, [cliId, sessionId])
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak px-3">
+    <div className="flex h-full flex-col bg-base">
+      <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-weak px-5">
         <button
           onClick={onBack}
-          className="no-drag grid size-7 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
+          className="no-drag grid size-7 place-items-center rounded-lg text-text-weak hover:bg-surface-hover hover:text-text-strong"
           title={t('transcript.back')}
         >
           <ArrowLeft size={16} />
         </button>
-        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+        <span className="grid size-6 shrink-0 place-items-center rounded-lg text-text-base">
           <CliIcon cliId={cliId} size={14} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] text-text-strong">{name}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-strong">{name}</span>
         <Button size="sm" onClick={onResume}>
           <SquareTerminal size={14} />
           {t('transcript.resume')}
@@ -61,13 +63,13 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
         ) : data.messages.length === 0 ? (
           <div className="px-6 py-8 text-center text-[13px] text-text-weak">{t('transcript.empty')}</div>
         ) : (
-          <div className="w-full space-y-5 px-8 py-6 lg:px-16">
+          <div className="mx-auto w-full max-w-[980px] px-8 py-7">
             {data.truncated && (
-              <div className="rounded-md border border-dashed border-border-weak px-3 py-1.5 text-center text-[12px] text-text-weak">
+              <div className="mb-6 rounded-xl border border-dashed border-border-weak bg-surface px-3 py-2 text-center text-[12px] text-text-weak">
                 {t('transcript.truncated')}
               </div>
             )}
-            <MessageList messages={data.messages} />
+            <MessageList messages={data.messages} assistantName={active?.name ?? cliId} assistantCliId={cliId} />
           </div>
         )}
       </div>

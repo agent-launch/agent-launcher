@@ -1,17 +1,23 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AppConfig,
+  AppInfo,
   CliId,
   CliProfilePatch,
+  CleanupCliResult,
   DetectResult,
   EnvPair,
+  InstallOptions,
   InstallProgress,
   InstallResult,
   NativeFiles,
+  SessionDeleteResult,
   SessionInfo,
   Transcript,
   ChatEvent,
-  ChatStartOptions
+  ChatStartOptions,
+  AuthLoginMethod,
+  AuthStatus
 } from '../shared/types'
 
 interface SpawnOptions {
@@ -30,8 +36,14 @@ const api = {
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
     close: () => ipcRenderer.send('window:close')
   },
+  app: {
+    info: (): Promise<AppInfo> => ipcRenderer.invoke('app:info')
+  },
   detect: (): Promise<DetectResult> => ipcRenderer.invoke('detect'),
   pickDir: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDir'),
+  terminal: {
+    openExternal: (opts: SpawnOptions): Promise<void> => ipcRenderer.invoke('terminal:openExternal', opts)
+  },
   config: {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
     addProfile: (id: CliId, patch: CliProfilePatch): Promise<AppConfig> =>
@@ -42,6 +54,8 @@ const api = {
       ipcRenderer.invoke('config:deleteProfile', id, pid),
     setActiveProfile: (id: CliId, pid: string): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
+    setAuthMode: (id: CliId, mode: 'official' | 'api'): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:setAuthMode', id, mode),
     setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setYolo', id, on),
     resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
@@ -54,15 +68,43 @@ const api = {
   sessions: {
     list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id),
     transcript: (id: CliId, sid: string): Promise<Transcript> =>
-      ipcRenderer.invoke('sessions:transcript', id, sid)
+      ipcRenderer.invoke('sessions:transcript', id, sid),
+    remove: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
+      ipcRenderer.invoke('sessions:delete', id, sid),
+    delete: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
+      ipcRenderer.invoke('sessions:delete', id, sid)
   },
   install: {
-    cli: (id: CliId): Promise<InstallResult> => ipcRenderer.invoke('install:cli', id),
+    cli: (id: CliId, opts?: InstallOptions): Promise<InstallResult> =>
+      ipcRenderer.invoke('install:cli', id, opts),
+    cleanupCli: (id: CliId, binPath: string): Promise<CleanupCliResult> =>
+      ipcRenderer.invoke('install:cleanupCli', id, binPath),
     onProgress: (cb: (p: InstallProgress) => void) => {
       const listener = (_e: unknown, p: InstallProgress) => cb(p)
       ipcRenderer.on('install:progress', listener)
       return () => {
         ipcRenderer.removeListener('install:progress', listener)
+      }
+    }
+  },
+  auth: {
+    status: (id: CliId): Promise<AuthStatus> => ipcRenderer.invoke('auth:status', id),
+    startLogin: (id: CliId, method: AuthLoginMethod): Promise<string> =>
+      ipcRenderer.invoke('auth:startLogin', id, method),
+    write: (id: string, data: string) => ipcRenderer.send('auth:write', id, data),
+    stop: (id: string) => ipcRenderer.send('auth:stop', id),
+    onData: (cb: (id: string, cliId: CliId, data: string) => void) => {
+      const l = (_e: unknown, id: string, cliId: CliId, data: string) => cb(id, cliId, data)
+      ipcRenderer.on('auth:data', l)
+      return () => {
+        ipcRenderer.removeListener('auth:data', l)
+      }
+    },
+    onExit: (cb: (id: string, cliId: CliId, code: number) => void) => {
+      const l = (_e: unknown, id: string, cliId: CliId, code: number) => cb(id, cliId, code)
+      ipcRenderer.on('auth:exit', l)
+      return () => {
+        ipcRenderer.removeListener('auth:exit', l)
       }
     }
   },

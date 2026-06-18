@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Play, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { Button } from '@/components/ui/Button'
+import { Modal } from '@/components/ui/Modal'
 import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
-import { SettingsModal } from '@/components/settings/SettingsModal'
+import { SettingsPage } from '@/components/settings/SettingsPage'
 import { TranscriptView } from '@/components/transcript/TranscriptView'
 import { ChatView } from '@/components/chat/ChatView'
 import { useT } from '@/i18n'
+import { ENABLE_CHAT_HISTORY_RENDERING } from '@/features'
 import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
 /** In-UI chat is implemented for every supported CLI. */
@@ -25,17 +28,21 @@ interface ActiveTerminal {
 export function Shell() {
   const t = useT()
   const activeCli = useAppStore((s) => s.activeCli)
-  const renderTranscript = useAppStore((s) => s.renderTranscript)
+  const transcriptRenderingPreferred = useAppStore((s) => s.renderTranscript)
+  const renderTranscript = ENABLE_CHAT_HISTORY_RENDERING && transcriptRenderingPreferred
   const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
 
   const [cfg, setCfg] = useState<AppConfig | null>(null)
-  const [cwd, setCwd] = useState<string>('')
-  const [view, setView] = useState<'run' | 'config'>('run')
+  const [view, setView] = useState<'run' | 'config' | 'settings'>('run')
   const [terminal, setTerminal] = useState<ActiveTerminal | null>(null)
   const [transcriptFor, setTranscriptFor] = useState<SessionInfo | null>(null)
   const [chatFor, setChatFor] = useState<{ key: string; cwd?: string; resumeId?: string } | null>(null)
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
+  const [openingTerminal, setOpeningTerminal] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
 
   // Reload config whenever we land on the run view (profiles may have changed).
   useEffect(() => {
@@ -63,28 +70,42 @@ export function Shell() {
     setChatFor(null)
   }, [activeCli])
 
-  const chatSupported = CHAT_CLIS.has(active.id as CliId)
+  const chatSupported = ENABLE_CHAT_HISTORY_RENDERING && CHAT_CLIS.has(active.id as CliId)
 
   const installed = cfg?.install[active.id as CliId]?.installed ?? false
-
-  const pickDir = async () => {
-    const dir = await window.api.pickDir()
-    if (dir) setCwd(dir)
-  }
 
   const newKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
   const start = (mode: 'cli' | 'shell') =>
-    setTerminal({ key: newKey(), mode, cwd: cwd || undefined })
+    setTerminal({ key: newKey(), mode })
 
-  // Start a fresh in-UI chat (programmatic mode) in the chosen project dir.
-  const startChat = () => setChatFor({ key: newKey(), cwd: cwd || undefined })
+  // Start a fresh in-UI chat (programmatic mode) with the CLI's default cwd.
+  const startChat = () => setChatFor({ key: newKey() })
+
+  const openSettings = () => {
+    setTerminal(null)
+    setTranscriptFor(null)
+    setChatFor(null)
+    setView('settings')
+  }
+
+  const openExternalTerminal = async () => {
+    setOpeningTerminal(true)
+    try {
+      await window.api.terminal.openExternal({
+        cliId: active.id as CliId,
+        mode: 'cli'
+      })
+    } finally {
+      setOpeningTerminal(false)
+    }
+  }
 
   // Open a terminal resuming a session (or fresh when no id), closing chat/transcript.
   const openTerminal = (resumeId?: string, dir?: string) => {
     setTranscriptFor(null)
     setChatFor(null)
-    setTerminal({ key: newKey(), mode: 'cli', cwd: dir ?? cwd ?? undefined, resumeId })
+    setTerminal({ key: newKey(), mode: 'cli', cwd: dir, resumeId })
   }
 
   // Click a saved session. One clear path per mode:
@@ -101,6 +122,39 @@ export function Shell() {
     }
   }
 
+  const confirmDeleteSession = async () => {
+    if (!deleteTarget || deletingSessionId) return
+    setDeletingSessionId(deleteTarget.id)
+    setDeleteError(null)
+    try {
+      const deleteSession =
+        window.api.sessions.remove ??
+        window.api.sessions.delete
+      if (!deleteSession) {
+        throw new Error('会话删除 API 尚未加载，请重启应用窗口后重试')
+      }
+      const result = await deleteSession(deleteTarget.cliId, deleteTarget.id)
+      if (!result.ok) {
+        setDeleteError(
+          t('shell.deleteSessionFailed', { error: result.error ?? 'Unknown error' })
+        )
+        return
+      }
+      setSessions((prev) =>
+        prev.filter((entry) => entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id)
+      )
+      setDeleteTarget(null)
+    } catch (error) {
+      setDeleteError(
+        t('shell.deleteSessionFailed', {
+          error: error instanceof Error ? error.message : String(error)
+        })
+      )
+    } finally {
+      setDeletingSessionId(null)
+    }
+  }
+
   // CLI exited — drop the dead terminal, return to the list (which refetches).
   const onTerminalExit = () => setTerminal(null)
 
@@ -110,49 +164,96 @@ export function Shell() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
-      <SettingsModal />
-      <Sidebar cfg={cfg} />
-
-      {/* Main pane */}
-      <main className="flex min-w-0 flex-1 flex-col">
-        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak px-4">
-          <div className="flex gap-1">
-            {(['run', 'config'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`no-drag rounded-lg px-3 py-1 text-[13px] font-medium transition-colors ${
-                  view === v
-                    ? 'bg-accent-soft text-accent'
-                    : 'text-text-base hover:bg-surface-weak hover:text-text-strong'
-                }`}
-              >
-                {v === 'run' ? t('shell.tabRun') : t('shell.tabConfig')}
-              </button>
-            ))}
+    <div className="flex h-full overflow-hidden bg-base">
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => {
+          if (deletingSessionId) return
+          setDeleteTarget(null)
+          setDeleteError(null)
+        }}
+        title={t('shell.deleteSessionTitle')}
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-[14px] text-text-strong">
+              {t('shell.deleteSessionMessage', { name: deleteTarget?.name ?? '' })}
+            </p>
+            <p className="mt-2 text-[12px] leading-relaxed text-text-weak">
+              {t('shell.deleteSessionHint')}
+            </p>
           </div>
-          {view === 'run' && (
-            <button
-              onClick={pickDir}
-              className="no-drag max-w-[40ch] truncate rounded-lg border border-border-weak bg-surface-weak px-2.5 py-1 text-[12px] text-text-base hover:border-border-base hover:text-text-strong"
-              title={t('shell.pickDir')}
+          {deleteError && (
+            <div
+              className="rounded-lg border border-dashed px-3 py-2 text-[12px]"
+              style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
             >
-              {cwd || t('shell.pickDirEmpty')}
-            </button>
+              {deleteError}
+            </div>
           )}
-          <div className="ml-auto flex items-center gap-2">
-            <Chip label={active.name} color={active.accent} />
-            <Chip label={installed ? t('sidebar.installed') : t('sidebar.notInstalled')} />
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setDeleteTarget(null)
+                setDeleteError(null)
+              }}
+              disabled={!!deletingSessionId}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={confirmDeleteSession}
+              disabled={!!deletingSessionId}
+              style={{ background: 'var(--danger)', color: '#fff' }}
+            >
+              {deletingSessionId ? t('shell.deleteSessionDeleting') : t('shell.deleteSessionConfirm')}
+            </Button>
           </div>
         </div>
+      </Modal>
+      <Sidebar cfg={cfg} view={view} onSelectCli={() => setView('run')} onOpenSettings={openSettings} />
 
-        {view === 'config' ? (
-          <div className="flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
+      {/* Main pane */}
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-base">
+        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak bg-base/95 px-4">
+          {view === 'settings' ? (
+            <h1 className="font-display text-[15px] font-semibold text-text-strong">{t('settings.title')}</h1>
+          ) : (
+            <>
+              <div className="flex gap-0.5 rounded-md bg-surface-weak p-0.5">
+                {(['run', 'config'] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setView(v)}
+                    className={`no-drag rounded-[5px] px-2.5 py-1 text-[13px] font-medium transition-colors ${
+                      view === v
+                        ? 'bg-surface text-text-strong'
+                        : 'text-text-weak hover:text-text-strong'
+                    }`}
+                  >
+                    {v === 'run' ? t('shell.tabRun') : t('shell.tabConfig')}
+                  </button>
+                ))}
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <Chip label={active.name} color={active.accent} />
+                <Chip label={installed ? t('sidebar.installed') : t('sidebar.notInstalled')} />
+              </div>
+            </>
+          )}
+        </div>
+
+        {view === 'settings' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
+            <SettingsPage />
+          </div>
+        ) : view === 'config' ? (
+          <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
             <ConfigView cliId={active.id as CliId} />
           </div>
         ) : (
-          <div className="relative flex-1" style={{ background: 'var(--canvas-gradient)' }}>
+          <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: 'var(--canvas-gradient)' }}>
             {terminal ? (
               <div className="absolute inset-0 p-2">
                 <TerminalView
@@ -172,7 +273,6 @@ export function Shell() {
                   cwd={chatFor.cwd}
                   resumeId={chatFor.resumeId}
                   onBack={() => setChatFor(null)}
-                  onOpenTerminal={(rid) => openTerminal(rid, chatFor.cwd)}
                 />
               </div>
             ) : transcriptFor ? (
@@ -186,10 +286,10 @@ export function Shell() {
                 />
               </div>
             ) : (
-              <div className="flex h-full w-full flex-col gap-4 overflow-y-auto px-6 py-5">
-                <div className="flex items-center justify-between gap-3">
+              <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-4 px-7 py-6">
+                <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-baseline gap-3">
-                    <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">
+                    <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-text-weak">
                       {t('shell.history')}
                     </span>
                     <button
@@ -199,54 +299,82 @@ export function Shell() {
                       {t('shell.refresh')}
                     </button>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="secondary" onClick={() => start('shell')}>
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button variant="secondary" onClick={openExternalTerminal} disabled={openingTerminal || !installed}>
                       {t('shell.openTerminal')}
                     </Button>
                     {renderTranscript && chatSupported ? (
                       <Button onClick={startChat} disabled={!installed}>
-                        {installed ? t('chat.start') : t('shell.installFirst')}
+                        {installed ? t('shell.newSession') : t('shell.installFirst')}
                       </Button>
                     ) : (
                       <Button onClick={() => start('cli')} disabled={!installed}>
-                        {installed ? t('shell.launch', { name: active.name }) : t('shell.installFirst')}
+                        {installed ? t('shell.newSession') : t('shell.installFirst')}
                       </Button>
                     )}
                   </div>
                 </div>
 
-                {loadingSessions ? (
-                  <div className="px-1 text-[12px] text-text-weak">{t('shell.loadingSessions')}</div>
-                ) : sessions.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border-weak px-4 py-10 text-center text-[12px] text-text-weak">
-                    {t('shell.noHistory', { name: active.name })}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {sessions.map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => resume(s)}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-border-weak bg-surface px-3 py-2.5 text-left transition-all hover:border-border-selected hover:shadow-[var(--shadow-card)]"
-                        title={t('shell.resumeTitle')}
-                      >
-                        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-weak text-text-strong group-hover:bg-accent-soft group-hover:text-accent">
-                          <CliIcon cliId={active.id as CliId} size={15} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[13px] text-text-strong">{s.name}</div>
-                          <div className="truncate text-[11px] text-text-weak">
-                            {fmtTime(s.updatedAt)}
-                            {s.cwd ? ` · ${s.cwd}` : ''}
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  {loadingSessions ? (
+                  <div className="px-1 text-[13px] text-text-weak">{t('shell.loadingSessions')}</div>
+                  ) : sessions.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-12 text-center text-[13px] text-text-weak">
+                      {t('shell.noHistory', { name: active.name })}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {sessions.map((s) => (
+                        <div
+                          key={s.id}
+                          className="group relative rounded-lg border border-border-weak bg-surface/90 text-left transition-colors hover:border-border-base hover:bg-surface"
+                        >
+                          <button
+                            onClick={() => resume(s)}
+                            className="flex w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left"
+                            title={t('shell.resumeTitle')}
+                          >
+                            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong group-hover:bg-selection">
+                              <CliIcon cliId={active.id as CliId} size={15} />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-[13px] text-text-strong">{s.name}</div>
+                              <div className="truncate text-[11px] text-text-weak">
+                                {fmtTime(s.updatedAt)}
+                              </div>
+                            </div>
+                          </button>
+                          <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 rounded-md bg-surface/95 p-1 opacity-0 ring-1 ring-border-weak transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                resume(s)
+                              }}
+                              className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text-strong focus:bg-surface-hover focus:text-text-strong"
+                              title={t('shell.resumeTitle')}
+                              aria-label={t('shell.resumeTitle')}
+                            >
+                              <Play size={13} />
+                            </button>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setDeleteError(null)
+                                setDeleteTarget(s)
+                              }}
+                              className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-danger focus:bg-surface-hover focus:text-danger"
+                              title={t('shell.deleteSession')}
+                              aria-label={t('shell.deleteSession')}
+                              disabled={deletingSessionId === s.id}
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           </div>
                         </div>
-                        <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] text-text-weak transition-colors group-hover:bg-accent-soft group-hover:text-accent">
-                          {t('shell.resume')}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -258,7 +386,7 @@ export function Shell() {
 
 function Chip({ label, color }: { label: string; color?: string }) {
   return (
-    <span className="flex items-center gap-1.5 rounded-full border border-border-weak bg-surface px-2.5 py-1 text-[12px] text-text-base shadow-[var(--shadow-sm)]">
+    <span className="flex items-center gap-1.5 rounded-md border border-border-weak bg-surface px-2 py-0.5 text-[12px] text-text-base">
       {color && <span className="size-2 rounded-full" style={{ background: color }} />}
       {label}
     </span>

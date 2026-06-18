@@ -7,7 +7,17 @@ import { ResizeHandle } from '@/components/ui/ResizeHandle'
 import { useT } from '@/i18n'
 import type { AppConfig, CliId } from '@shared/types'
 
-export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
+export function Sidebar({
+  cfg,
+  view,
+  onSelectCli,
+  onOpenSettings
+}: {
+  cfg: AppConfig | null
+  view: 'run' | 'config' | 'settings'
+  onSelectCli: () => void
+  onOpenSettings: () => void
+}) {
   const t = useT()
   const activeCli = useAppStore((s) => s.activeCli)
   const setActiveCli = useAppStore((s) => s.setActiveCli)
@@ -17,23 +27,25 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
   const setWidth = useAppStore((s) => s.setSidebarWidth)
   const toggle = useAppStore((s) => s.toggleSidebar)
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed)
-  const setSettingsOpen = useAppStore((s) => s.setSettingsOpen)
   const [dragging, setDragging] = useState(false)
 
   return (
     <aside
-      className={`relative flex shrink-0 flex-col border-r border-border-weak bg-strong ${
+      className={`relative flex shrink-0 flex-col border-r border-border-weak/80 ${
         dragging ? '' : 'transition-[width] duration-150 ease-out'
       }`}
-      style={{ width: collapsed ? SIDEBAR_COLLAPSED : width }}
+      style={{ width: collapsed ? SIDEBAR_COLLAPSED : width, background: 'var(--sidebar-background)' }}
     >
-      <div className={`flex h-10 items-center ${collapsed ? 'justify-center' : 'justify-between px-3'}`}>
+      <div className={`flex h-11 items-center ${collapsed ? 'justify-center' : 'justify-between px-3'}`}>
         {!collapsed && (
-          <span className="text-[12px] font-medium uppercase tracking-wide text-text-weak">{t('sidebar.agents')}</span>
+          <span className="text-[11px] font-medium uppercase tracking-[0.08em]" style={{ color: 'var(--sidebar-text-weak)' }}>
+            {t('sidebar.agents')}
+          </span>
         )}
         <button
           onClick={toggle}
-          className="no-drag grid size-6 place-items-center rounded-md text-text-weak hover:bg-surface-weak hover:text-text-strong"
+          className="no-drag grid size-7 place-items-center rounded-md transition-colors hover:bg-[var(--sidebar-selection)]"
+          style={{ color: 'var(--sidebar-text-weak)' }}
           title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
         >
           {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
@@ -42,31 +54,33 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
 
       <nav className="flex flex-1 flex-col gap-0.5 px-2">
         {CLIS.map((c) => {
-          const selected = c.id === activeCli
+          const selected = view !== 'settings' && c.id === activeCli
           const isInstalled = cfg?.install[c.id as CliId]?.installed
           return (
             <button
               key={c.id}
-              onClick={() => setActiveCli(c.id)}
-              className={`group relative flex items-center gap-3 rounded-lg py-2 text-left text-[14px] transition-colors ${
+              onClick={() => {
+                setActiveCli(c.id)
+                onSelectCli()
+              }}
+              className={`group relative flex items-center gap-2.5 rounded-md py-2 text-left text-[13px] transition-colors ${
                 collapsed ? 'justify-center px-0' : 'px-2'
               } ${
                 selected
-                  ? 'bg-accent-soft font-medium text-text-strong'
-                  : 'text-text-base hover:bg-surface-weak/70'
+                  ? 'font-medium'
+                  : 'hover:bg-[var(--sidebar-selection)]'
               }`}
+              style={{
+                background: selected ? 'var(--sidebar-selection)' : undefined,
+                color: selected ? 'var(--text-strong)' : 'var(--sidebar-text)'
+              }}
             >
-              {selected && (
-                <span
-                  className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full"
-                  style={{ background: 'var(--accent)' }}
-                />
-              )}
               <span
-                className={`relative grid size-7 shrink-0 place-items-center rounded-lg ${
-                  selected ? 'text-accent' : 'text-text-base'
-                }`}
-                style={{ background: selected ? 'var(--accent-soft)' : 'var(--surface-weak)' }}
+                className="relative grid size-7 shrink-0 place-items-center rounded-md"
+                style={{
+                  color: selected ? 'var(--text-strong)' : 'var(--sidebar-icon)',
+                  opacity: selected ? 0.9 : 0.7
+                }}
               >
                 <CliIcon cliId={c.id as CliId} size={16} />
                 {collapsed && (
@@ -74,7 +88,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
                     className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2"
                     style={{
                       background: isInstalled ? 'var(--success)' : 'var(--border-base)',
-                      borderColor: 'var(--background-strong)'
+                      borderColor: 'var(--sidebar-background)'
                     }}
                   />
                 )}
@@ -90,7 +104,7 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
                 </>
               )}
               {collapsed && (
-                <span className="pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-md border border-border-weak bg-stronger px-2 py-1 text-[12px] text-text-strong opacity-0 shadow-md transition-opacity group-hover:opacity-100">
+                <span className="pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-md border border-border-weak bg-stronger px-2 py-1 text-[12px] text-text-strong opacity-0 shadow-[var(--shadow-md)] transition-opacity group-hover:opacity-100">
                   {c.name}
                 </span>
               )}
@@ -99,13 +113,17 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
         })}
       </nav>
 
-      <div className="flex flex-col gap-0.5 border-t border-border-weak p-2">
+      <div className="flex flex-col gap-0.5 border-t border-border-weak/80 p-2">
         <button
-          onClick={() => setSettingsOpen(true)}
+          onClick={onOpenSettings}
           title={collapsed ? t('sidebar.settings') : undefined}
-          className={`no-drag flex w-full items-center gap-2 rounded-lg py-1.5 text-[12px] text-text-base hover:bg-surface-weak hover:text-text-strong ${
+          className={`no-drag flex w-full items-center gap-2 rounded-md py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)] ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
+          style={{
+            background: view === 'settings' ? 'var(--sidebar-selection)' : undefined,
+            color: view === 'settings' ? 'var(--text-strong)' : 'var(--sidebar-text)'
+          }}
         >
           <Settings size={14} className="shrink-0" />
           {!collapsed && <span>{t('sidebar.settings')}</span>}
@@ -113,9 +131,10 @@ export function Sidebar({ cfg }: { cfg: AppConfig | null }) {
         <button
           onClick={resetOnboarding}
           title={collapsed ? t('sidebar.rerunOnboarding') : undefined}
-          className={`no-drag flex w-full items-center gap-2 rounded-lg py-1.5 text-[12px] text-text-weak hover:bg-surface-weak hover:text-text-base ${
+          className={`no-drag flex w-full items-center gap-2 rounded-md py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)] ${
             collapsed ? 'justify-center px-0' : 'px-2'
           }`}
+          style={{ color: 'var(--sidebar-text-weak)' }}
         >
           <RotateCcw size={13} className="shrink-0" />
           {!collapsed && <span>{t('sidebar.rerunOnboarding')}</span>}

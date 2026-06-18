@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export const SIDEBAR_MIN = 180
+export const SIDEBAR_MIN = 200
 export const SIDEBAR_MAX = 360
 export const SIDEBAR_COLLAPSED = 56
 
@@ -19,8 +19,6 @@ interface AppState {
   sidebarWidth: number
   /** Collapsed = icon-only rail. */
   sidebarCollapsed: boolean
-  /** Settings modal visibility (transient, not persisted). */
-  settingsOpen: boolean
   /** Light/dark/system appearance preference. */
   themeMode: ThemeMode
   /** zh/en/system language preference. */
@@ -35,7 +33,6 @@ interface AppState {
   setSidebarWidth: (w: number) => void
   toggleSidebar: () => void
   setSidebarCollapsed: (c: boolean) => void
-  setSettingsOpen: (o: boolean) => void
   setThemeMode: (m: ThemeMode) => void
   setLocaleMode: (m: LocaleMode) => void
   setRenderTranscript: (on: boolean) => void
@@ -46,12 +43,11 @@ export const useAppStore = create<AppState>()(
     (set) => ({
       onboarded: false,
       activeCli: 'claude-code',
-      sidebarWidth: 240,
+      sidebarWidth: 260,
       sidebarCollapsed: false,
-      settingsOpen: false,
       themeMode: 'system',
       localeMode: 'system',
-      renderTranscript: true,
+      renderTranscript: false,
       completeOnboarding: () => set({ onboarded: true }),
       skipOnboarding: () => set({ onboarded: true }),
       resetOnboarding: () => set({ onboarded: false }),
@@ -59,7 +55,6 @@ export const useAppStore = create<AppState>()(
       setSidebarWidth: (w) => set({ sidebarWidth: Math.round(w) }),
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (c) => set({ sidebarCollapsed: c }),
-      setSettingsOpen: (o) => set({ settingsOpen: o }),
       setThemeMode: (m) => set({ themeMode: m }),
       setLocaleMode: (m) => set({ localeMode: m }),
       setRenderTranscript: (on) => set({ renderTranscript: on })
