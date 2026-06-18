@@ -135,7 +135,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- onboarding: install ----
     'onboarding.installTitle': '检查并安装 CLI',
-    'onboarding.installDesc': '默认使用系统中已安装的 CLI；未安装时可在这里安装，已安装的 CLI 可按需重装。',
+    'onboarding.installDesc': '已检测到的系统 CLI 会直接链接使用；未检测到的 CLI 会安装到 AgentLauncher 沙盒。',
     'onboarding.installed': '已安装{version}',
     'onboarding.systemLinked': '使用系统版本{version}',
     'onboarding.installing': '安装中',
@@ -155,9 +155,9 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.useAllSystem': '全部使用系统版本',
     'onboarding.useSystemBtn': '使用系统版本',
     'onboarding.systemCliHint': '使用系统 PATH 中已安装的 CLI',
-    'onboarding.systemManageDesc': '已检测到系统版本的 CLI 会直接使用；未检测到的 CLI 可自动安装。',
+    'onboarding.systemManageDesc': '已检测到系统版本会直接使用；缺失项会安装到 ~/.agent-launcher，不改全局 npm。',
     'onboarding.systemAvailable': '检测到系统版本，可直接使用',
-    'onboarding.systemMissing': '未检测到系统版本，可自动安装',
+    'onboarding.systemMissing': '未检测到系统版本，将安装到沙盒',
     'onboarding.duplicateDetected': '检测到 {count} 个同名 CLI，可选择默认路径',
     'onboarding.duplicatePathSummary': '检测到 {count} 个 {command}',
     'onboarding.currentPath': '默认路径：{path}',
@@ -371,7 +371,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: install ----
     'onboarding.installTitle': 'Check and install CLIs',
     'onboarding.installDesc':
-      'AgentLauncher uses system-installed CLIs by default. Missing CLIs can be installed here; installed CLIs can be reinstalled when needed.',
+      'Detected system CLIs are linked directly. Missing CLIs are installed into the AgentLauncher sandbox.',
     'onboarding.installed': 'Installed{version}',
     'onboarding.systemLinked': 'Using system CLI{version}',
     'onboarding.installing': 'Installing',
@@ -394,9 +394,9 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.useSystemBtn': 'Use system CLI',
     'onboarding.systemCliHint': 'Use the installed CLI on the system PATH',
     'onboarding.systemManageDesc':
-      'Detected system CLIs will be used directly. Missing CLIs can be installed automatically.',
+      'Detected system CLIs are used directly. Missing items install under ~/.agent-launcher without changing global npm.',
     'onboarding.systemAvailable': 'System CLI detected and ready to link',
-    'onboarding.systemMissing': 'System CLI not detected; can install automatically',
+    'onboarding.systemMissing': 'System CLI not detected; will install to sandbox',
     'onboarding.duplicateDetected': 'Detected {count} matching CLI commands; choose a default path',
     'onboarding.duplicatePathSummary': 'Detected {count} {command} paths',
     'onboarding.currentPath': 'Default path: {path}',

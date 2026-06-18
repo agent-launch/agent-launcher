@@ -3,7 +3,7 @@ import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:pa
 import { realpath } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { paths } from '../sandbox'
-import { spawnProcess } from '../process'
+import { decodeProcessOutput, lastLines, spawnProcess } from '../process'
 import { setInstallState } from '../store'
 import type {
   CliId,
@@ -64,10 +64,12 @@ function run(cmd: string, args: string[]): Promise<string> {
     const p = spawnProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let out = ''
     let err = ''
-    p.stdout!.on('data', (d) => (out += d))
-    p.stderr!.on('data', (d) => (err += d))
+    p.stdout!.on('data', (d) => (out += decodeProcessOutput(d)))
+    p.stderr!.on('data', (d) => (err += decodeProcessOutput(d)))
     p.on('error', reject)
-    p.on('close', (code) => (code === 0 ? resolve(out.trim()) : reject(new Error(err || `exit ${code}`))))
+    p.on('close', (code) =>
+      code === 0 ? resolve(out.trim()) : reject(new Error(lastLines(err || out, 8) || `exit ${code}`))
+    )
   })
 }
 
@@ -76,7 +78,7 @@ function runStreaming(cmd: string, args: string[], onProgress: Progress, label: 
     const p = spawnProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let tail = ''
     const append = (chunk: Buffer) => {
-      tail = `${tail}${chunk.toString()}`.slice(-1000)
+      tail = `${tail}${decodeProcessOutput(chunk)}`.slice(-3000)
       const line = tail
         .split(/\r?\n/)
         .map((s) => s.trim())
@@ -89,7 +91,7 @@ function runStreaming(cmd: string, args: string[], onProgress: Progress, label: 
     p.on('error', reject)
     p.on('close', (code) => {
       if (code === 0) resolve()
-      else reject(new Error(tail.trim() || `${cmd} ${args.join(' ')} exit ${code}`))
+      else reject(new Error(lastLines(tail, 8) || `${cmd} ${args.join(' ')} exit ${code}`))
     })
   })
 }

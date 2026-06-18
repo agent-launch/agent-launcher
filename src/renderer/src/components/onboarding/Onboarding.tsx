@@ -572,9 +572,16 @@ function InstallStep() {
     action?: InstallAction,
     binPath?: string,
   ) => {
+    const current = ui[id] ?? {};
+    const source =
+      action === "link" || action === "repair"
+        ? "system"
+        : action === "reinstall" && current.source === "system"
+          ? "system"
+          : "sandbox";
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }));
     const r = await window.api.install.cli(id, {
-      source: "system",
+      source,
       action,
       binPath,
     });
@@ -598,7 +605,7 @@ function InstallStep() {
     for (const c of CLIS) {
       const id = c.id as CliId;
       const s = ui[id] ?? {};
-      if (s.phase === "done" && s.source === "system") continue;
+      if (s.phase === "done") continue;
       await installOne(id, installAction(id));
     }
   };
@@ -606,9 +613,7 @@ function InstallStep() {
   const installAction = (id: CliId): InstallAction => {
     const s = ui[id] ?? {};
     const detected = systemClis[id];
-    if (s.phase === "done" && s.source === "system") {
-      return "reinstall";
-    }
+    if (s.phase === "done") return "reinstall";
     if (detected?.status === "linked") return "reinstall";
     if (detected?.installed) return "link";
     if (detected?.status === "available") return "link";
