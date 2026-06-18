@@ -8,9 +8,10 @@ import {
 } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, normalize, relative, resolve } from 'node:path'
-import { spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { buildCliEnv } from './cli-env'
+import { spawnProcess } from './process'
 import { paths } from './sandbox'
 import { getInstallSource, loadConfig } from './store'
 import type {
@@ -501,7 +502,7 @@ function createCodexAppServerClient(): CodexAppServerClient {
   const install = loadConfig().install.codex
   if (!install.installed || !install.binPath) throw new Error('Codex 尚未安装')
 
-  const proc = spawn(install.binPath, ['app-server', '--stdio'], {
+  const proc = spawnProcess(install.binPath, ['app-server', '--stdio'], {
     cwd: homedir(),
     env: buildCliEnv('codex') as NodeJS.ProcessEnv,
     stdio: ['pipe', 'pipe', 'ignore']
@@ -517,8 +518,8 @@ function createCodexAppServerClient(): CodexAppServerClient {
 
   proc.on('error', (error) => failAll(error))
   proc.on('exit', () => failAll(new Error('codex app-server exited')))
-  proc.stdout.setEncoding('utf8')
-  proc.stdout.on('data', (chunk: string) => {
+  proc.stdout!.setEncoding('utf8')
+  proc.stdout!.on('data', (chunk: string) => {
     buf += chunk
     let nl: number
     while ((nl = buf.indexOf('\n')) >= 0) {
@@ -542,7 +543,7 @@ function createCodexAppServerClient(): CodexAppServerClient {
   })
 
   const writeJson = (value: Record<string, unknown>) => {
-    proc.stdin.write(`${JSON.stringify(value)}\n`)
+    proc.stdin!.write(`${JSON.stringify(value)}\n`)
   }
 
   return {

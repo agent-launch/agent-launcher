@@ -1,10 +1,11 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import type { WebContents } from 'electron'
 import { buildCliEnv } from './cli-env'
 import { detectSystemCli } from './install/installer'
 import { hasNativeConfig, writeNativeConfig } from './native-config'
+import { spawnProcess } from './process'
 import { loadConfig, setAuthMode, setInstallState } from './store'
 import type { AuthLoginMethod, AuthStatus, CliId } from '@shared/types'
 
@@ -58,7 +59,7 @@ async function runStatus(cliId: CliId, args: string[]): Promise<AuthStatus> {
 
   return new Promise((resolve) => {
     let output = ''
-    const proc = spawn(bin, args, {
+    const proc = spawnProcess(bin, args, {
       cwd: homedir(),
       env: buildCliEnv(cliId) as NodeJS.ProcessEnv
     })
@@ -93,7 +94,7 @@ export async function startAuthLogin(wc: WebContents, cliId: CliId, method: Auth
     writeNativeConfig(cliId)
   }
 
-  const proc = spawn(bin, args, {
+  const proc = spawnProcess(bin, args, {
     cwd: homedir(),
     env: buildCliEnv(cliId) as NodeJS.ProcessEnv
   })

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import type { WebContents } from 'electron'
@@ -6,6 +6,7 @@ import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getInstallSource } from './store'
 import { buildCliEnv } from './cli-env'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
+import { spawnProcess } from './process'
 import type { ChatEvent, ChatStartOptions, CliId, TranscriptPart, TranscriptRole } from '@shared/types'
 
 /**
@@ -346,7 +347,7 @@ function spawnTurn(s: ChatState, id: string, text: string): void {
   s.buf = ''
   s.sawText = false
   s.stderr = ''
-  const proc = spawn(file, args, { cwd: s.cwd, env: buildCliEnv(s.cliId) as NodeJS.ProcessEnv })
+  const proc = spawnProcess(file, args, { cwd: s.cwd, env: buildCliEnv(s.cliId) as NodeJS.ProcessEnv })
   s.turn = proc
   // Prompt is passed as an argv; close stdin so the CLI doesn't block reading it
   // (codex exec waits for stdin EOF otherwise).
@@ -393,7 +394,7 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
       '--dangerously-skip-permissions'
     ]
     if (opts.resumeId) args.push('--resume', opts.resumeId)
-    const proc = spawn(install.binPath, args, { cwd, env: buildCliEnv(opts.cliId) as NodeJS.ProcessEnv })
+    const proc = spawnProcess(install.binPath, args, { cwd, env: buildCliEnv(opts.cliId) as NodeJS.ProcessEnv })
     s.persistent = proc
     attachParser(s, id, proc.stdout!)
     proc.stderr!.setEncoding('utf8')

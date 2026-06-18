@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import * as pty from '@lydell/node-pty'
 import type { WebContents } from 'electron'
+import { windowsShellTarget } from './process'
 import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getPrefs } from './store'
 import { buildCliEnv } from './cli-env'
@@ -176,7 +177,8 @@ export function createSession(wc: WebContents, opts: SpawnOptions): string {
       ? { cwd: opts.cwd && opts.cwd.length ? opts.cwd : homedir(), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
       : prepareCliLaunch(opts)
 
-  const proc = pty.spawn(prepared.file, prepared.args, {
+  const target = windowsShellTarget(prepared.file, prepared.args)
+  const proc = pty.spawn(target.file, target.args, {
     name: 'xterm-256color',
     cols: opts.cols ?? 80,
     rows: opts.rows ?? 24,
