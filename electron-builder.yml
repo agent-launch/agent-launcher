@@ -10,13 +10,16 @@ asarUnpack:
   # sql.js ships a .wasm that must be a real file on disk (not inside asar).
   - "**/node_modules/sql.js/dist/sql-wasm.wasm"
 mac:
+  icon: build/icon.icns
   category: public.app-category.developer-tools
   target:
     - dmg
 win:
+  icon: build/icon.ico
   target:
     - nsis
 linux:
+  icon: build/icon.png
   target:
     - AppImage
   category: Development

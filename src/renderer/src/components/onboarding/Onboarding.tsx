@@ -573,11 +573,14 @@ function InstallStep() {
     binPath?: string,
   ) => {
     const current = ui[id] ?? {};
+    const meta = CLIS.find((c) => c.id === id);
     const source =
       action === "link" || action === "repair"
         ? "system"
         : action === "reinstall" && current.source === "system"
           ? "system"
+          : meta?.install === "system"
+            ? "system"
           : "sandbox";
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }));
     const r = await window.api.install.cli(id, {
@@ -683,6 +686,8 @@ function InstallStep() {
                     `${s.message ?? t("onboarding.installing")}${s.fraction != null ? ` ${Math.round(s.fraction * 100)}%` : ""}`
                   ) : detected?.status === "available" ? (
                     t("onboarding.systemAvailable")
+                  ) : c.install === "system" ? (
+                    t("onboarding.systemInstallMissing")
                   ) : (
                     t("onboarding.systemMissing")
                   )}

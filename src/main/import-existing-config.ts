@@ -4,7 +4,7 @@ import { addProfile, getPrefs, loadConfig, markSystemConfigImportChecked, setAct
 import { systemCliConfigDir } from './config-paths'
 import type { CliId, CliProfilePatch } from '@shared/types'
 
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi']
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes']
 
 function hasApiProfile(cliId: CliId): boolean {
   return loadConfig().clis[cliId].profiles.some((profile) => {
@@ -38,6 +38,24 @@ function stringValue(value: unknown): string | undefined {
 
 function objectValue(value: unknown): Record<string, any> | undefined {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : undefined
+}
+
+function readDotenv(path: string): Record<string, string> {
+  const text = readText(path)
+  if (!text) return {}
+  const out: Record<string, string> = {}
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
+    if (!match) continue
+    let value = match[2].trim()
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1)
+    }
+    out[match[1]] = value
+  }
+  return out
 }
 
 function firstString(...values: unknown[]): string | undefined {
@@ -208,11 +226,73 @@ function importPiProfile(): CliProfilePatch | null {
   )
 }
 
+function unquoteYaml(value: string): string {
+  const trimmed = value.trim().replace(/\s+#.*$/, '').trim()
+  if (!trimmed) return ''
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return trimmed.slice(1, -1)
+    }
+  }
+  return trimmed
+}
+
+function topLevelYamlBlock(content: string, key: string): string {
+  const lines = content.split(/\r?\n/)
+  const out: string[] = []
+  let active = false
+  for (const line of lines) {
+    if (!active) {
+      if (new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*(?:#.*)?$`).test(line)) {
+        active = true
+      }
+      continue
+    }
+    if (/^\S/.test(line)) break
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
+function yamlBlockValue(block: string, key: string): string | undefined {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = block.match(new RegExp(`^\\s+${escaped}\\s*:\\s*(.+?)\\s*$`, 'm'))
+  return match ? unquoteYaml(match[1]) : undefined
+}
+
+function importHermesProfile(): CliProfilePatch | null {
+  const dir = systemCliConfigDir('hermes')
+  const config = readText(join(dir, 'config.yaml')) ?? ''
+  const env = readDotenv(join(dir, '.env'))
+  const modelBlock = topLevelYamlBlock(config, 'model')
+  const baseUrl = firstString(yamlBlockValue(modelBlock, 'base_url'), env.OPENAI_BASE_URL)
+  const configApiKey = yamlBlockValue(modelBlock, 'api_key')
+  const apiKeyEnvMatch = configApiKey?.match(/^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/)
+  const apiKey = firstString(
+    apiKeyEnvMatch ? env[apiKeyEnvMatch[1]] : configApiKey,
+    env.AGENTLAUNCHER_OPENAI_API_KEY,
+    env.OPENAI_API_KEY
+  )
+  const model = firstString(yamlBlockValue(modelBlock, 'default'), yamlBlockValue(modelBlock, 'model'))
+  const provider = yamlBlockValue(modelBlock, 'provider')
+  if (!baseUrl && !apiKey && !model && !provider) return null
+  return {
+    name: '本机 Hermes 配置',
+    providerId: baseUrl ? inferProviderId(baseUrl) : provider || 'custom',
+    baseUrl,
+    apiKey,
+    model
+  }
+}
+
 function readExistingProfile(cliId: CliId): CliProfilePatch | null {
   if (cliId === 'claude-code') return importClaudeProfile()
   if (cliId === 'codex') return importCodexProfile()
   if (cliId === 'opencode') return importOpencodeProfile()
   if (cliId === 'pi') return importPiProfile()
+  if (cliId === 'hermes') return importHermesProfile()
   return null
 }
 

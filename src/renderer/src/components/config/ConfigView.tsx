@@ -1,28 +1,50 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
+import { Blocks, FolderCog, Pencil, Plus, Server, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Markdown } from '@/components/ui/Markdown'
 import { Modal } from '@/components/ui/Modal'
 import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { useT } from '@/i18n'
-import type { AppConfig, CliId, CliProfile } from '@shared/types'
+import type {
+  AppConfig,
+  CliId,
+  CliProfile,
+  InstalledMcpEntry,
+  InstalledSkillEntry,
+  McpTransport,
+  SkillsShSkill
+} from '@shared/types'
 
 interface NativeFiles {
   dir: string
   files: { name: string; content: string }[]
 }
 
+type ConfigTab = 'profiles' | 'mcp' | 'skills'
+
 export function ConfigView({ cliId }: { cliId: CliId }) {
   const t = useT()
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [nativeFiles, setNativeFiles] = useState<NativeFiles | null>(null)
+  const [mcpEntries, setMcpEntries] = useState<InstalledMcpEntry[]>([])
+  const [skillEntries, setSkillEntries] = useState<InstalledSkillEntry[]>([])
+  const [tab, setTab] = useState<ConfigTab>('profiles')
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    setCfg(await window.api.config.get())
-    setNativeFiles(await window.api.config.nativeFiles(cliId))
+    const [nextCfg, nextNativeFiles, nextMcpEntries, nextSkillEntries] = await Promise.all([
+      window.api.config.get(),
+      window.api.config.nativeFiles(cliId),
+      window.api.resources.listMcp(cliId),
+      window.api.resources.listSkills(cliId)
+    ])
+    setCfg(nextCfg)
+    setNativeFiles(nextNativeFiles)
+    setMcpEntries(nextMcpEntries)
+    setSkillEntries(nextSkillEntries)
   }, [cliId])
 
   useEffect(() => {
@@ -65,144 +87,776 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
       </div>
       <p className="mb-6 text-[13px] leading-relaxed text-text-weak">{t('config.intro', { cliId })}</p>
 
-      {/* Profiles */}
-      <div className="space-y-2">
-        {cli.profiles.length === 0 && (
-          <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-7 text-center text-[13px] text-text-weak">
-            {t('config.noProfiles')}
-          </div>
-        )}
-        {cli.profiles.map((p) =>
-          editId === p.id ? (
-            <ProfileForm
-              key={p.id}
-              cliId={cliId}
-              initial={p}
-              onCancel={() => setEditId(null)}
-              onDone={() => {
-                setEditId(null)
-                refresh()
-              }}
-            />
-          ) : (
-            <div
-              key={p.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setActive(p.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setActive(p.id)
-                }
-              }}
-              className={`flex items-center gap-3 rounded-lg border bg-surface/90 px-4 py-3 ${
-                activeId === p.id ? 'border-border-selected bg-selection/35' : 'border-border-weak'
-              } cursor-pointer transition-colors hover:border-border-selected/70 hover:bg-surface-weak/60`}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setActive(p.id)
-                }}
-                className="grid size-5 shrink-0 place-items-center rounded-full border"
-                style={{
-                  borderColor: activeId === p.id ? 'var(--accent)' : 'var(--border-base)'
-                }}
-                title={t('config.setActive')}
-              >
-                {activeId === p.id && (
-                  <span className="size-2.5 rounded-full" style={{ background: 'var(--accent)' }} />
-                )}
-              </button>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-[14px] text-text-strong">
-                  {p.name}
-                  {activeId === p.id && (
-                    <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-success">
-                      {t('config.active')}
-                    </span>
-                  )}
-                </div>
-                <div className="truncate text-[12px] text-text-weak">
-                  {p.baseUrl || t('config.officialDefault')} {p.model ? `· ${p.model}` : ''}
-                </div>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setEditId(p.id)
-                }}
-                className="text-[12px] text-text-weak hover:text-text-strong"
-              >
-                {t('common.edit')}
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setDeleteId(p.id)
-                }}
-                className="text-[12px] text-text-weak hover:text-danger"
-              >
-                {t('common.delete')}
-              </button>
-            </div>
-          )
-        )}
+      <div className="mb-5 flex w-fit rounded-md border border-border-weak bg-surface-weak p-0.5">
+        <ConfigTabButton active={tab === 'profiles'} icon={<FolderCog size={14} />} onClick={() => setTab('profiles')}>
+          {t('config.tabProfiles')}
+        </ConfigTabButton>
+        <ConfigTabButton active={tab === 'mcp'} icon={<Server size={14} />} onClick={() => setTab('mcp')}>
+          {t('config.tabMcp')}
+        </ConfigTabButton>
+        <ConfigTabButton active={tab === 'skills'} icon={<Sparkles size={14} />} onClick={() => setTab('skills')}>
+          {t('config.tabSkills')}
+        </ConfigTabButton>
       </div>
 
-      {adding ? (
-        <div className="mt-2">
-          <ProfileForm
-            cliId={cliId}
-            onCancel={() => setAdding(false)}
-            onDone={() => {
-              setAdding(false)
-              refresh()
-            }}
-          />
-        </div>
-      ) : (
-        <Button className="mt-3" variant="secondary" onClick={() => setAdding(true)}>
-          {t('config.addProfile')}
-        </Button>
+      {tab === 'profiles' && (
+        <>
+          <div className="space-y-2">
+            {cli.profiles.length === 0 && (
+              <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-7 text-center text-[13px] text-text-weak">
+                {t('config.noProfiles')}
+              </div>
+            )}
+            {cli.profiles.map((p) =>
+              editId === p.id ? (
+                <ProfileForm
+                  key={p.id}
+                  cliId={cliId}
+                  initial={p}
+                  onCancel={() => setEditId(null)}
+                  onDone={() => {
+                    setEditId(null)
+                    refresh()
+                  }}
+                />
+              ) : (
+                <div
+                  key={p.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActive(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActive(p.id)
+                    }
+                  }}
+                  className={`flex items-center gap-3 rounded-lg border bg-surface/90 px-4 py-3 ${
+                    activeId === p.id ? 'border-border-selected bg-selection/35' : 'border-border-weak'
+                  } cursor-pointer transition-colors hover:border-border-selected/70 hover:bg-surface-weak/60`}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActive(p.id)
+                    }}
+                    className="grid size-5 shrink-0 place-items-center rounded-full border"
+                    style={{
+                      borderColor: activeId === p.id ? 'var(--accent)' : 'var(--border-base)'
+                    }}
+                    title={t('config.setActive')}
+                  >
+                    {activeId === p.id && (
+                      <span className="size-2.5 rounded-full" style={{ background: 'var(--accent)' }} />
+                    )}
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-[14px] text-text-strong">
+                      {p.name}
+                      {activeId === p.id && (
+                        <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-success">
+                          {t('config.active')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="truncate text-[12px] text-text-weak">
+                      {p.baseUrl || t('config.officialDefault')} {p.model ? `· ${p.model}` : ''}
+                    </div>
+                  </div>
+                  <IconButton
+                    title={t('common.edit')}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setEditId(p.id)
+                    }}
+                  >
+                    <Pencil size={13} />
+                  </IconButton>
+                  <IconButton
+                    title={t('common.delete')}
+                    danger
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDeleteId(p.id)
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </IconButton>
+                </div>
+              )
+            )}
+          </div>
+
+          {adding ? (
+            <div className="mt-2">
+              <ProfileForm
+                cliId={cliId}
+                onCancel={() => setAdding(false)}
+                onDone={() => {
+                  setAdding(false)
+                  refresh()
+                }}
+              />
+            </div>
+          ) : (
+            <Button className="mt-3" variant="secondary" onClick={() => setAdding(true)}>
+              <Plus size={13} />
+              {t('config.addProfile')}
+            </Button>
+          )}
+
+          <Modal open={!!deletingProfile} onClose={() => setDeleteId(null)} title={t('config.deleteProfileTitle')}>
+            <p className="text-[13px] leading-relaxed text-text-weak">
+              {t('config.deleteProfileMessage', { name: deletingProfile?.name ?? '' })}
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setDeleteId(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                className="bg-danger text-white hover:brightness-110"
+                onClick={() => {
+                  if (deletingProfile) remove(deletingProfile.id)
+                }}
+              >
+                {t('common.delete')}
+              </Button>
+            </div>
+          </Modal>
+
+          {nativeFiles && nativeFiles.files.length > 0 && (
+            <div className="mt-8">
+              <div className="mb-2">
+                <h3 className="text-[14px] font-medium text-text-strong">{t('config.nativeFiles')}</h3>
+              </div>
+              <p className="mb-3 text-[12px] text-text-weak">{t('config.nativeFilesDesc')}</p>
+              <div className="space-y-3">
+                {nativeFiles.files.map((f) => (
+                  <FileBlock key={f.name} name={f.name} content={f.content} />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      <Modal open={!!deletingProfile} onClose={() => setDeleteId(null)} title={t('config.deleteProfileTitle')}>
-        <p className="text-[13px] leading-relaxed text-text-weak">
-          {t('config.deleteProfileMessage', { name: deletingProfile?.name ?? '' })}
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setDeleteId(null)}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            size="sm"
-            className="bg-danger text-white hover:brightness-110"
-            onClick={() => {
-              if (deletingProfile) remove(deletingProfile.id)
-            }}
-          >
-            {t('common.delete')}
-          </Button>
-        </div>
-      </Modal>
-
-      {/* CLIs configured by files (Codex/opencode/pi) — show them. */}
-      {nativeFiles && nativeFiles.files.length > 0 && (
-        <div className="mt-8">
-          <div className="mb-2">
-            <h3 className="text-[14px] font-medium text-text-strong">{t('config.nativeFiles')}</h3>
-          </div>
-          <p className="mb-3 text-[12px] text-text-weak">{t('config.nativeFilesDesc')}</p>
-          <div className="space-y-3">
-            {nativeFiles.files.map((f) => (
-              <FileBlock key={f.name} name={f.name} content={f.content} />
-            ))}
-          </div>
-        </div>
+      {tab === 'mcp' && (
+        <McpPanel
+          cliId={cliId}
+          entries={mcpEntries}
+          onChange={setMcpEntries}
+        />
+      )}
+      {tab === 'skills' && (
+        <SkillsPanel
+          cliId={cliId}
+          entries={skillEntries}
+          onChange={setSkillEntries}
+          onConfigChange={setCfg}
+          onRefresh={refresh}
+        />
       )}
     </div>
+  )
+}
+
+function ConfigTabButton({
+  active,
+  icon,
+  children,
+  onClick
+}: {
+  active: boolean
+  icon: React.ReactNode
+  children: React.ReactNode
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[13px] transition-colors ${
+        active ? 'bg-surface text-text-strong' : 'text-text-weak hover:text-text-strong'
+      }`}
+    >
+      {icon}
+      {children}
+    </button>
+  )
+}
+
+function IconButton({
+  children,
+  title,
+  danger,
+  onClick
+}: {
+  children: React.ReactNode
+  title: string
+  danger?: boolean
+  onClick: React.MouseEventHandler<HTMLButtonElement>
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className={`grid size-7 shrink-0 place-items-center rounded-[5px] transition-colors hover:bg-surface-hover ${
+        danger ? 'text-text-muted hover:text-danger' : 'text-text-muted hover:text-text-strong'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function PanelHeader({
+  title,
+  desc,
+  action
+}: {
+  title: string
+  desc: string
+  action?: React.ReactNode
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h3 className="text-[14px] font-medium text-text-strong">{title}</h3>
+        <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{desc}</p>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+function EmptyPanel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-8 text-center text-[13px] text-text-weak">
+      {children}
+    </div>
+  )
+}
+
+function LocalSearch({
+  value,
+  onChange,
+  placeholder
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+}) {
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="selectable mb-4 h-9 w-full rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
+    />
+  )
+}
+
+function McpPanel({
+  cliId,
+  entries,
+  onChange
+}: {
+  cliId: CliId
+  entries: InstalledMcpEntry[]
+  onChange: (entries: InstalledMcpEntry[]) => void
+}) {
+  const t = useT()
+  const [editing, setEditing] = useState<InstalledMcpEntry | 'new' | null>(null)
+  const [filter, setFilter] = useState('')
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase()
+    if (!q) return entries
+    return entries.filter((entry) =>
+      [entry.name, entry.command, entry.args, entry.url, entry.env, entry.configPath].some((value) =>
+        value?.toLowerCase().includes(q)
+      )
+    )
+  }, [entries, filter])
+  const update = async (entry: InstalledMcpEntry, enabled: boolean) => {
+    try {
+      onChange(await window.api.resources.updateMcp(cliId, entry.id, { enabled }))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+  const remove = async (id: string) => {
+    try {
+      onChange(await window.api.resources.deleteMcp(cliId, id))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return (
+    <section className="rounded-lg border border-border-weak bg-surface/90 p-4">
+      <PanelHeader
+        title={t('config.mcpTitle')}
+        desc={t('config.mcpDesc')}
+        action={
+          <Button size="sm" variant="secondary" onClick={() => setEditing('new')}>
+            <Plus size={13} />
+            {t('config.addMcp')}
+          </Button>
+        }
+      />
+      <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localMcpSearchPlaceholder')} />
+      {entries.length === 0 ? (
+        <EmptyPanel>{t('config.noMcp')}</EmptyPanel>
+      ) : filtered.length === 0 ? (
+        <EmptyPanel>{t('config.noResourceMatches')}</EmptyPanel>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((entry) => (
+            <ResourceRow
+              key={entry.id}
+              icon={<Server size={15} />}
+              title={entry.name}
+              enabled={entry.enabled}
+              detail={entry.transport === 'stdio' ? [entry.command, entry.args].filter(Boolean).join(' ') || '-' : entry.url || '-'}
+              meta={entry.transport.toUpperCase()}
+              notes={entry.configPath}
+              onToggle={entry.supportsEnabled ? (enabled) => update(entry, enabled) : undefined}
+              onEdit={() => setEditing(entry)}
+              onDelete={() => remove(entry.id)}
+            />
+          ))}
+        </div>
+      )}
+      {editing && (
+        <McpForm
+          cliId={cliId}
+          initial={editing === 'new' ? undefined : editing}
+          onCancel={() => setEditing(null)}
+          onDone={(next) => {
+            onChange(next)
+            setEditing(null)
+          }}
+        />
+      )}
+    </section>
+  )
+}
+
+function McpForm({
+  cliId,
+  initial,
+  onCancel,
+  onDone
+}: {
+  cliId: CliId
+  initial?: InstalledMcpEntry
+  onCancel: () => void
+  onDone: (entries: InstalledMcpEntry[]) => void
+}) {
+  const t = useT()
+  const [name, setName] = useState(initial?.name ?? '')
+  const [enabled, setEnabled] = useState(initial?.enabled ?? true)
+  const [transport, setTransport] = useState<McpTransport>(initial?.transport ?? 'stdio')
+  const [command, setCommand] = useState(initial?.command ?? '')
+  const [args, setArgs] = useState(initial?.args ?? '')
+  const [url, setUrl] = useState(initial?.url ?? '')
+  const [env, setEnv] = useState(initial?.env ?? '')
+
+  const submit = async () => {
+    const patch = {
+      name: name.trim() || t('config.untitledMcp'),
+      enabled,
+      transport,
+      command: command.trim() || undefined,
+      args: args.trim() || undefined,
+      url: url.trim() || undefined,
+      env: env.trim() || undefined
+    }
+    try {
+      onDone(
+        initial
+          ? await window.api.resources.updateMcp(cliId, initial.id, patch)
+          : await window.api.resources.addMcp(cliId, patch)
+      )
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-border-selected bg-surface/95 p-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t('config.mcpName')} value={name} onChange={setName} />
+        <label className="block">
+          <span className="text-[12px] text-text-weak">{t('config.mcpTransport')}</span>
+          <select
+            value={transport}
+            onChange={(e) => setTransport(e.target.value as McpTransport)}
+            className="mt-1 w-full rounded-md border border-border-weak bg-surface px-2 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
+          >
+            <option value="stdio">stdio</option>
+            <option value="http">http</option>
+            <option value="sse">sse</option>
+          </select>
+        </label>
+        <Field label={t('config.mcpCommand')} value={command} onChange={setCommand} />
+        <Field label={t('config.mcpArgs')} value={args} onChange={setArgs} />
+        <Field label={t('config.mcpUrl')} value={url} onChange={setUrl} placeholder="https://..." />
+        <TextareaField label={t('config.mcpEnv')} value={env} onChange={setEnv} mono placeholder="KEY=value" />
+      </div>
+      <label className="mt-3 flex items-center gap-2 text-[13px] text-text-base">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+        {t('config.enabled')}
+      </label>
+      <FormActions onSubmit={submit} onCancel={onCancel} submitLabel={initial ? t('common.save') : t('common.add')} />
+    </div>
+  )
+}
+
+function SkillsPanel({
+  cliId,
+  entries,
+  onChange,
+  onConfigChange,
+  onRefresh
+}: {
+  cliId: CliId
+  entries: InstalledSkillEntry[]
+  onChange: (entries: InstalledSkillEntry[]) => void
+  onConfigChange: (cfg: AppConfig) => void
+  onRefresh: () => void
+}) {
+  const t = useT()
+  const [editing, setEditing] = useState<InstalledSkillEntry | null>(null)
+  const [filter, setFilter] = useState('')
+  const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
+  const [installingId, setInstallingId] = useState<string | null>(null)
+  const [searchError, setSearchError] = useState('')
+  const [results, setResults] = useState<SkillsShSkill[]>([])
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase()
+    if (!q) return entries
+    return entries.filter((entry) =>
+      [entry.name, entry.description, entry.source, entry.dir, entry.path].some((value) =>
+        value?.toLowerCase().includes(q)
+      )
+    )
+  }, [entries, filter])
+  const remove = async (id: string) => {
+    try {
+      onChange(await window.api.resources.deleteSkill(cliId, id))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+  const search = async () => {
+    const nextQuery = query.trim()
+    if (!nextQuery) {
+      setResults([])
+      setSearchError('')
+      return
+    }
+    setSearching(true)
+    setSearchError('')
+    const result = await window.api.skillsSh.search(nextQuery, 8)
+    setSearching(false)
+    if (result.ok) setResults(result.skills)
+    else {
+      setResults([])
+      setSearchError(result.error)
+    }
+  }
+  const install = async (skill: SkillsShSkill) => {
+    setInstallingId(skill.id)
+    const result = await window.api.skillsSh.install(cliId, skill)
+    setInstallingId(null)
+    if (result.ok) {
+      toast.success(t('config.skillsShInstallDone', { name: result.skill.name }))
+      onConfigChange(result.config)
+      onChange(await window.api.resources.listSkills(cliId))
+      return
+    }
+    toast.error(result.error)
+  }
+  const installedKeys = new Set(
+    entries.flatMap((entry) =>
+      [entry.name, entry.source, entry.dir]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.toLowerCase())
+    )
+  )
+
+  return (
+    <section className="rounded-lg border border-border-weak bg-surface/90 p-4">
+      <PanelHeader
+        title={t('config.skillsTitle')}
+        desc={t('config.skillsDesc')}
+      />
+      <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localSkillSearchPlaceholder')} />
+      <div className="mb-4 rounded-lg border border-border-weak bg-surface/80 p-3">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-surface-weak px-2 py-0.5 font-mono text-[11px] text-text-weak">
+            skills.sh
+          </span>
+          <span className="text-[12px] text-text-weak">{t('config.skillsShDesc')}</span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') search()
+            }}
+            placeholder={t('config.skillsShPlaceholder')}
+            className="selectable h-9 min-w-0 flex-1 rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
+          />
+          <Button size="sm" variant="secondary" className="h-9" onClick={search} disabled={searching}>
+            {searching ? t('config.skillsShSearching') : t('config.skillsShSearch')}
+          </Button>
+        </div>
+        {searchError && (
+          <div className="mt-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[12px] leading-relaxed text-danger">
+            {searchError}
+          </div>
+        )}
+        {results.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {results.map((skill) => {
+              const searchKeys = [skill.id, skill.installUrl, skill.slug, skill.name, `${skill.source}/${skill.slug}`]
+                .filter((value): value is string => Boolean(value))
+                .map((value) => String(value).toLowerCase())
+              const installed = searchKeys.some(
+                (key) => installedKeys.has(key) || [...installedKeys].some((item) => item.endsWith(key))
+              )
+              return (
+                <div key={skill.id} className="rounded-md border border-border-weak bg-surface px-3 py-3">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                      <Blocks size={15} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-text-strong">
+                        {skill.name}
+                        <span className="rounded-full bg-surface-weak px-2 py-0.5 font-mono text-[11px] text-text-weak">
+                          skills.sh
+                        </span>
+                        {typeof skill.installs === 'number' && (
+                          <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-text-weak">
+                            {t('config.skillsShInstalls', { count: String(skill.installs) })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 truncate font-mono text-[11px] text-text-weak">
+                        {skill.source} / {skill.slug}
+                      </div>
+                      {skill.description && (
+                        <div className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-text-weak">
+                          {skill.description}
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={installed ? 'ghost' : 'secondary'}
+                      disabled={installed || !skill.installUrl || installingId === skill.id}
+                      onClick={() => install(skill)}
+                    >
+                      {installed
+                        ? t('config.skillsShInstalled')
+                        : installingId === skill.id
+                          ? t('config.skillsShInstalling')
+                          : t('config.skillsShInstall')}
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+      {entries.length === 0 ? (
+        <EmptyPanel>{t('config.noSkills')}</EmptyPanel>
+      ) : filtered.length === 0 ? (
+        <EmptyPanel>{t('config.noResourceMatches')}</EmptyPanel>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((entry) => (
+            <ResourceRow
+              key={entry.id}
+              icon={<Blocks size={15} />}
+              title={entry.name}
+              enabled={entry.enabled}
+              detail={entry.source || entry.dir}
+              meta={entry.provider === 'skills.sh' ? 'skills.sh' : 'Skill'}
+              notes={entry.description || entry.path}
+              onEdit={() => setEditing(entry)}
+              onDelete={() => remove(entry.id)}
+            />
+          ))}
+        </div>
+      )}
+      {editing && (
+        <SkillForm
+          cliId={cliId}
+          initial={editing}
+          onCancel={() => setEditing(null)}
+          onDone={(next) => {
+            onChange(next)
+            setEditing(null)
+            onRefresh()
+          }}
+        />
+      )}
+    </section>
+  )
+}
+
+function SkillForm({
+  cliId,
+  initial,
+  onCancel,
+  onDone
+}: {
+  cliId: CliId
+  initial: InstalledSkillEntry
+  onCancel: () => void
+  onDone: (entries: InstalledSkillEntry[]) => void
+}) {
+  const t = useT()
+  const [name, setName] = useState(initial?.name ?? '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+
+  const submit = async () => {
+    const patch = {
+      name: name.trim() || t('config.untitledSkill'),
+      description: description.trim()
+    }
+    try {
+      onDone(await window.api.resources.updateSkill(cliId, initial.id, patch))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-lg border border-border-selected bg-surface/95 p-4">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t('config.skillName')} value={name} onChange={setName} />
+        <TextareaField label={t('config.skillDescription')} value={description} onChange={setDescription} />
+      </div>
+      <FormActions onSubmit={submit} onCancel={onCancel} submitLabel={t('common.save')} />
+    </div>
+  )
+}
+
+function ResourceRow({
+  icon,
+  title,
+  enabled,
+  detail,
+  meta,
+  notes,
+  onToggle,
+  onEdit,
+  onDelete
+}: {
+  icon: React.ReactNode
+  title: string
+  enabled: boolean
+  detail: string
+  meta: string
+  notes?: string
+  onToggle?: (enabled: boolean) => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const t = useT()
+  return (
+    <div className="rounded-lg border border-border-weak bg-surface/90 px-3 py-3">
+      <div className="flex items-start gap-3">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-text-strong">
+            {title}
+            <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-text-weak">{meta}</span>
+            {onToggle && (
+              <span className={`rounded-full px-2 py-0.5 text-[11px] ${enabled ? 'bg-success/10 text-success' : 'bg-surface-weak text-text-weak'}`}>
+                {enabled ? t('config.enabled') : t('config.disabled')}
+              </span>
+            )}
+          </div>
+          <div className="mt-1 truncate font-mono text-[11px] text-text-weak">{detail}</div>
+          {notes && <div className="mt-1 truncate text-[11px] text-text-weak">{notes}</div>}
+        </div>
+        {onToggle && (
+          <label className="mt-1 flex items-center gap-1.5 text-[12px] text-text-weak">
+            <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
+          </label>
+        )}
+        <IconButton title={t('common.edit')} onClick={onEdit}>
+          <Pencil size={13} />
+        </IconButton>
+        <IconButton title={t('common.delete')} danger onClick={onDelete}>
+          <Trash2 size={13} />
+        </IconButton>
+      </div>
+    </div>
+  )
+}
+
+function FormActions({
+  onSubmit,
+  onCancel,
+  submitLabel
+}: {
+  onSubmit: () => void
+  onCancel: () => void
+  submitLabel: string
+}) {
+  const t = useT()
+  return (
+    <div className="mt-3 flex gap-2">
+      <Button size="sm" onClick={onSubmit}>
+        {submitLabel}
+      </Button>
+      <Button size="sm" variant="ghost" onClick={onCancel}>
+        {t('common.cancel')}
+      </Button>
+    </div>
+  )
+}
+
+function TextareaField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  mono
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  mono?: boolean
+}) {
+  return (
+    <label className="col-span-2 block">
+      <span className="text-[12px] text-text-weak">{label}</span>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={2}
+        placeholder={placeholder}
+        className={`selectable mt-1 w-full resize-none rounded-md border border-border-weak bg-surface px-3 py-2 text-text-strong outline-none focus:border-border-selected ${
+          mono ? 'font-mono text-[12px]' : 'text-[13px]'
+        }`}
+      />
+    </label>
   )
 }
 

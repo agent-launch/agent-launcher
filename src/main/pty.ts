@@ -42,6 +42,8 @@ function yoloArgs(cliId: CliId): string[] | null {
       // opencode only accepts this flag for `opencode run`; the interactive
       // TUI rejects it and exits after printing help.
       return null
+    case 'hermes':
+      return ['--yolo']
     default:
       return null // pi has no auto-approve flag
   }

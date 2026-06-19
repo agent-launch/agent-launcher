@@ -3,16 +3,28 @@ import type {
   AppConfig,
   AppInfo,
   CliId,
+  CliUpdateStatus,
+  CliMcpPatch,
+  CliPricePatch,
   CliProfilePatch,
+  CliSkillPatch,
   CleanupCliResult,
+  DashboardLaunchResult,
   DetectResult,
   EnvPair,
+  InstalledMcpEntry,
+  InstalledMcpPatch,
+  InstalledSkillEntry,
+  InstalledSkillPatch,
   InstallOptions,
   InstallProgress,
   InstallResult,
   NativeFiles,
   SessionDeleteResult,
   SessionInfo,
+  SkillsShInstallResult,
+  SkillsShSearchResult,
+  SkillsShSkill,
   Transcript,
   ChatEvent,
   ChatStartOptions,
@@ -44,6 +56,31 @@ const api = {
   terminal: {
     openExternal: (opts: SpawnOptions): Promise<void> => ipcRenderer.invoke('terminal:openExternal', opts)
   },
+  dashboard: {
+    launch: (id: CliId): Promise<DashboardLaunchResult> => ipcRenderer.invoke('dashboard:launch', id)
+  },
+  skillsSh: {
+    search: (query: string, limit?: number): Promise<SkillsShSearchResult> =>
+      ipcRenderer.invoke('skillsSh:search', query, limit),
+    install: (id: CliId, skill: SkillsShSkill): Promise<SkillsShInstallResult> =>
+      ipcRenderer.invoke('skillsSh:install', id, skill)
+  },
+  resources: {
+    listMcp: (id: CliId): Promise<InstalledMcpEntry[]> =>
+      ipcRenderer.invoke('resources:listMcp', id),
+    addMcp: (id: CliId, patch: InstalledMcpPatch): Promise<InstalledMcpEntry[]> =>
+      ipcRenderer.invoke('resources:addMcp', id, patch),
+    updateMcp: (id: CliId, entryId: string, patch: InstalledMcpPatch): Promise<InstalledMcpEntry[]> =>
+      ipcRenderer.invoke('resources:updateMcp', id, entryId, patch),
+    deleteMcp: (id: CliId, entryId: string): Promise<InstalledMcpEntry[]> =>
+      ipcRenderer.invoke('resources:deleteMcp', id, entryId),
+    listSkills: (id: CliId): Promise<InstalledSkillEntry[]> =>
+      ipcRenderer.invoke('resources:listSkills', id),
+    updateSkill: (id: CliId, entryId: string, patch: InstalledSkillPatch): Promise<InstalledSkillEntry[]> =>
+      ipcRenderer.invoke('resources:updateSkill', id, entryId, patch),
+    deleteSkill: (id: CliId, entryId: string): Promise<InstalledSkillEntry[]> =>
+      ipcRenderer.invoke('resources:deleteSkill', id, entryId)
+  },
   config: {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
     addProfile: (id: CliId, patch: CliProfilePatch): Promise<AppConfig> =>
@@ -58,6 +95,24 @@ const api = {
       ipcRenderer.invoke('config:setAuthMode', id, mode),
     setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setYolo', id, on),
+    addPrice: (id: CliId, patch: CliPricePatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:addPrice', id, patch),
+    updatePrice: (id: CliId, entryId: string, patch: CliPricePatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:updatePrice', id, entryId, patch),
+    deletePrice: (id: CliId, entryId: string): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:deletePrice', id, entryId),
+    addMcp: (id: CliId, patch: CliMcpPatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:addMcp', id, patch),
+    updateMcp: (id: CliId, entryId: string, patch: CliMcpPatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:updateMcp', id, entryId, patch),
+    deleteMcp: (id: CliId, entryId: string): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:deleteMcp', id, entryId),
+    addSkill: (id: CliId, patch: CliSkillPatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:addSkill', id, patch),
+    updateSkill: (id: CliId, entryId: string, patch: CliSkillPatch): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:updateSkill', id, entryId, patch),
+    deleteSkill: (id: CliId, entryId: string): Promise<AppConfig> =>
+      ipcRenderer.invoke('config:deleteSkill', id, entryId),
     resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
     openFile: (): Promise<string> => ipcRenderer.invoke('config:openFile'),
     reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal'),
@@ -77,6 +132,7 @@ const api = {
   install: {
     cli: (id: CliId, opts?: InstallOptions): Promise<InstallResult> =>
       ipcRenderer.invoke('install:cli', id, opts),
+    status: (): Promise<CliUpdateStatus[]> => ipcRenderer.invoke('install:status'),
     cleanupCli: (id: CliId, binPath: string): Promise<CleanupCliResult> =>
       ipcRenderer.invoke('install:cleanupCli', id, binPath),
     onProgress: (cb: (p: InstallProgress) => void) => {

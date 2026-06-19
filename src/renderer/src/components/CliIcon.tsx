@@ -1,6 +1,7 @@
 // Deep imports (not the barrel) so Vite doesn't scan all 200+ icons.
 import ClaudeCode from '@lobehub/icons/es/ClaudeCode'
 import Codex from '@lobehub/icons/es/Codex'
+import HermesAgent from '@lobehub/icons/es/HermesAgent'
 import OpenCode from '@lobehub/icons/es/OpenCode'
 import { CLIS } from '@/data/clis'
 import type { CliId } from '@shared/types'
@@ -9,6 +10,7 @@ import type { CliId } from '@shared/types'
 const ICONS: Partial<Record<CliId, (p: { size: number }) => React.ReactNode>> = {
   'claude-code': (p) => <ClaudeCode.Color {...p} />,
   codex: (p) => <Codex {...p} />,
+  hermes: (p) => <HermesAgent {...p} />,
   opencode: (p) => <OpenCode {...p} />
 }
 

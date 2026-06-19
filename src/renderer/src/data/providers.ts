@@ -121,7 +121,8 @@ export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   // opencode & pi consume OpenAI-compatible relays (the /v1 endpoints), so the
   // Codex relay list applies to them too.
   opencode: CODEX,
-  pi: CODEX
+  pi: CODEX,
+  hermes: CODEX
 }
 
 // Category display labels now live in the i18n tables (key `category.<id>`),

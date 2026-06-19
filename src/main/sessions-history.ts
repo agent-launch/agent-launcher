@@ -11,7 +11,8 @@ import { basename, isAbsolute, join, normalize, relative, resolve } from 'node:p
 import type { ChildProcess } from 'node:child_process'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { buildCliEnv } from './cli-env'
-import { spawnProcess } from './process'
+import { hermesHomeDir } from './config-paths'
+import { decodeProcessOutput, spawnProcess } from './process'
 import { paths } from './sandbox'
 import { getInstallSource, loadConfig } from './store'
 import type {
@@ -26,6 +27,7 @@ import type {
 
 const MAX_LIST = 50 // only parse the most-recently-touched files
 const CODEX_THREAD_LIST_TIMEOUT_MS = 1800
+const SESSION_DELETE_TIMEOUT_MS = 15_000
 
 interface FileRef {
   full: string
@@ -45,7 +47,12 @@ function cliStateRoot(cliId: CliId): string {
   if (cliId === 'claude-code') return join(homedir(), '.claude')
   if (cliId === 'codex') return join(homedir(), '.codex')
   if (cliId === 'pi') return join(homedir(), '.pi', 'agent')
+  if (cliId === 'hermes') return hermesHomeDir()
   return paths.cliConfig(cliId)
+}
+
+function hermesDbPath(): string {
+  return join(cliStateRoot('hermes'), 'state.db')
 }
 
 function opencodeDbPath(): string {
@@ -82,6 +89,47 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
         reject(error)
       }
     )
+  })
+}
+
+function runCaptured(
+  file: string,
+  args: string[],
+  options: { env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}
+): Promise<{ code: number | null; stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawnProcess(file, args, {
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    const timer = setTimeout(() => {
+      proc.kill()
+      finish(null, `Timed out after ${options.timeoutMs ?? SESSION_DELETE_TIMEOUT_MS}ms`)
+    }, options.timeoutMs ?? SESSION_DELETE_TIMEOUT_MS)
+
+    const finish = (code: number | null, extraError = '') => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ code, stdout, stderr: [stderr, extraError].filter(Boolean).join('\n') })
+    }
+
+    proc.stdout?.on('data', (chunk) => {
+      stdout += decodeProcessOutput(chunk)
+    })
+    proc.stderr?.on('data', (chunk) => {
+      stderr += decodeProcessOutput(chunk)
+    })
+    proc.once('error', (error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      reject(error)
+    })
+    proc.once('exit', (code) => finish(code))
   })
 }
 
@@ -843,11 +891,72 @@ function getSql(): Promise<SqlJsStatic> {
   return sqlPromise
 }
 
+function sqliteMainPageSize(data: Buffer): number | null {
+  if (data.length < 100) return null
+  const raw = data.readUInt16BE(16)
+  const size = raw === 1 ? 65536 : raw
+  return size >= 512 && size <= 65536 && (size & (size - 1)) === 0 ? size : null
+}
+
+function sqliteWalPageSize(main: Buffer, wal: Buffer): number | null {
+  const raw = wal.length >= 12 ? wal.readUInt32BE(8) : 0
+  if (raw >= 512 && raw <= 65536 && (raw & (raw - 1)) === 0) return raw
+  return sqliteMainPageSize(main)
+}
+
+function readSqliteSnapshot(dbPath: string): Buffer {
+  const main = Buffer.from(readFileSync(dbPath))
+  const walPath = `${dbPath}-wal`
+  if (!existsSync(walPath)) return main
+
+  try {
+    const wal = readFileSync(walPath)
+    if (wal.length < 32) return main
+    const magic = wal.readUInt32BE(0)
+    if (magic !== 0x377f0682 && magic !== 0x377f0683) return main
+    const pageSize = sqliteWalPageSize(main, wal)
+    if (!pageSize) return main
+
+    const salt1 = wal.readUInt32BE(16)
+    const salt2 = wal.readUInt32BE(20)
+    const frameSize = 24 + pageSize
+    const frames: Array<{ pageNo: number; dataOffset: number }> = []
+    let committedFrameCount = 0
+    let committedPageCount = Math.max(1, Math.ceil(main.length / pageSize))
+
+    for (let offset = 32; offset + frameSize <= wal.length; offset += frameSize) {
+      const pageNo = wal.readUInt32BE(offset)
+      const pageCount = wal.readUInt32BE(offset + 4)
+      if (wal.readUInt32BE(offset + 8) !== salt1 || wal.readUInt32BE(offset + 12) !== salt2) break
+      if (pageNo < 1) break
+
+      frames.push({ pageNo, dataOffset: offset + 24 })
+      if (pageCount > 0) {
+        committedFrameCount = frames.length
+        committedPageCount = pageCount
+      }
+    }
+
+    if (!committedFrameCount) return main
+    const out = Buffer.alloc(committedPageCount * pageSize)
+    main.copy(out, 0, 0, Math.min(main.length, out.length))
+    for (const frame of frames.slice(0, committedFrameCount)) {
+      const dest = (frame.pageNo - 1) * pageSize
+      if (dest < 0 || dest + pageSize > out.length) continue
+      wal.copy(out, dest, frame.dataOffset, frame.dataOffset + pageSize)
+    }
+    if (out.length >= 32) out.writeUInt32BE(committedPageCount, 28)
+    return out
+  } catch {
+    return main
+  }
+}
+
 async function listOpencode(): Promise<SessionInfo[]> {
   const dbPath = opencodeDbPath()
   if (!existsSync(dbPath)) return []
   const SQL = await getSql()
-  const db = new SQL.Database(readFileSync(dbPath))
+  const db = new SQL.Database(readSqliteSnapshot(dbPath))
   try {
     const res = db.exec(
       'SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT 50'
@@ -862,6 +971,50 @@ async function listOpencode(): Promise<SessionInfo[]> {
         name: (title || '未命名会话').toString().slice(0, 80),
         updatedAt: ms > 0 && ms < 1e12 ? ms * 1000 : ms, // tolerate seconds vs ms
         cwd: typeof directory === 'string' ? directory : undefined
+      }
+    })
+  } finally {
+    db.close()
+  }
+}
+
+async function listHermes(): Promise<SessionInfo[]> {
+  const dbPath = hermesDbPath()
+  if (!existsSync(dbPath)) return []
+  const SQL = await getSql()
+  const db = new SQL.Database(readSqliteSnapshot(dbPath))
+  try {
+    const columns = tableColumns(db, 'sessions')
+    if (!columns.length) return []
+    const titleColumn = columns.includes('title') ? 'title' : columns.includes('name') ? 'name' : null
+    const cwdColumn = columns.includes('cwd') ? 'cwd' : columns.includes('directory') ? 'directory' : null
+    const updatedColumn = columns.includes('updated_at')
+      ? 'updated_at'
+      : columns.includes('ended_at')
+        ? 'ended_at'
+        : columns.includes('started_at')
+          ? 'started_at'
+          : columns.includes('created_at')
+            ? 'created_at'
+            : null
+    const select = [
+      'id',
+      titleColumn ? `${quoteSqlIdentifier(titleColumn)} AS title` : "'' AS title",
+      cwdColumn ? `${quoteSqlIdentifier(cwdColumn)} AS cwd` : "'' AS cwd",
+      updatedColumn ? `${quoteSqlIdentifier(updatedColumn)} AS updated` : '0 AS updated'
+    ].join(', ')
+    const order = updatedColumn ? ` ORDER BY ${quoteSqlIdentifier(updatedColumn)} DESC` : ''
+    const res = db.exec(`SELECT ${select} FROM sessions${order} LIMIT 50`)
+    if (!res.length) return []
+    return res[0].values.map((row) => {
+      const [id, title, cwd, updated] = row as [string, string, string, number | string]
+      const ts = normalizeTs(updated) ?? Date.now()
+      return {
+        id: String(id),
+        cliId: 'hermes' as CliId,
+        name: (String(title || '') || 'Hermes 会话').slice(0, 80),
+        updatedAt: ts,
+        cwd: typeof cwd === 'string' && cwd ? cwd : undefined
       }
     })
   } finally {
@@ -954,6 +1107,10 @@ function quoteSqlIdentifier(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
+function quoteSqlString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
 function tableColumns(db: initSqlJs.Database, table: string): string[] {
   const stmt = db.prepare(`PRAGMA table_info(${quoteSqlIdentifier(table)})`)
   try {
@@ -966,6 +1123,64 @@ function tableColumns(db: initSqlJs.Database, table: string): string[] {
   } finally {
     stmt.free()
   }
+}
+
+function compactProcessError(result: { code: number | null; stdout: string; stderr: string }): string {
+  const text = (result.stderr || result.stdout || `退出码 ${result.code ?? 'unknown'}`).trim()
+  return text.length > 1200 ? `…${text.slice(-1200)}` : text
+}
+
+async function readHermesDeleteTarget(
+  dbPath: string,
+  id: string
+): Promise<{ exists: boolean; deletedCount: number }> {
+  const SQL = await getSql()
+  const db = new SQL.Database(readSqliteSnapshot(dbPath))
+  try {
+    const sessionRows = db.exec('SELECT id FROM sessions WHERE id = $sid LIMIT 1', { $sid: id })
+    if (!sessionRows.length || sessionRows[0].values.length === 0) {
+      return { exists: false, deletedCount: 0 }
+    }
+    const messageRows = db.exec('SELECT COUNT(*) FROM messages WHERE session_id = $sid', { $sid: id })
+    const messageCount = Number(messageRows[0]?.values[0]?.[0] ?? 0)
+    return { exists: true, deletedCount: messageCount + 1 }
+  } finally {
+    db.close()
+  }
+}
+
+async function deleteHermesWithCli(id: string): Promise<string | null> {
+  const install = loadConfig().install.hermes
+  if (!install.installed || !install.binPath || !existsSync(install.binPath)) {
+    return 'Hermes 命令不存在，无法调用官方 sessions delete'
+  }
+
+  const result = await runCaptured(install.binPath, ['sessions', 'delete', '--yes', id], {
+    env: buildCliEnv('hermes'),
+    timeoutMs: SESSION_DELETE_TIMEOUT_MS
+  })
+  return result.code === 0 ? null : compactProcessError(result)
+}
+
+function sqlite3Command(): string {
+  if (process.platform === 'darwin' && existsSync('/usr/bin/sqlite3')) return '/usr/bin/sqlite3'
+  return process.platform === 'win32' ? 'sqlite3.exe' : 'sqlite3'
+}
+
+async function deleteHermesWithSystemSqlite(dbPath: string, id: string): Promise<string | null> {
+  const sid = quoteSqlString(id)
+  const sql = [
+    'PRAGMA busy_timeout = 5000;',
+    'BEGIN IMMEDIATE;',
+    `UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ${sid};`,
+    `DELETE FROM messages WHERE session_id = ${sid};`,
+    `DELETE FROM sessions WHERE id = ${sid};`,
+    'COMMIT;'
+  ].join('\n')
+  const result = await runCaptured(sqlite3Command(), [dbPath, sql], {
+    timeoutMs: SESSION_DELETE_TIMEOUT_MS
+  })
+  return result.code === 0 ? null : compactProcessError(result)
 }
 
 async function deleteOpencodeSession(id: string): Promise<SessionDeleteResult> {
@@ -1021,6 +1236,48 @@ async function deleteOpencodeSession(id: string): Promise<SessionDeleteResult> {
   }
 }
 
+async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
+  const dbPath = hermesDbPath()
+  if (!existsSync(dbPath)) return { ok: true, cliId: 'hermes', id, deletedCount: 0, missing: true }
+
+  try {
+    const target = await readHermesDeleteTarget(dbPath, id)
+    if (!target.exists) {
+      return { ok: true, cliId: 'hermes', id, deletedCount: 0, missing: true }
+    }
+
+    try {
+      const cliError = await deleteHermesWithCli(id)
+      if (!cliError) return { ok: true, cliId: 'hermes', id, deletedCount: target.deletedCount }
+
+      const sqliteError = await deleteHermesWithSystemSqlite(dbPath, id)
+      if (!sqliteError) return { ok: true, cliId: 'hermes', id, deletedCount: target.deletedCount }
+
+      return {
+        ok: false,
+        cliId: 'hermes',
+        id,
+        deletedCount: 0,
+        error: `Hermes 官方删除失败：${cliError}；系统 SQLite 删除失败：${sqliteError}`
+      }
+    } catch (error) {
+      const sqliteError = await deleteHermesWithSystemSqlite(dbPath, id).catch((sqliteFailure) =>
+        sqliteFailure instanceof Error ? sqliteFailure.message : String(sqliteFailure)
+      )
+      if (!sqliteError) return { ok: true, cliId: 'hermes', id, deletedCount: target.deletedCount }
+      return {
+        ok: false,
+        cliId: 'hermes',
+        id,
+        deletedCount: 0,
+        error: `Hermes 删除失败：${error instanceof Error ? error.message : String(error)}；系统 SQLite 删除失败：${sqliteError}`
+      }
+    }
+  } catch (error) {
+    return { ok: false, cliId: 'hermes', id, deletedCount: 0, error: String(error) }
+  }
+}
+
 export async function deleteSession(cliId: CliId, id: string): Promise<SessionDeleteResult> {
   const sessionId = id.trim()
   if (!sessionId) return { ok: false, cliId, id, deletedCount: 0, error: '会话 ID 不能为空' }
@@ -1030,6 +1287,7 @@ export async function deleteSession(cliId: CliId, id: string): Promise<SessionDe
     if (cliId === 'codex') return deleteCodexSession(sessionId)
     if (cliId === 'pi') return deletePiSession(sessionId)
     if (cliId === 'opencode') return await deleteOpencodeSession(sessionId)
+    if (cliId === 'hermes') return await deleteHermesSession(sessionId)
     return { ok: false, cliId, id: sessionId, deletedCount: 0, error: '不支持删除这个 CLI 的会话' }
   } catch (error) {
     return { ok: false, cliId, id: sessionId, deletedCount: 0, error: String(error) }
@@ -1049,6 +1307,7 @@ export async function listSessions(cliId: CliId): Promise<SessionInfo[]> {
     }
     if (cliId === 'pi') return listPi()
     if (cliId === 'opencode') return await listOpencode()
+    if (cliId === 'hermes') return await listHermes()
     return []
   } catch {
     return []
@@ -1179,6 +1438,32 @@ function safeJson(s: unknown): unknown {
   } catch {
     return s
   }
+}
+
+function decodeHermesContent(content: unknown): unknown {
+  if (typeof content !== 'string') return content
+  const marker = 'json:'
+  const markerIndex = content.indexOf(marker)
+  if (markerIndex < 0 || markerIndex > 6) return content
+  try {
+    return JSON.parse(content.slice(markerIndex + marker.length))
+  } catch {
+    return content
+  }
+}
+
+function decodeSqliteText(content: unknown, hexContent: unknown): unknown {
+  if (typeof content === 'string' && content.length > 0) return content
+  if (typeof hexContent !== 'string' || !hexContent) return content
+  try {
+    return Buffer.from(hexContent, 'hex').toString('utf8')
+  } catch {
+    return content
+  }
+}
+
+function selectColumn(columns: string[], name: string, fallback = 'NULL'): string {
+  return columns.includes(name) ? quoteSqlIdentifier(name) : fallback
 }
 
 /** Pick a one-line summary of a tool's input/args for compact display. */
@@ -1417,7 +1702,7 @@ async function opencodeTranscript(id: string): Promise<Transcript> {
   const msgs: TranscriptMessage[] = []
   if (!existsSync(dbPath)) return done('opencode', id, msgs)
   const SQL = await getSql()
-  const db = new SQL.Database(readFileSync(dbPath))
+  const db = new SQL.Database(readSqliteSnapshot(dbPath))
   let fallbackTs: number | undefined
   try {
     const sstmt = db.prepare('SELECT time_updated FROM session WHERE id = $sid LIMIT 1')
@@ -1496,6 +1781,107 @@ async function opencodeTranscript(id: string): Promise<Transcript> {
   return done('opencode', id, msgs, false, fallbackTs)
 }
 
+async function hermesTranscript(id: string): Promise<Transcript> {
+  const dbPath = hermesDbPath()
+  const msgs: TranscriptMessage[] = []
+  if (!existsSync(dbPath)) return done('hermes', id, msgs)
+  const SQL = await getSql()
+  const db = new SQL.Database(readSqliteSnapshot(dbPath))
+  let fallbackTs: number | undefined
+  try {
+    const sstmt = db.prepare('SELECT started_at, ended_at FROM sessions WHERE id = $sid LIMIT 1')
+    sstmt.bind({ $sid: id })
+    if (sstmt.step()) {
+      const row = sstmt.getAsObject() as { started_at?: number | string; ended_at?: number | string }
+      fallbackTs = normalizeTs(row.ended_at) ?? normalizeTs(row.started_at)
+    }
+    sstmt.free()
+
+    const messageColumns = tableColumns(db, 'messages')
+    if (!messageColumns.length || !messageColumns.includes('session_id')) return done('hermes', id, msgs, false, fallbackTs)
+    const activeFilter = messageColumns.includes('active') ? ' AND active = 1' : ''
+    const orderColumn = messageColumns.includes('id') ? 'id' : messageColumns.includes('timestamp') ? 'timestamp' : 'rowid'
+    const contentExpr = messageColumns.includes('content') ? 'content, hex(content) AS content_hex' : 'NULL AS content, NULL AS content_hex'
+    const mstmt = db.prepare(
+      [
+        'SELECT',
+        [
+          selectColumn(messageColumns, 'role', "'assistant'"),
+          contentExpr,
+          `${selectColumn(messageColumns, 'tool_call_id')} AS tool_call_id`,
+          `${selectColumn(messageColumns, 'tool_calls')} AS tool_calls`,
+          `${selectColumn(messageColumns, 'tool_name')} AS tool_name`,
+          `${selectColumn(messageColumns, 'timestamp')} AS timestamp`,
+          `${selectColumn(messageColumns, 'reasoning')} AS reasoning`,
+          `${selectColumn(messageColumns, 'reasoning_content')} AS reasoning_content`,
+          `${selectColumn(messageColumns, 'reasoning_details')} AS reasoning_details`
+        ].join(', '),
+        `FROM messages WHERE session_id = $sid${activeFilter} ORDER BY ${quoteSqlIdentifier(orderColumn)}`
+      ].join(' ')
+    )
+    mstmt.bind({ $sid: id })
+    while (mstmt.step()) {
+      const row = mstmt.getAsObject() as Record<string, any>
+      const role: TranscriptRole =
+        row.role === 'assistant' ? 'assistant' : row.role === 'user' ? 'user' : 'system'
+      const ts = normalizeTs(row.timestamp)
+      const content = decodeHermesContent(decodeSqliteText(row.content, row.content_hex))
+      if (typeof content === 'string') {
+        pushPart(msgs, role, { kind: 'text', text: content }, ts)
+      } else if (Array.isArray(content)) {
+        for (const item of content) {
+          const record = asRecord(item)
+          if (!record) continue
+          if (record.type === 'text' && typeof record.text === 'string') {
+            pushPart(msgs, role, { kind: 'text', text: record.text }, ts)
+          } else if (record.type === 'image_url') {
+            pushPart(msgs, role, { kind: 'text', text: '[image]' }, ts)
+          } else {
+            pushPart(msgs, role, { kind: 'text', text: stringifyToolPayload(record) }, ts)
+          }
+        }
+      } else if (content != null) {
+        pushPart(msgs, role, { kind: 'text', text: stringifyToolPayload(content) }, ts)
+      }
+
+      const reasoning = extractToolResultText(row.reasoning_content ?? row.reasoning ?? safeJson(row.reasoning_details))
+      if (reasoning && role === 'assistant') pushPart(msgs, role, { kind: 'thinking', text: reasoning }, ts)
+
+      const toolCalls = safeJson(row.tool_calls)
+      if (Array.isArray(toolCalls)) {
+        for (const call of toolCalls) {
+          const record = asRecord(call)
+          if (!record) continue
+          const fn = asRecord(record.function)
+          const name = readString(record, ['name']) ?? readString(fn, ['name']) ?? row.tool_name ?? 'tool'
+          const input = safeJson(fn?.arguments ?? record.arguments ?? record.input)
+          pushPart(msgs, 'assistant', {
+            kind: 'tool',
+            tool: name,
+            detail: toolDetail(input),
+            input: stringifyToolPayload(input),
+            id: readString(record, ['id', 'call_id', 'callId']) ?? (typeof row.tool_call_id === 'string' ? row.tool_call_id : undefined),
+            status: 'completed'
+          }, ts)
+        }
+      } else if (row.tool_name || row.tool_call_id) {
+        pushPart(msgs, role, {
+          kind: 'tool',
+          tool: row.tool_name || 'tool',
+          result: typeof content === 'string' ? content : stringifyToolPayload(content),
+          id: typeof row.tool_call_id === 'string' ? row.tool_call_id : undefined,
+          status: 'completed'
+        }, ts)
+      }
+      if (msgs.length >= MAX_MSG) return done('hermes', id, msgs, true, fallbackTs)
+    }
+    mstmt.free()
+  } finally {
+    db.close()
+  }
+  return done('hermes', id, msgs, false, fallbackTs)
+}
+
 /** Read a session's conversation as a normalized, read-only transcript. */
 export async function readTranscript(cliId: CliId, id: string): Promise<Transcript> {
   try {
@@ -1503,6 +1889,7 @@ export async function readTranscript(cliId: CliId, id: string): Promise<Transcri
     if (cliId === 'codex') return codexTranscript(id)
     if (cliId === 'pi') return piTranscript(id)
     if (cliId === 'opencode') return await opencodeTranscript(id)
+    if (cliId === 'hermes') return await hermesTranscript(id)
   } catch {
     /* fall through to empty transcript */
   }
@@ -1515,5 +1902,6 @@ export function resumeArgs(cliId: CliId, id: string): string[] | null {
   if (cliId === 'codex') return ['resume', id]
   if (cliId === 'opencode') return ['--session', id]
   if (cliId === 'pi') return ['--session', id]
+  if (cliId === 'hermes') return ['--resume', id]
   return null
 }

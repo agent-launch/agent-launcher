@@ -1,0 +1,578 @@
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from 'node:fs'
+import { basename, dirname, join, relative, resolve, sep } from 'node:path'
+import { homedir } from 'node:os'
+import { cliConfigDir, hermesHomeDir, systemCliConfigDir } from './config-paths'
+import type {
+  CliId,
+  InstalledMcpEntry,
+  InstalledMcpPatch,
+  InstalledSkillEntry,
+  InstalledSkillPatch,
+  McpTransport
+} from '@shared/types'
+
+type JsonObject = Record<string, any>
+
+const MAX_SKILL_DEPTH = 5
+
+function safeRead(path: string): string {
+  try {
+    return existsSync(path) ? readFileSync(path, 'utf8') : ''
+  } catch {
+    return ''
+  }
+}
+
+function readJsonObject(path: string): JsonObject {
+  const text = safeRead(path)
+  if (!text) return {}
+  try {
+    const parsed = JSON.parse(text)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function writeJsonObject(path: string, value: JsonObject): void {
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
+}
+
+function isObject(value: unknown): value is JsonObject {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function pathId(path: string, name: string): string {
+  return `${path}#${name}`
+}
+
+function parsePathId(id: string): { path: string; name: string } {
+  const index = id.lastIndexOf('#')
+  if (index < 0) throw new Error('资源 id 无效')
+  return { path: id.slice(0, index), name: id.slice(index + 1) }
+}
+
+function isInside(path: string, root: string): boolean {
+  const rel = relative(resolve(root), resolve(path))
+  return rel === '' || (!rel.startsWith('..') && !rel.startsWith(sep) && rel !== '..')
+}
+
+function splitArgs(value?: string): string[] {
+  if (!value?.trim()) return []
+  const matches = value.match(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|\S+/g) ?? []
+  return matches.map((part) => {
+    if ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith("'") && part.endsWith("'"))) {
+      return part.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
+    }
+    return part
+  })
+}
+
+function parseEnv(value?: string): JsonObject | undefined {
+  const out: JsonObject = {}
+  for (const line of (value ?? '').split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    const index = trimmed.indexOf('=')
+    if (index < 0) continue
+    const key = trimmed.slice(0, index).trim()
+    if (!key) continue
+    out[key] = trimmed.slice(index + 1).trim()
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
+function stringifyEnv(value: unknown): string | undefined {
+  if (!isObject(value)) return undefined
+  return Object.entries(value)
+    .map(([key, val]) => `${key}=${String(val)}`)
+    .join('\n')
+}
+
+function commandAndArgs(value: unknown, fallbackArgs: unknown): { command?: string; args?: string } {
+  if (Array.isArray(value)) {
+    const items = value.map((item) => String(item))
+    return { command: items[0], args: items.slice(1).join(' ') || undefined }
+  }
+  if (typeof value === 'string') {
+    if (Array.isArray(fallbackArgs)) return { command: value, args: fallbackArgs.map((item) => String(item)).join(' ') }
+    return { command: value }
+  }
+  return {}
+}
+
+function normalizeMcpEntry(
+  cliId: CliId,
+  configPath: string,
+  configKind: InstalledMcpEntry['configKind'],
+  name: string,
+  raw: unknown
+): InstalledMcpEntry | null {
+  if (!isObject(raw)) return null
+  const { command, args } = commandAndArgs(raw.command, raw.args)
+  const url = typeof raw.url === 'string' ? raw.url : undefined
+  const transport: McpTransport = url
+    ? raw.type === 'sse'
+      ? 'sse'
+      : 'http'
+    : 'stdio'
+  return {
+    id: pathId(configPath, name),
+    cliId,
+    name,
+    enabled: raw.enabled !== false && raw.disabled !== true,
+    supportsEnabled: configKind !== 'hermes-yaml',
+    transport,
+    command,
+    args,
+    url,
+    env: stringifyEnv(raw.env),
+    configPath,
+    configKind
+  }
+}
+
+function listJsonMcp(cliId: CliId, path: string, key: 'mcp' | 'mcpServers'): InstalledMcpEntry[] {
+  const config = readJsonObject(path)
+  const servers = isObject(config[key]) ? config[key] : {}
+  const kind = key === 'mcp' ? 'json-mcp' : 'json-mcp-servers'
+  return Object.entries(servers)
+    .map(([name, value]) => normalizeMcpEntry(cliId, path, kind, name, value))
+    .filter((entry): entry is InstalledMcpEntry => Boolean(entry))
+}
+
+function updateJsonMcp(path: string, key: 'mcp' | 'mcpServers', entryId: string, patch: InstalledMcpPatch): void {
+  const { name } = parsePathId(entryId)
+  const config = readJsonObject(path)
+  const servers = isObject(config[key]) ? { ...config[key] } : {}
+  const existing = isObject(servers[name]) ? { ...servers[name] } : {}
+  const nextName = patch.name?.trim() || name
+  if (!nextName) throw new Error('MCP 名称不能为空')
+  if (nextName !== name) delete servers[name]
+
+  const next: JsonObject = { ...existing }
+  if (patch.transport) {
+    if (patch.transport === 'stdio') delete next.url
+    else delete next.command
+  }
+  if (patch.enabled !== undefined) next.enabled = patch.enabled
+  if (patch.command !== undefined || patch.args !== undefined) {
+    const command = patch.command?.trim() || String(next.command ?? '')
+    const args = patch.args !== undefined ? splitArgs(patch.args) : Array.isArray(next.args) ? next.args : []
+    if (key === 'mcp') next.command = [command, ...args].filter(Boolean)
+    else {
+      next.command = command
+      next.args = args
+    }
+  }
+  if (patch.url !== undefined) next.url = patch.url.trim() || undefined
+  if (patch.env !== undefined) {
+    const env = parseEnv(patch.env)
+    if (env) next.env = env
+    else delete next.env
+  }
+  if (!next.type) next.type = next.url ? 'remote' : key === 'mcp' ? 'local' : 'stdio'
+  servers[nextName] = next
+  config[key] = servers
+  writeJsonObject(path, config)
+}
+
+function deleteJsonMcp(path: string, key: 'mcp' | 'mcpServers', entryId: string): void {
+  const { name } = parsePathId(entryId)
+  const config = readJsonObject(path)
+  if (!isObject(config[key])) return
+  delete config[key][name]
+  writeJsonObject(path, config)
+}
+
+function tomlString(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+}
+
+function parseTomlValue(value: string): unknown {
+  const trimmed = value.trim()
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    const out: JsonObject = {}
+    for (const part of trimmed.slice(1, -1).split(',')) {
+      const pair = part.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.+?)\s*$/)
+      if (pair) out[pair[1]] = parseTomlValue(pair[2])
+    }
+    return out
+  }
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return trimmed
+        .slice(1, -1)
+        .split(',')
+        .map((item) => String(parseTomlValue(item)))
+    }
+  }
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"')
+  }
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+  return trimmed.replace(/\s+#.*$/, '')
+}
+
+function listCodexMcp(cliId: CliId, configPath: string): InstalledMcpEntry[] {
+  const text = safeRead(configPath)
+  const sections = [...text.matchAll(/^\[mcp_servers\.([^\]]+)\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
+  return sections
+    .map((match) => {
+      const name = match[1].replace(/^"|"$/g, '')
+      const raw: JsonObject = {}
+      for (const line of match[2].split(/\r?\n/)) {
+        const parts = line.match(/^\s*([A-Za-z_][A-Za-z0-9_-]*)\s*=\s*(.+?)\s*$/)
+        if (parts) raw[parts[1]] = parseTomlValue(parts[2])
+      }
+      return normalizeMcpEntry(cliId, configPath, 'codex-toml', name, raw)
+    })
+    .filter((entry): entry is InstalledMcpEntry => Boolean(entry))
+}
+
+function stripCodexMcpSection(content: string, name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return content.replace(new RegExp(`^\\[mcp_servers\\.(?:"${escaped}"|${escaped})\\]\\s*\\n[\\s\\S]*?(?=^\\[|(?![\\s\\S]))`, 'm'), '').trimEnd()
+}
+
+function codexMcpBlock(name: string, patch: InstalledMcpPatch): string {
+  const lines = [`[mcp_servers.${tomlString(name)}]`]
+  if (patch.command?.trim()) lines.push(`command = ${tomlString(patch.command.trim())}`)
+  const args = splitArgs(patch.args)
+  if (args.length) lines.push(`args = [${args.map(tomlString).join(', ')}]`)
+  if (patch.url?.trim()) lines.push(`url = ${tomlString(patch.url.trim())}`)
+  const env = parseEnv(patch.env)
+  if (env) {
+    const items = Object.entries(env).map(([key, value]) => `${key} = ${tomlString(String(value))}`)
+    lines.push(`env = { ${items.join(', ')} }`)
+  }
+  if (patch.enabled === false) lines.push('disabled = true')
+  return lines.join('\n')
+}
+
+function updateCodexMcp(configPath: string, entryId: string | undefined, patch: InstalledMcpPatch): void {
+  const name = entryId ? parsePathId(entryId).name : patch.name?.trim()
+  const nextName = patch.name?.trim() || name
+  if (!nextName) throw new Error('MCP 名称不能为空')
+  const existing = entryId ? listCodexMcp('codex', configPath).find((entry) => entry.id === entryId) : undefined
+  const merged: InstalledMcpPatch = { ...existing, ...patch, name: nextName }
+  const current = safeRead(configPath)
+  const stripped = name ? stripCodexMcpSection(current, name) : current.trimEnd()
+  writeFileSync(configPath, `${stripped.trimEnd()}${stripped.trimEnd() ? '\n\n' : ''}${codexMcpBlock(nextName, merged)}\n`, { mode: 0o600 })
+}
+
+function deleteCodexMcp(configPath: string, entryId: string): void {
+  const { name } = parsePathId(entryId)
+  const stripped = stripCodexMcpSection(safeRead(configPath), name)
+  writeFileSync(configPath, `${stripped.trimEnd()}\n`, { mode: 0o600 })
+}
+
+function parseYamlScalar(value: string): unknown {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      return JSON.parse(trimmed)
+    } catch {
+      return trimmed.slice(1, -1).split(',').map((item) => String(parseYamlScalar(item)))
+    }
+  }
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"')
+  }
+  if (trimmed === 'true') return true
+  if (trimmed === 'false') return false
+  return trimmed
+}
+
+function findTopYamlBlock(lines: string[], key: string): { start: number; end: number } | null {
+  const start = lines.findIndex((line) => new RegExp(`^${key}:\\s*(?:#.*)?$`).test(line))
+  if (start < 0) return null
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^\S/.test(lines[i])) {
+      end = i
+      break
+    }
+  }
+  return { start, end }
+}
+
+function parseHermesMcpServers(configPath: string): Record<string, JsonObject> {
+  const lines = safeRead(configPath).split(/\r?\n/)
+  const block = findTopYamlBlock(lines, 'mcp_servers')
+  if (!block) return {}
+  const out: Record<string, JsonObject> = {}
+  let current = ''
+  for (const line of lines.slice(block.start + 1, block.end)) {
+    const server = line.match(/^  ([A-Za-z0-9_.-]+):\s*$/)
+    if (server) {
+      current = server[1]
+      out[current] = {}
+      continue
+    }
+    if (!current) continue
+    const pair = line.match(/^    ([A-Za-z_][A-Za-z0-9_-]*):\s*(.+?)\s*$/)
+    if (pair) out[current][pair[1]] = parseYamlScalar(pair[2])
+    const emptyMap = line.match(/^    ([A-Za-z_][A-Za-z0-9_-]*):\s*$/)
+    if (emptyMap) out[current][emptyMap[1]] = {}
+  }
+  return out
+}
+
+function listHermesMcp(cliId: CliId, configPath: string): InstalledMcpEntry[] {
+  return Object.entries(parseHermesMcpServers(configPath))
+    .map(([name, value]) => normalizeMcpEntry(cliId, configPath, 'hermes-yaml', name, value))
+    .filter((entry): entry is InstalledMcpEntry => Boolean(entry))
+}
+
+function yamlString(value: string): string {
+  return JSON.stringify(value)
+}
+
+function hermesMcpYaml(servers: Record<string, JsonObject>): string[] {
+  const lines = ['mcp_servers:']
+  for (const [name, config] of Object.entries(servers)) {
+    lines.push(`  ${name}:`)
+    if (config.command) lines.push(`    command: ${yamlString(String(config.command))}`)
+    if (Array.isArray(config.args) && config.args.length) {
+      lines.push(`    args: [${config.args.map((arg) => yamlString(String(arg))).join(', ')}]`)
+    }
+    if (config.url) lines.push(`    url: ${yamlString(String(config.url))}`)
+    if (isObject(config.env) && Object.keys(config.env).length) {
+      lines.push('    env:')
+      for (const [key, value] of Object.entries(config.env)) {
+        lines.push(`      ${key}: ${yamlString(String(value))}`)
+      }
+    }
+  }
+  return lines
+}
+
+function writeHermesMcpServers(configPath: string, servers: Record<string, JsonObject>): void {
+  mkdirSync(dirname(configPath), { recursive: true })
+  const content = safeRead(configPath)
+  const lines = content ? content.split(/\r?\n/) : []
+  const block = findTopYamlBlock(lines, 'mcp_servers')
+  const nextBlock = hermesMcpYaml(servers)
+  const next = block
+    ? [...lines.slice(0, block.start), ...nextBlock, ...lines.slice(block.end)].join('\n')
+    : `${content.trimEnd()}${content.trimEnd() ? '\n' : ''}${nextBlock.join('\n')}\n`
+  writeFileSync(configPath, `${next.trimEnd()}\n`, { mode: 0o600 })
+}
+
+function updateHermesMcp(configPath: string, entryId: string | undefined, patch: InstalledMcpPatch): void {
+  const oldName = entryId ? parsePathId(entryId).name : patch.name?.trim()
+  const nextName = patch.name?.trim() || oldName
+  if (!nextName) throw new Error('MCP 名称不能为空')
+  const servers = parseHermesMcpServers(configPath)
+  const existing = oldName && isObject(servers[oldName]) ? { ...servers[oldName] } : {}
+  if (oldName && oldName !== nextName) delete servers[oldName]
+  const next: JsonObject = { ...existing }
+  if (patch.transport) {
+    if (patch.transport === 'stdio') delete next.url
+    else delete next.command
+  }
+  if (patch.command !== undefined) next.command = patch.command.trim() || undefined
+  if (patch.args !== undefined) next.args = splitArgs(patch.args)
+  if (patch.url !== undefined) next.url = patch.url.trim() || undefined
+  if (patch.env !== undefined) {
+    const env = parseEnv(patch.env)
+    if (env) next.env = env
+    else delete next.env
+  }
+  servers[nextName] = next
+  writeHermesMcpServers(configPath, servers)
+}
+
+function deleteHermesMcp(configPath: string, entryId: string): void {
+  const { name } = parsePathId(entryId)
+  const servers = parseHermesMcpServers(configPath)
+  delete servers[name]
+  writeHermesMcpServers(configPath, servers)
+}
+
+function mcpConfigPaths(cliId: CliId): Array<{ path: string; key?: 'mcp' | 'mcpServers'; kind?: 'codex' | 'hermes' }> {
+  const dir = cliConfigDir(cliId)
+  if (cliId === 'codex') return [{ path: join(dir, 'config.toml'), kind: 'codex' }]
+  if (cliId === 'opencode') return [{ path: join(dir, 'opencode.json'), key: 'mcp' }]
+  if (cliId === 'claude-code') {
+    return [
+      { path: join(dir, '.mcp.json'), key: 'mcpServers' },
+      { path: join(dir, 'settings.json'), key: 'mcpServers' }
+    ]
+  }
+  if (cliId === 'hermes') return [{ path: join(dir, 'config.yaml'), kind: 'hermes' }]
+  return [
+    { path: join(dir, '.mcp.json'), key: 'mcpServers' },
+    { path: join(dir, 'settings.json'), key: 'mcpServers' }
+  ]
+}
+
+export function listInstalledMcp(cliId: CliId): InstalledMcpEntry[] {
+  return mcpConfigPaths(cliId).flatMap((config) => {
+    if (config.kind === 'codex') return listCodexMcp(cliId, config.path)
+    if (config.kind === 'hermes') return listHermesMcp(cliId, config.path)
+    if (config.key && existsSync(config.path)) return listJsonMcp(cliId, config.path, config.key)
+    return []
+  })
+}
+
+export function addInstalledMcp(cliId: CliId, patch: InstalledMcpPatch): InstalledMcpEntry[] {
+  const config = mcpConfigPaths(cliId)[0]
+  if (!config) throw new Error('暂不支持这个 agent 的 MCP 配置')
+  if (config.kind === 'codex') updateCodexMcp(config.path, undefined, patch)
+  else if (config.kind === 'hermes') updateHermesMcp(config.path, undefined, patch)
+  else updateJsonMcp(config.path, config.key ?? 'mcpServers', pathId(config.path, patch.name?.trim() || ''), patch)
+  return listInstalledMcp(cliId)
+}
+
+export function updateInstalledMcp(cliId: CliId, entryId: string, patch: InstalledMcpPatch): InstalledMcpEntry[] {
+  const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
+  if (!entry) throw new Error('找不到这个 MCP')
+  if (entry.configKind === 'codex-toml') updateCodexMcp(entry.configPath, entryId, patch)
+  else if (entry.configKind === 'hermes-yaml') updateHermesMcp(entry.configPath, entryId, patch)
+  else updateJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId, patch)
+  return listInstalledMcp(cliId)
+}
+
+export function deleteInstalledMcp(cliId: CliId, entryId: string): InstalledMcpEntry[] {
+  const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
+  if (!entry) throw new Error('找不到这个 MCP')
+  if (entry.configKind === 'codex-toml') deleteCodexMcp(entry.configPath, entryId)
+  else if (entry.configKind === 'hermes-yaml') deleteHermesMcp(entry.configPath, entryId)
+  else deleteJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId)
+  return listInstalledMcp(cliId)
+}
+
+function skillRoots(cliId: CliId): string[] {
+  const dir = cliConfigDir(cliId)
+  const roots: string[] =
+    cliId === 'opencode'
+      ? [join(dir, 'xdg-config', 'opencode', 'skills'), join(dir, 'skills')]
+      : cliId === 'hermes'
+        ? [join(hermesHomeDir(), 'skills'), join(dir, 'skills')]
+        : [join(dir, 'skills')]
+
+  if (cliId === 'opencode') roots.push(join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'opencode', 'skills'))
+  else if (cliId === 'pi') roots.push(join(homedir(), '.pi', 'agent', 'skills'))
+  else if (cliId === 'codex') roots.push(join(homedir(), '.codex', 'skills'))
+  else if (cliId === 'claude-code') roots.push(join(homedir(), '.claude', 'skills'))
+  else if (cliId === 'hermes') roots.push(join(systemCliConfigDir('hermes'), 'skills'))
+
+  return [...new Set(roots.map((root) => resolve(root)))]
+}
+
+function findSkillFiles(root: string, depth = 0): string[] {
+  if (!existsSync(root) || depth > MAX_SKILL_DEPTH) return []
+  let entries: string[]
+  try {
+    entries = readdirSync(root)
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  for (const name of entries) {
+    if (name === 'node_modules' || name === '.git') continue
+    const path = join(root, name)
+    let stat
+    try {
+      stat = statSync(path)
+    } catch {
+      continue
+    }
+    if (stat.isDirectory()) out.push(...findSkillFiles(path, depth + 1))
+    else if (name === 'SKILL.md') out.push(path)
+  }
+  return out
+}
+
+function parseSkillFrontmatter(content: string): { name?: string; description?: string } {
+  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*/)
+  const block = match?.[1] ?? ''
+  const out: { name?: string; description?: string } = {}
+  for (const key of ['name', 'description'] as const) {
+    const line = block.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))
+    if (!line) continue
+    const value = line[1].trim().replace(/^["']|["']$/g, '')
+    if (value) out[key] = value
+  }
+  return out
+}
+
+function installedSkillFromPath(cliId: CliId, root: string, path: string): InstalledSkillEntry {
+  const content = safeRead(path)
+  const frontmatter = parseSkillFrontmatter(content)
+  const dir = dirname(path)
+  const source = relative(root, dir) || basename(dir)
+  return {
+    id: path,
+    cliId,
+    name: frontmatter.name || basename(dir),
+    enabled: true,
+    path,
+    dir,
+    root,
+    source,
+    provider: 'local',
+    description: frontmatter.description
+  }
+}
+
+export function listInstalledSkills(cliId: CliId): InstalledSkillEntry[] {
+  const seen = new Set<string>()
+  const out: InstalledSkillEntry[] = []
+  for (const root of skillRoots(cliId)) {
+    for (const path of findSkillFiles(root)) {
+      const resolved = resolve(path)
+      if (seen.has(resolved)) continue
+      seen.add(resolved)
+      out.push(installedSkillFromPath(cliId, root, resolved))
+    }
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+function updateSkillFrontmatter(content: string, patch: InstalledSkillPatch): string {
+  const match = content.match(/^---\s*\r?\n([\s\S]*?)\r?\n---\s*/)
+  const bodyStart = match ? match[0].length : 0
+  const fields: Record<string, string> = {}
+  const block = match?.[1] ?? ''
+  for (const line of block.split(/\r?\n/)) {
+    const item = line.match(/^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$/)
+    if (item) fields[item[1]] = item[2]
+  }
+  if (patch.name !== undefined) fields.name = yamlString(patch.name.trim())
+  if (patch.description !== undefined) fields.description = yamlString(patch.description.trim())
+  const lines = Object.entries(fields).map(([key, value]) => `${key}: ${value}`)
+  return `---\n${lines.join('\n')}\n---\n${content.slice(bodyStart).replace(/^\s*/, '')}`
+}
+
+export function updateInstalledSkill(cliId: CliId, entryId: string, patch: InstalledSkillPatch): InstalledSkillEntry[] {
+  const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
+  if (!entry) throw new Error('找不到这个 Skill')
+  if (!isInside(entry.path, entry.root)) throw new Error('Skill 路径不在可管理目录内')
+  writeFileSync(entry.path, updateSkillFrontmatter(safeRead(entry.path), patch), { mode: 0o600 })
+  return listInstalledSkills(cliId)
+}
+
+export function deleteInstalledSkill(cliId: CliId, entryId: string): InstalledSkillEntry[] {
+  const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
+  if (!entry) throw new Error('找不到这个 Skill')
+  if (!isInside(entry.dir, entry.root)) throw new Error('Skill 路径不在可管理目录内')
+  if (!existsSync(join(entry.dir, 'SKILL.md'))) throw new Error('这个目录不是 Skill')
+  rmSync(entry.dir, { recursive: true, force: true })
+  return listInstalledSkills(cliId)
+}

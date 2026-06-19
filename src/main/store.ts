@@ -7,14 +7,18 @@ import type {
   CliId,
   CliInstallState,
   InstallSource,
+  CliMcpPatch,
   CliPrefs,
+  CliPricePatch,
   CliProfile,
   CliProfilePatch,
-  CliProfiles
+  CliProfiles,
+  CliResources,
+  CliSkillPatch
 } from '@shared/types'
 
-const SCHEMA = 3
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi']
+const SCHEMA = 4
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes']
 const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex'])
 const OFFICIAL_PROFILE_ID = 'official'
 
@@ -100,13 +104,15 @@ function emptyConfig(): AppConfig {
   const install = {} as Record<CliId, CliInstallState>
   const clis = {} as Record<CliId, CliProfiles>
   const prefs = {} as Record<CliId, CliPrefs>
+  const resources = {} as Record<CliId, CliResources>
   for (const id of CLI_IDS) {
     install[id] = { installed: false }
     clis[id] = { profiles: [], authMode: defaultAuthMode(id) }
     syncProfileState(id, clis[id])
     prefs[id] = {}
+    resources[id] = { prices: [], mcpServers: [], skills: [] }
   }
-  return { schema: SCHEMA, install, clis, prefs }
+  return { schema: SCHEMA, install, clis, prefs, resources }
 }
 
 let counter = 0
@@ -122,12 +128,20 @@ function normalize(raw: unknown): AppConfig {
   const r = raw as Partial<AppConfig> & { clis?: Record<string, unknown> }
 
   const rp = (raw as { prefs?: Record<string, CliPrefs> }).prefs
+  const rr = (raw as { resources?: Partial<Record<CliId, Partial<CliResources>>> }).resources
   for (const id of CLI_IDS) {
     if (r.install?.[id]) {
       base.install[id] = { ...base.install[id], ...r.install[id] }
       base.install[id].source = inferInstallSource(base.install[id])
     }
     if (rp?.[id]) base.prefs[id] = { ...base.prefs[id], ...rp[id] }
+    if (rr?.[id]) {
+      base.resources[id] = {
+        prices: Array.isArray(rr[id]?.prices) ? rr[id].prices : [],
+        mcpServers: Array.isArray(rr[id]?.mcpServers) ? rr[id].mcpServers : [],
+        skills: Array.isArray(rr[id]?.skills) ? rr[id].skills : []
+      }
+    }
 
     const entry = r.clis?.[id] as unknown
     if (!entry || typeof entry !== 'object') continue
@@ -262,6 +276,81 @@ export function getActiveProfile(id: CliId): CliProfile | undefined {
 export function setYolo(id: CliId, yolo: boolean): AppConfig {
   const cfg = loadConfig()
   cfg.prefs[id] = { ...cfg.prefs[id], yolo }
+  return saveConfig(cfg)
+}
+
+// ---- per-agent resources (pricing / MCP / skills) ----
+
+export function addPriceEntry(id: CliId, patch: CliPricePatch): AppConfig {
+  const cfg = loadConfig()
+  cfg.resources[id].prices.push({
+    id: newId(),
+    name: patch.name || '未命名价格',
+    currency: patch.currency || 'USD',
+    ...patch
+  })
+  return saveConfig(cfg)
+}
+
+export function updatePriceEntry(id: CliId, entryId: string, patch: CliPricePatch): AppConfig {
+  const cfg = loadConfig()
+  const entry = cfg.resources[id].prices.find((item) => item.id === entryId)
+  if (entry) Object.assign(entry, patch)
+  return saveConfig(cfg)
+}
+
+export function deletePriceEntry(id: CliId, entryId: string): AppConfig {
+  const cfg = loadConfig()
+  cfg.resources[id].prices = cfg.resources[id].prices.filter((item) => item.id !== entryId)
+  return saveConfig(cfg)
+}
+
+export function addMcpEntry(id: CliId, patch: CliMcpPatch): AppConfig {
+  const cfg = loadConfig()
+  cfg.resources[id].mcpServers.push({
+    id: newId(),
+    name: patch.name || '未命名 MCP',
+    enabled: patch.enabled ?? true,
+    transport: patch.transport ?? 'stdio',
+    ...patch
+  })
+  return saveConfig(cfg)
+}
+
+export function updateMcpEntry(id: CliId, entryId: string, patch: CliMcpPatch): AppConfig {
+  const cfg = loadConfig()
+  const entry = cfg.resources[id].mcpServers.find((item) => item.id === entryId)
+  if (entry) Object.assign(entry, patch)
+  return saveConfig(cfg)
+}
+
+export function deleteMcpEntry(id: CliId, entryId: string): AppConfig {
+  const cfg = loadConfig()
+  cfg.resources[id].mcpServers = cfg.resources[id].mcpServers.filter((item) => item.id !== entryId)
+  return saveConfig(cfg)
+}
+
+export function addSkillEntry(id: CliId, patch: CliSkillPatch): AppConfig {
+  const cfg = loadConfig()
+  cfg.resources[id].skills.push({
+    id: newId(),
+    name: patch.name || '未命名 Skill',
+    enabled: patch.enabled ?? true,
+    ...patch
+  })
+  return saveConfig(cfg)
+}
+
+export function updateSkillEntry(id: CliId, entryId: string, patch: CliSkillPatch): AppConfig {
+  const cfg = loadConfig()
+  const entry = cfg.resources[id].skills.find((item) => item.id === entryId)
+  if (entry) Object.assign(entry, patch)
+  return saveConfig(cfg)
+}
+
+export function deleteSkillEntry(id: CliId, entryId: string): AppConfig {
+  const cfg = loadConfig()
+  cfg.resources[id].skills = cfg.resources[id].skills.filter((item) => item.id !== entryId)
   return saveConfig(cfg)
 }
 

@@ -12,9 +12,10 @@ import type { CliId, NativeFiles } from '@shared/types'
  *   - Codex:    config.toml
  *   - opencode: opencode.json (custom provider via @ai-sdk/openai-compatible)
  *   - pi:       models.json (custom provider)
+ *   - Hermes:   config.yaml + .env (custom OpenAI-compatible provider)
  */
 export function hasNativeConfig(cliId: CliId): boolean {
-  return cliId === 'claude-code' || cliId === 'codex' || cliId === 'opencode' || cliId === 'pi'
+  return cliId === 'claude-code' || cliId === 'codex' || cliId === 'opencode' || cliId === 'pi' || cliId === 'hermes'
 }
 
 const PROVIDER_ID = 'agentlauncher'
@@ -34,6 +35,11 @@ function readJsonObject(path: string): Record<string, any> {
 
 function writeJsonObject(path: string, data: Record<string, any>): void {
   writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 })
+}
+
+function envString(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]*$/.test(value)) return value
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
 }
 
 function objectValue(value: unknown): Record<string, any> {
@@ -224,6 +230,102 @@ function piSettingsPatch(): Record<string, any> {
   return { defaultProvider: PROVIDER_ID, defaultModel: p.model }
 }
 
+// ---------- Hermes Agent ----------
+const HERMES_MANAGED_START = '# >>> AgentLauncher managed model >>>'
+const HERMES_MANAGED_END = '# <<< AgentLauncher managed model <<<'
+const HERMES_ENV_MANAGED_START = '# >>> AgentLauncher managed env >>>'
+const HERMES_ENV_MANAGED_END = '# <<< AgentLauncher managed env <<<'
+const HERMES_MANAGED_API_KEY = 'AGENTLAUNCHER_OPENAI_API_KEY'
+const HERMES_MANAGED_MODEL_KEYS = new Set(['provider', 'default', 'model', 'base_url', 'api_key', 'api_mode'])
+
+function stripManagedBlock(content: string, startMarker: string, endMarker: string): string {
+  const start = content.indexOf(startMarker)
+  const end = content.indexOf(endMarker)
+  if (start < 0 || end < start) return content.trimEnd()
+  const afterEnd = end + endMarker.length
+  return `${content.slice(0, start).trimEnd()}\n${content.slice(afterEnd).trimStart()}`.trimEnd()
+}
+
+function stripHermesManagedBlock(content: string): string {
+  return stripManagedBlock(content, HERMES_MANAGED_START, HERMES_MANAGED_END)
+}
+
+function yamlString(value: string): string {
+  return JSON.stringify(value)
+}
+
+function hermesManagedModelLines(): string[] {
+  const p = getActiveProfile('hermes')
+  const baseUrl = p?.baseUrl?.trim()
+  const model = p?.model?.trim()
+  if (!baseUrl && !model) return []
+  return [
+    `  ${HERMES_MANAGED_START}`,
+    `  provider: ${baseUrl ? 'custom' : 'auto'}`,
+    model ? `  default: ${yamlString(model)}` : null,
+    baseUrl ? `  base_url: ${yamlString(baseUrl)}` : null,
+    p?.apiKey?.trim() ? `  api_key: ${yamlString(`\${${HERMES_MANAGED_API_KEY}}`)}` : null,
+    baseUrl ? '  api_mode: chat_completions' : null,
+    `  ${HERMES_MANAGED_END}`
+  ]
+    .filter((line): line is string => line !== null)
+}
+
+function mergeHermesYaml(existing: string): string {
+  const content = stripHermesManagedBlock(existing)
+  const managed = hermesManagedModelLines()
+  if (!managed.length) return `${content.trimEnd()}\n`
+
+  const lines = content.split(/\r?\n/)
+  const modelStart = lines.findIndex((line) => /^model\s*:\s*(?:#.*)?$/.test(line))
+  if (modelStart < 0) {
+    const prefix = content.trimEnd()
+    return `${prefix ? `${prefix}\n\n` : ''}model:\n${managed.join('\n')}\n`
+  }
+
+  let modelEnd = lines.length
+  for (let i = modelStart + 1; i < lines.length; i += 1) {
+    if (/^\S/.test(lines[i])) {
+      modelEnd = i
+      break
+    }
+  }
+
+  const body = lines.slice(modelStart + 1, modelEnd).filter((line) => {
+    const match = line.match(/^\s{2}([A-Za-z_][A-Za-z0-9_-]*)\s*:/)
+    return !match || !HERMES_MANAGED_MODEL_KEYS.has(match[1])
+  })
+  return [...lines.slice(0, modelStart + 1), ...managed, ...body, ...lines.slice(modelEnd)]
+    .join('\n')
+    .trimEnd()
+    .concat('\n')
+}
+
+function hermesEnvBlock(): string {
+  const p = getActiveProfile('hermes')
+  const entries: Array<[string, string]> = []
+  if (p?.apiKey?.trim()) entries.push([HERMES_MANAGED_API_KEY, p.apiKey.trim()])
+  return entries.map(([key, value]) => `${key}=${envString(value)}`).join('\n')
+}
+
+function mergeHermesEnv(existing: string): string {
+  const content = stripManagedBlock(existing, HERMES_ENV_MANAGED_START, HERMES_ENV_MANAGED_END)
+  const block = hermesEnvBlock()
+  if (!block) return `${content.trimEnd()}\n`
+  const prefix = content.trimEnd()
+  return `${prefix ? `${prefix}\n\n` : ''}${HERMES_ENV_MANAGED_START}\n${block}\n${HERMES_ENV_MANAGED_END}\n`
+}
+
+function syncHermesEnv(dir: string): void {
+  const envPath = join(dir, '.env')
+  const existing = existsSync(envPath) ? readFileSync(envPath, 'utf8') : ''
+  writeFileSync(envPath, mergeHermesEnv(existing), { mode: 0o600 })
+}
+
+function hermesEnvPreview(): string {
+  return hermesEnvBlock()
+}
+
 // ---------- Claude Code ----------
 function claudeSettingsPatch(): Record<string, any> {
   const p = getActiveProfile('claude-code')
@@ -323,6 +425,11 @@ export function writeNativeConfig(cliId: CliId): void {
         writeJsonObject(settingsPath, settings)
       }
     }
+  } else if (cliId === 'hermes') {
+    const configPath = join(dir, 'config.yaml')
+    const existing = existsSync(configPath) ? readFileSync(configPath, 'utf8') : ''
+    writeFileSync(configPath, mergeHermesYaml(existing), { mode: 0o600 })
+    syncHermesEnv(dir)
   }
 }
 
@@ -336,6 +443,14 @@ function mask(content: string): string {
     .replace(
       /^(\s*(?:experimental_bearer_token|api_key|openai_api_key)\s*=\s*")([^"]+)(".*)$/gim,
       (_m, a, key: string, c) => `${a}${key ? `${key.slice(0, 3)}…${key.slice(-4)}` : ''}${c}`
+    )
+    .replace(
+      /^(\s*(?:api_key|openai_api_key|OPENAI_API_KEY|AGENTLAUNCHER_OPENAI_API_KEY)\s*:\s*["']?)([^"'\n#]+)(["']?.*)$/gim,
+      (_m, a, key: string, c) => `${a}${key ? `${key.trim().slice(0, 3)}…${key.trim().slice(-4)}` : ''}${c}`
+    )
+    .replace(
+      /^((?:OPENAI_API_KEY|AGENTLAUNCHER_OPENAI_API_KEY)=)(.+)$/gim,
+      (_m, a, key: string) => `${a}${key ? `${key.slice(0, 3)}…${key.slice(-4)}` : ''}`
     )
 }
 
@@ -361,10 +476,19 @@ export function readNativeFiles(cliId: CliId): NativeFiles {
         ? { 'opencode.json': opencodeJson() }
         : cliId === 'pi'
           ? { 'models.json': piModelsJson(), 'settings.json': JSON.stringify(piSettingsPatch(), null, 2) }
+          : cliId === 'hermes'
+            ? {
+                'config.yaml': (() => {
+                  const full = join(dir, 'config.yaml')
+                  const existing = existsSync(full) ? readFileSync(full, 'utf8') : ''
+                  return mergeHermesYaml(existing)
+                })(),
+                '.env': hermesEnvPreview()
+              }
           : {}
   const files = Object.entries(names).map(([name, generated]) => {
     const full = join(dir, name)
-    const content = cliId === 'codex' ? generated : existsSync(full) ? readFileSync(full, 'utf8') : generated
+    const content = cliId === 'codex' || cliId === 'hermes' ? generated : existsSync(full) ? readFileSync(full, 'utf8') : generated
     return { name, content: mask(content) }
   })
   return { dir, files }

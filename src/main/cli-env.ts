@@ -1,11 +1,13 @@
 import { delimiter, join } from 'node:path'
+import { homedir } from 'node:os'
 import { paths } from './sandbox'
+import { hermesHomeDir } from './config-paths'
 import { getActiveProfile, getAuthMode, getInstallSource } from './store'
 import type { CliId, EnvPair } from '@shared/types'
 
 function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (process.platform === 'win32') return env
-  const common = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+  const common = [join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
   const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
   const seen = new Set(existing)
   env.PATH = [...existing, ...common.filter((dir) => !seen.has(dir))].join(delimiter)
@@ -26,6 +28,11 @@ function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
     delete env.OPENAI_API_KEY
     delete env.OPENAI_ORG_ID
     delete env.OPENAI_PROJECT_ID
+  } else if (cliId === 'hermes') {
+    delete env.OPENAI_BASE_URL
+    delete env.OPENAI_API_KEY
+    delete env.HERMES_INFERENCE_MODEL
+    delete env.HERMES_MODEL
   }
 }
 
@@ -81,6 +88,7 @@ export function resolvedEnvPreview(cliId: CliId): EnvPair[] {
 export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = withCommonPath({ ...process.env })
   clearManagedAuthEnv(env, cliId)
+  if (cliId === 'hermes') env.HERMES_HOME = hermesHomeDir()
   if (getInstallSource(cliId) === 'system') return env
 
   const nodeBinDir = process.platform === 'win32' ? paths.node : join(paths.node, 'bin')

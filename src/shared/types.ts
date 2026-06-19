@@ -1,8 +1,8 @@
 // Shared IPC contract types — imported by both main and renderer.
 
-export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi'
+export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes'
 
-export type InstallStrategy = 'native-binary' | 'node-npm'
+export type InstallStrategy = 'native-binary' | 'node-npm' | 'system'
 export type InstallSource = 'sandbox' | 'system'
 export type InstallAction = 'link' | 'install' | 'reinstall' | 'repair'
 
@@ -66,6 +66,10 @@ export type CleanupCliResult =
   | { ok: true; cliId: CliId; path: string; backupPath: string }
   | { ok: false; cliId: CliId; path: string; error: string }
 
+export type DashboardLaunchResult =
+  | { ok: true; cliId: CliId; url: string }
+  | { ok: false; cliId: CliId; error: string }
+
 /** A single saved provider config (cc-switch style profile). */
 export interface CliProfile {
   id: string
@@ -92,6 +96,119 @@ export interface CliProfiles {
 /** Patch shape used when creating/editing a profile. */
 export type CliProfilePatch = Partial<Omit<CliProfile, 'id'>>
 
+export interface CliPriceEntry {
+  id: string
+  name: string
+  provider?: string
+  model?: string
+  currency?: string
+  inputPerMillion?: number
+  outputPerMillion?: number
+  cacheReadPerMillion?: number
+  cacheWritePerMillion?: number
+  notes?: string
+}
+
+export type McpTransport = 'stdio' | 'http' | 'sse'
+
+export interface CliMcpEntry {
+  id: string
+  name: string
+  enabled: boolean
+  transport: McpTransport
+  command?: string
+  args?: string
+  url?: string
+  env?: string
+  notes?: string
+}
+
+export interface CliSkillEntry {
+  id: string
+  name: string
+  enabled: boolean
+  source?: string
+  provider?: 'manual' | 'skills.sh'
+  description?: string
+  installUrl?: string
+  skillsShId?: string
+  skillsShSlug?: string
+  skillsShSource?: string
+  skillsShUrl?: string
+  notes?: string
+}
+
+export interface CliResources {
+  prices: CliPriceEntry[]
+  mcpServers: CliMcpEntry[]
+  skills: CliSkillEntry[]
+}
+
+export type CliPricePatch = Partial<Omit<CliPriceEntry, 'id'>>
+export type CliMcpPatch = Partial<Omit<CliMcpEntry, 'id'>>
+export type CliSkillPatch = Partial<Omit<CliSkillEntry, 'id'>>
+
+export type InstalledMcpConfigKind =
+  | 'codex-toml'
+  | 'json-mcp'
+  | 'json-mcp-servers'
+  | 'hermes-yaml'
+
+export interface InstalledMcpEntry {
+  id: string
+  cliId: CliId
+  name: string
+  enabled: boolean
+  supportsEnabled: boolean
+  transport: McpTransport
+  command?: string
+  args?: string
+  url?: string
+  env?: string
+  configPath: string
+  configKind: InstalledMcpConfigKind
+}
+
+export type InstalledMcpPatch = Partial<
+  Pick<InstalledMcpEntry, 'name' | 'enabled' | 'transport' | 'command' | 'args' | 'url' | 'env'>
+>
+
+export interface InstalledSkillEntry {
+  id: string
+  cliId: CliId
+  name: string
+  enabled: boolean
+  path: string
+  dir: string
+  root: string
+  source?: string
+  provider?: 'local' | 'skills.sh'
+  description?: string
+}
+
+export type InstalledSkillPatch = Partial<Pick<InstalledSkillEntry, 'name' | 'description'>>
+
+export interface SkillsShSkill {
+  id: string
+  slug: string
+  name: string
+  source: string
+  description?: string
+  installs?: number
+  sourceType?: string
+  installUrl?: string | null
+  url?: string
+  isDuplicate?: boolean
+}
+
+export type SkillsShSearchResult =
+  | { ok: true; skills: SkillsShSkill[] }
+  | { ok: false; error: string; authRequired?: boolean }
+
+export type SkillsShInstallResult =
+  | { ok: true; config: AppConfig; skill: CliSkillEntry; output?: string }
+  | { ok: false; error: string; output?: string }
+
 /** Per-CLI runtime preferences (not tied to a provider profile). */
 export interface CliPrefs {
   /** Auto-approve everything / skip permission prompts (where supported). */
@@ -107,6 +224,7 @@ export interface AppConfig {
   install: Record<CliId, CliInstallState>
   clis: Record<CliId, CliProfiles>
   prefs: Record<CliId, CliPrefs>
+  resources: Record<CliId, CliResources>
 }
 
 /** A real, resumable conversation persisted by the CLI itself. */
@@ -250,3 +368,22 @@ export type InstallResult =
       candidates?: SystemCliCandidate[]
     }
   | { ok: false; cliId: CliId; error: string }
+
+export interface CliUpdateStatus {
+  cliId: CliId
+  /** True only when the configured executable/entry still exists on disk. */
+  installed: boolean
+  /** True when config.json says this CLI was installed, even if files are now missing. */
+  configured: boolean
+  /** Config points at files that no longer exist. */
+  stale: boolean
+  source?: InstallSource
+  currentVersion?: string
+  latestVersion?: string
+  updateAvailable: boolean
+  /** The About page can install or refresh this CLI through the configured source. */
+  canInstallUpdate: boolean
+  binPath?: string
+  error?: string
+  checkedAt: number
+}

@@ -7,8 +7,8 @@ export interface CliMeta {
   accent: string
   /** Env-var prefix the resolved-config preview will surface later. */
   envPrefix: string
-  /** Install source under route B (hybrid): native binary vs bundled-node npm. */
-  install: 'native-binary' | 'node-npm'
+  /** Install source under route B (hybrid): native binary, bundled-node npm, or system-managed installer/link. */
+  install: 'native-binary' | 'node-npm' | 'system'
 }
 
 export const CLIS: CliMeta[] = [
@@ -47,6 +47,15 @@ export const CLIS: CliMeta[] = [
     accent: '#7c3aed',
     envPrefix: 'PI_CODING_AGENT_DIR',
     install: 'node-npm'
+  },
+  {
+    id: 'hermes',
+    name: 'Hermes Agent',
+    vendor: 'Nous Research',
+    glyph: 'H',
+    accent: '#d7a900',
+    envPrefix: '~/.hermes / OPENAI_*',
+    install: 'system'
   }
 ]
 
@@ -57,5 +66,6 @@ export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> 
   'claude-code': { supported: true, note: '--dangerously-skip-permissions' },
   codex: { supported: true, note: '--dangerously-bypass-approvals-and-sandbox' },
   opencode: { supported: true, note: '--dangerously-skip-permissions' },
-  pi: { supported: false, note: '该 CLI 无自动批准开关（仅工具白/黑名单）' }
+  pi: { supported: false, note: '该 CLI 无自动批准开关（仅工具白/黑名单）' },
+  hermes: { supported: true, note: '--yolo' }
 }

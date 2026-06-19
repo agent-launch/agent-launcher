@@ -7,7 +7,16 @@ import {
   deleteProfile,
   setActiveProfile,
   setAuthMode,
-  setYolo
+  setYolo,
+  addPriceEntry,
+  updatePriceEntry,
+  deletePriceEntry,
+  addMcpEntry,
+  updateMcpEntry,
+  deleteMcpEntry,
+  addSkillEntry,
+  updateSkillEntry,
+  deleteSkillEntry
 } from './store'
 import { paths } from './sandbox'
 import { cliConfigDir } from './config-paths'
@@ -15,7 +24,7 @@ import { resolvedEnvPreview } from './cli-env'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { deleteSession, listSessions, readTranscript } from './sessions-history'
 import { detectEnvironment } from './install/detect'
-import { cleanupSystemCli, installCli } from './install/installer'
+import { cleanupSystemCli, getCliUpdateStatuses, installCli } from './install/installer'
 import {
   createSession,
   openExternalAgent,
@@ -26,14 +35,31 @@ import {
 } from './pty'
 import { startChat, sendChat, stopChat } from './chat'
 import { authStatus, startAuthLogin, writeAuth, stopAuth } from './auth'
+import { launchDashboard } from './dashboard'
 import { ensureSystemConfigImported } from './import-existing-config'
+import { installSkillFromSkillsSh, searchSkillsSh } from './skills-sh'
+import {
+  addInstalledMcp,
+  deleteInstalledMcp,
+  deleteInstalledSkill,
+  listInstalledMcp,
+  listInstalledSkills,
+  updateInstalledMcp,
+  updateInstalledSkill
+} from './installed-resources'
 import type {
   AuthLoginMethod,
   CliId,
   ChatStartOptions,
+  InstalledMcpPatch,
+  InstalledSkillPatch,
+  CliMcpPatch,
+  CliPricePatch,
   CliProfilePatch,
+  CliSkillPatch,
   InstallOptions,
-  InstallProgress
+  InstallProgress,
+  SkillsShSkill
 } from '@shared/types'
 
 export function registerIpc(): void {
@@ -72,6 +98,42 @@ export function registerIpc(): void {
     synced(id, setAuthMode(id, mode))
   )
   ipcMain.handle('config:setYolo', (_e, id: CliId, on: boolean) => setYolo(id, on))
+  ipcMain.handle('config:addPrice', (_e, id: CliId, patch: CliPricePatch) => addPriceEntry(id, patch))
+  ipcMain.handle('config:updatePrice', (_e, id: CliId, entryId: string, patch: CliPricePatch) =>
+    updatePriceEntry(id, entryId, patch)
+  )
+  ipcMain.handle('config:deletePrice', (_e, id: CliId, entryId: string) => deletePriceEntry(id, entryId))
+  ipcMain.handle('config:addMcp', (_e, id: CliId, patch: CliMcpPatch) => addMcpEntry(id, patch))
+  ipcMain.handle('config:updateMcp', (_e, id: CliId, entryId: string, patch: CliMcpPatch) =>
+    updateMcpEntry(id, entryId, patch)
+  )
+  ipcMain.handle('config:deleteMcp', (_e, id: CliId, entryId: string) => deleteMcpEntry(id, entryId))
+  ipcMain.handle('config:addSkill', (_e, id: CliId, patch: CliSkillPatch) => addSkillEntry(id, patch))
+  ipcMain.handle('config:updateSkill', (_e, id: CliId, entryId: string, patch: CliSkillPatch) =>
+    updateSkillEntry(id, entryId, patch)
+  )
+  ipcMain.handle('config:deleteSkill', (_e, id: CliId, entryId: string) => deleteSkillEntry(id, entryId))
+  ipcMain.handle('skillsSh:search', (_e, query: string, limit?: number) => searchSkillsSh(query, limit))
+  ipcMain.handle('skillsSh:install', (_e, id: CliId, skill: SkillsShSkill) =>
+    installSkillFromSkillsSh(id, skill)
+  )
+  ipcMain.handle('resources:listMcp', (_e, id: CliId) => listInstalledMcp(id))
+  ipcMain.handle('resources:addMcp', (_e, id: CliId, patch: InstalledMcpPatch) =>
+    addInstalledMcp(id, patch)
+  )
+  ipcMain.handle('resources:updateMcp', (_e, id: CliId, entryId: string, patch: InstalledMcpPatch) =>
+    updateInstalledMcp(id, entryId, patch)
+  )
+  ipcMain.handle('resources:deleteMcp', (_e, id: CliId, entryId: string) =>
+    deleteInstalledMcp(id, entryId)
+  )
+  ipcMain.handle('resources:listSkills', (_e, id: CliId) => listInstalledSkills(id))
+  ipcMain.handle('resources:updateSkill', (_e, id: CliId, entryId: string, patch: InstalledSkillPatch) =>
+    updateInstalledSkill(id, entryId, patch)
+  )
+  ipcMain.handle('resources:deleteSkill', (_e, id: CliId, entryId: string) =>
+    deleteInstalledSkill(id, entryId)
+  )
   ipcMain.handle('config:resolvedEnv', (_e, id: CliId) => resolvedEnvPreview(id))
   ipcMain.handle('config:openFile', () => shell.openPath(paths.config))
   ipcMain.handle('config:reveal', () => shell.showItemInFolder(paths.config))
@@ -95,6 +157,7 @@ export function registerIpc(): void {
     )
   })
   ipcMain.handle('install:cleanupCli', (_e, id: CliId, binPath: string) => cleanupSystemCli(id, binPath))
+  ipcMain.handle('install:status', () => getCliUpdateStatuses())
 
   ipcMain.handle('auth:status', (_e, id: CliId) => authStatus(id))
   ipcMain.handle('auth:startLogin', (e, id: CliId, method: AuthLoginMethod) =>
@@ -112,6 +175,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle('terminal:openExternal', (_e, opts: SpawnOptions) => openExternalAgent(opts))
+  ipcMain.handle('dashboard:launch', (_e, id: CliId) => launchDashboard(id))
 
   // ---- sessions (CLI-native conversation history) ----
   ipcMain.handle('sessions:list', (_e, id: CliId) => listSessions(id))

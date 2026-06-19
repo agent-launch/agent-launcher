@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Play, Trash2 } from 'lucide-react'
+import { Gauge, Play, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { Button } from '@/components/ui/Button'
@@ -40,6 +40,9 @@ export function Shell() {
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [openingTerminal, setOpeningTerminal] = useState(false)
+  const [openingDashboard, setOpeningDashboard] = useState(false)
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
+  const [dashboardUrl, setDashboardUrl] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
@@ -98,6 +101,22 @@ export function Shell() {
       })
     } finally {
       setOpeningTerminal(false)
+    }
+  }
+
+  const openDashboard = async () => {
+    setOpeningDashboard(true)
+    setDashboardError(null)
+    setDashboardUrl(null)
+    try {
+      const result = await window.api.dashboard.launch(active.id as CliId)
+      if (result.ok) {
+        setDashboardUrl(result.url)
+      } else {
+        setDashboardError(result.error)
+      }
+    } finally {
+      setOpeningDashboard(false)
     }
   }
 
@@ -300,6 +319,17 @@ export function Shell() {
                     </button>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
+                    {active.id === 'hermes' && (
+                      <Button
+                        variant="secondary"
+                        onClick={openDashboard}
+                        disabled={openingDashboard || !installed}
+                        title={dashboardError ?? undefined}
+                      >
+                        <Gauge size={13} />
+                        {openingDashboard ? t('shell.openingDashboard') : t('shell.openDashboard')}
+                      </Button>
+                    )}
                     <Button variant="secondary" onClick={openExternalTerminal} disabled={openingTerminal || !installed}>
                       {t('shell.openTerminal')}
                     </Button>
@@ -316,8 +346,26 @@ export function Shell() {
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  {dashboardError && active.id === 'hermes' && (
+                    <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+                      {dashboardError}
+                    </div>
+                  )}
+                  {dashboardUrl && active.id === 'hermes' && (
+                    <div className="mb-3 rounded-md border border-border-weak bg-surface/85 px-3 py-2 text-[12px] text-text-base">
+                      {t('shell.dashboardReady')}{' '}
+                      <a
+                        className="text-accent hover:underline"
+                        href={dashboardUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {dashboardUrl}
+                      </a>
+                    </div>
+                  )}
                   {loadingSessions ? (
-                  <div className="px-1 text-[13px] text-text-weak">{t('shell.loadingSessions')}</div>
+                    <div className="px-1 text-[13px] text-text-weak">{t('shell.loadingSessions')}</div>
                   ) : sessions.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-12 text-center text-[13px] text-text-weak">
                       {t('shell.noHistory', { name: active.name })}

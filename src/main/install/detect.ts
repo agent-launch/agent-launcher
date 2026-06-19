@@ -5,7 +5,7 @@ import { detectPlatform } from './platform'
 import type { DetectItem, DetectResult } from '@shared/types'
 import { detectSystemCli } from './installer'
 
-const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi'] as const
+const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes'] as const
 
 function which(cmd: string): Promise<string | null> {
   const finder = process.platform === 'win32' ? 'where' : 'which'
@@ -71,7 +71,9 @@ export async function detectEnvironment(): Promise<DetectResult> {
             ? 'Codex CLI'
             : d.cliId === 'opencode'
               ? 'OpenCode'
-              : 'Pi',
+              : d.cliId === 'pi'
+                ? 'Pi'
+                : 'Hermes Agent',
       present: d.installed || sandboxInstalled,
       detail: d.installed ? d.detail : sandboxInstalled ? '已安装，可切换为系统版本' : d.detail
     })

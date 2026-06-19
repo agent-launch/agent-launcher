@@ -1,18 +1,27 @@
 /*
- * Design tokens — Codex/macOS inspired palette.
- * The target is a quiet desktop tool: warm system neutrals, low-contrast
- * dividers, sparse accent color, and SF/PingFang typography.
+ * Design tokens — ZCode-inspired palette.
+ *
+ * Two families do all the work: a pure neutral grey scale (Tailwind
+ * `neutral-*`) for chrome/surfaces/text, and `sky` as the single brand
+ * accent. No warm cast, no system-blue — a cooler, tool-like aesthetic
+ * that reads the same on macOS, Windows and Linux.
+ *
+ * Variable names are kept stable so renderer components that reference
+ * `var(--text-strong)`, `var(--sidebar-background)`, etc. keep working
+ * unchanged; only the values are re-skinned.
  */
 
 :root {
-  /* ---- type ---- */
-  --font-family-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text",
-    "PingFang SC", "Segoe UI", "Microsoft YaHei", ui-sans-serif, system-ui,
-    sans-serif;
-  --font-family-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-    "PingFang SC", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  --font-family-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", monospace;
+  /* ---- type ----
+   * Plain system-ui stack (matches ZCode) — no explicit SF Pro / PingFang
+   * so Windows and Linux fall back to their own system sans cleanly. */
+  --font-family-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Microsoft YaHei", "Noto Color Emoji", "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
+  --font-family-display: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-family-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
   --font-size-small: 13px;
   --font-size-base: 14px;
   --font-size-large: 17px;
@@ -20,70 +29,78 @@
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
-  --line-height-normal: 1.45;
-  --line-height-large: 1.6;
+  --line-height-normal: 1.5;
+  --line-height-large: 1.625;
 
-  /* ---- spacing / radii ---- */
+  /* ---- spacing / radii (ZCode: one step softer than before) ---- */
   --spacing: 0.25rem;
   --radius-xs: 0.125rem;
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
-  --radius-xl: 0.5rem;
-  --radius-2xl: 0.75rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
 
-  /* ---- system colors ---- */
-  --mac-blue: #0a84ff;
-  --apple-green: #00a85a;
-  --system-red: #ff3b30;
-  --system-orange: #ff6b00;
+  /* ---- brand + status colors ----
+   * `sky` is the ZCode signature; status colors follow Tailwind neutral
+   * companions so they sit naturally on a neutral chrome. */
+  --brand: #38bdf8;          /* sky-400 */
+  --brand-strong: #0ea5e9;   /* sky-500 */
+  --apple-green: #16a34a;    /* green-600 */
+  --system-red: #dc2626;     /* red-600 */
+  --system-orange: #ca8a04;  /* yellow-600 */
 
-  /* ---- semantic: light ---- */
-  --background-base: #fbfbfa;
-  --background-strong: #f1f1ef;
+  /* ---- semantic: light ----
+   * neutral-50 #fafafa / neutral-100 #f5f5f5 / neutral-700 #404040 /
+   * neutral-950 #171717. Surface tints use `color-mix` over neutral-950
+   * so they stay consistent with the border/selected tints. */
+  --background-base: #fafafa;
+  --background-strong: #f5f5f5;
   --background-stronger: #ffffff;
-  --sidebar-background: #f6f6f4;
-  --sidebar-text: #55595d;
-  --sidebar-text-weak: #8b8f94;
-  --sidebar-icon: #55595d;
-  --sidebar-selection: rgba(29, 29, 31, 0.06);
+  --sidebar-background: #f5f5f5;
+  --sidebar-text: #404040;
+  --sidebar-text-weak: #737373;
+  --sidebar-icon: #525252;
+  --sidebar-selection: rgba(23, 23, 23, 0.06);
   --surface-base: #ffffff;
-  --surface-weak: #f4f4f2;
-  --surface-hover: #eeeeec;
-  --selection-base: rgba(29, 29, 31, 0.06);
-  --message-user: #f2f2f0;
+  --surface-weak: rgba(23, 23, 23, 0.03);
+  --surface-hover: rgba(23, 23, 23, 0.05);
+  --selection-base: rgba(23, 23, 23, 0.1);
+  --message-user: rgba(23, 23, 23, 0.04);
   --composer-background: rgba(255, 255, 255, 0.96);
 
-  --text-base: #3f3f42;
-  --text-weak: #7e8186;
-  --text-muted: #a1a1a6;
-  --text-strong: #1d1d1f;
-  --text-interactive-base: #0a84ff;
+  --text-base: #404040;
+  --text-weak: #525252;
+  --text-muted: #a3a3a3;
+  --text-strong: #171717;
+  --text-interactive-base: var(--brand-strong);
   --text-on-accent: #ffffff;
 
-  --border-base: rgba(29, 29, 31, 0.1);
-  --border-weak: rgba(29, 29, 31, 0.065);
-  --border-selected: rgba(29, 29, 31, 0.2);
+  --border-base: rgba(23, 23, 23, 0.1);
+  --border-weak: rgba(23, 23, 23, 0.06);
+  --border-selected: rgba(23, 23, 23, 0.2);
 
-  --button-primary-base: #1d1d1f;
-  --button-primary-text: #ffffff;
+  --button-primary-base: #171717;
+  --button-primary-text: #fafafa;
   --button-secondary-base: #ffffff;
 
-  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.025);
-  --shadow-md: 0 18px 52px rgba(0, 0, 0, 0.1), 0 1px 6px rgba(0, 0, 0, 0.03);
-  --shadow-card: none;
-  --shadow-composer: 0 8px 28px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  /* Tailwind-equivalent shadow steps — flatter than the old custom lifts. */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-composer: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(23, 23, 23, 0.06);
 
-  --accent: var(--mac-blue);
-  --accent-soft: rgba(10, 132, 255, 0.11);
+  --accent: var(--brand);
+  --accent-soft: rgba(56, 189, 248, 0.12);
   --success: var(--apple-green);
   --danger: var(--system-red);
   --warning: var(--system-orange);
 
-  --canvas-gradient: linear-gradient(180deg, #fbfbfa 0%, #f8f8f7 100%);
+  --canvas-gradient: linear-gradient(180deg, #fafafa 0%, #f5f5f5 100%);
   --sidebar-gradient: var(--sidebar-background);
 
-  /* ---- syntax highlighting (github-light) ---- */
+  /* ---- syntax highlighting (github-light, tuned for neutral chrome) ---- */
   --syntax-comment: #6a737d;
   --syntax-keyword: #d73a49;
   --syntax-string: #032f62;
@@ -91,76 +108,80 @@
   --syntax-title: #6f42c1;
   --syntax-symbol: #e36209;
 
-  /* ---- embedded terminal (VS Code-compatible ANSI palette) ---- */
-  --terminal-background: #ffffff;
-  --terminal-foreground: #1d1d1f;
-  --terminal-cursor: #1d1d1f;
-  --terminal-cursor-accent: #ffffff;
-  --terminal-selection-background: #add6ff;
-  --terminal-black: #000000;
-  --terminal-red: #cd3131;
-  --terminal-green: #00bc00;
-  --terminal-yellow: #949800;
-  --terminal-blue: #0451a5;
-  --terminal-magenta: #bc05bc;
-  --terminal-cyan: #0598bc;
-  --terminal-white: #555555;
-  --terminal-bright-black: #666666;
-  --terminal-bright-red: #cd3131;
-  --terminal-bright-green: #14ce14;
-  --terminal-bright-yellow: #b5ba00;
-  --terminal-bright-blue: #0451a5;
-  --terminal-bright-magenta: #bc05bc;
-  --terminal-bright-cyan: #0598bc;
-  --terminal-bright-white: #a5a5a5;
+  /* ---- embedded terminal (ZCode ANSI: sky blue, fuchsia magenta) ---- */
+  --terminal-background: #fafafa;
+  --terminal-foreground: #171717;
+  --terminal-cursor: #171717;
+  --terminal-cursor-accent: #fafafa;
+  --terminal-selection-background: rgba(14, 165, 233, 0.32);
+  --terminal-black: #404040;
+  --terminal-red: #dc2626;
+  --terminal-green: #16a34a;
+  --terminal-yellow: #ca8a04;
+  --terminal-blue: #0ea5e9;
+  --terminal-magenta: #d946ef;
+  --terminal-cyan: #06b6d4;
+  --terminal-white: #737373;
+  --terminal-bright-black: #a3a3a3;
+  --terminal-bright-red: #dc2626;
+  --terminal-bright-green: #16a34a;
+  --terminal-bright-yellow: #ca8a04;
+  --terminal-bright-blue: #0ea5e9;
+  --terminal-bright-magenta: #d946ef;
+  --terminal-bright-cyan: #06b6d4;
+  --terminal-bright-white: #171717;
 
   color-scheme: light;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --background-base: #1f1f1f;
-  --background-strong: #252525;
-  --background-stronger: #292929;
-  --sidebar-background: #282828;
-  --sidebar-text: #c8c8c8;
-  --sidebar-text-weak: #8f8f94;
-  --sidebar-icon: #b8b8b8;
-  --sidebar-selection: rgba(255, 255, 255, 0.08);
-  --surface-base: #1f1f1f;
-  --surface-weak: #2a2a2a;
-  --surface-hover: #333333;
-  --selection-base: #343434;
-  --message-user: #2d2d2d;
-  --composer-background: rgba(37, 37, 37, 0.94);
+  /* neutral-900 #171717 / neutral-800 #262626 / neutral-950 #0a0a0a /
+   * neutral-200 #e5e5e5 / neutral-50 #fafafa. Surface tints flip to
+   * white-over-neutral so layers read correctly on dark chrome. */
+  --background-base: #171717;
+  --background-strong: #262626;
+  --background-stronger: #0a0a0a;
+  --sidebar-background: #0a0a0a;
+  --sidebar-text: #e5e5e5;
+  --sidebar-text-weak: #a3a3a3;
+  --sidebar-icon: #d4d4d4;
+  --sidebar-selection: rgba(255, 255, 255, 0.1);
+  --surface-base: #171717;
+  --surface-weak: rgba(255, 255, 255, 0.05);
+  --surface-hover: rgba(255, 255, 255, 0.1);
+  --selection-base: rgba(255, 255, 255, 0.1);
+  --message-user: rgba(255, 255, 255, 0.06);
+  --composer-background: rgba(23, 23, 23, 0.94);
 
-  --text-base: #d6d6d6;
-  --text-weak: #a1a1a6;
-  --text-muted: #77777c;
-  --text-strong: #f5f5f7;
-  --text-interactive-base: #0a84ff;
-  --text-on-accent: #ffffff;
+  --text-base: #e5e5e5;
+  --text-weak: #d4d4d4;
+  --text-muted: #737373;
+  --text-strong: #fafafa;
+  --text-interactive-base: var(--brand);
+  --text-on-accent: #0a0a0a;
 
-  --border-base: rgba(255, 255, 255, 0.13);
-  --border-weak: rgba(255, 255, 255, 0.08);
-  --border-selected: rgba(255, 255, 255, 0.22);
+  --border-base: rgba(255, 255, 255, 0.1);
+  --border-weak: rgba(255, 255, 255, 0.06);
+  --border-selected: rgba(255, 255, 255, 0.3);
 
-  --button-primary-base: #f5f5f7;
-  --button-primary-text: #1d1d1f;
+  --button-primary-base: #fafafa;
+  --button-primary-text: #171717;
   --button-secondary-base: rgba(255, 255, 255, 0.06);
 
-  --shadow-sm: 0 1px 1px rgba(0, 0, 0, 0.24);
-  --shadow-md: 0 22px 58px rgba(0, 0, 0, 0.38);
-  --shadow-card: none;
-  --shadow-composer: 0 18px 50px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-composer: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
 
-  --accent: var(--mac-blue);
-  --accent-soft: rgba(10, 132, 255, 0.18);
-  --success: #4ade80;
-  --danger: #ff6b6b;
-  --warning: #f6c85f;
+  --accent: var(--brand);
+  --accent-soft: rgba(56, 189, 248, 0.18);
+  --success: #22c55e;
+  --danger: #ef4444;
+  --warning: #eab308;
 
-  --canvas-gradient: linear-gradient(180deg, #1e1e1e 0%, #202020 100%);
+  --canvas-gradient: linear-gradient(180deg, #171717 0%, #1a1a1a 100%);
   --sidebar-gradient: var(--sidebar-background);
 
   /* ---- syntax highlighting (github-dark) ---- */
@@ -171,26 +192,26 @@
   --syntax-title: #d2a8ff;
   --syntax-symbol: #ffa657;
 
-  /* ---- embedded terminal (VS Code-compatible ANSI palette) ---- */
-  --terminal-background: #1e1e1e;
-  --terminal-foreground: #cccccc;
-  --terminal-cursor: #cccccc;
-  --terminal-cursor-accent: #1e1e1e;
-  --terminal-selection-background: #264f78;
-  --terminal-black: #000000;
-  --terminal-red: #cd3131;
-  --terminal-green: #0dbc79;
-  --terminal-yellow: #e5e510;
-  --terminal-blue: #2472c8;
-  --terminal-magenta: #bc3fbc;
-  --terminal-cyan: #11a8cd;
+  /* ---- embedded terminal (ZCode ANSI, dark variant) ---- */
+  --terminal-background: #0a0a0a;
+  --terminal-foreground: #fafafa;
+  --terminal-cursor: #fafafa;
+  --terminal-cursor-accent: #0a0a0a;
+  --terminal-selection-background: rgba(14, 165, 233, 0.26);
+  --terminal-black: #262626;
+  --terminal-red: #ef4444;
+  --terminal-green: #22c55e;
+  --terminal-yellow: #eab308;
+  --terminal-blue: #0ea5e9;
+  --terminal-magenta: #d946ef;
+  --terminal-cyan: #06b6d4;
   --terminal-white: #e5e5e5;
-  --terminal-bright-black: #666666;
-  --terminal-bright-red: #f14c4c;
-  --terminal-bright-green: #23d18b;
-  --terminal-bright-yellow: #f5f543;
-  --terminal-bright-blue: #3b8eea;
-  --terminal-bright-magenta: #d670d6;
-  --terminal-bright-cyan: #29b8db;
-  --terminal-bright-white: #e5e5e5;
+  --terminal-bright-black: #a3a3a3;
+  --terminal-bright-red: #ef4444;
+  --terminal-bright-green: #22c55e;
+  --terminal-bright-yellow: #eab308;
+  --terminal-bright-blue: #38bdf8;
+  --terminal-bright-magenta: #d946ef;
+  --terminal-bright-cyan: #22d3ee;
+  --terminal-bright-white: #fafafa;
 }
