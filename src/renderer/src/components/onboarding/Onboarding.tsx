@@ -38,6 +38,7 @@ export function Onboarding() {
   const complete = useAppStore((s) => s.completeOnboarding);
   const skip = useAppStore((s) => s.skipOnboarding);
   const [step, setStep] = useState(0);
+  const isMac = window.api?.platform === "darwin";
 
   const last = step === STEP_KEYS.length - 1;
   const next = () => (last ? complete() : setStep((s) => s + 1));
@@ -45,12 +46,15 @@ export function Onboarding() {
 
   return (
     <div
-      className="flex h-full flex-col"
+      className="relative flex h-full flex-col"
       style={{ background: "var(--canvas-gradient)" }}
     >
+      {isMac && <div className="drag-region absolute inset-x-0 top-0 z-20 h-10" />}
       <div className="flex flex-1 overflow-hidden">
         <aside
-          className="flex w-56 shrink-0 flex-col gap-1 border-r border-border-weak/80 p-3 pt-5 backdrop-blur-xl"
+          className={`flex w-56 shrink-0 flex-col gap-1 border-r border-border-weak/80 p-3 backdrop-blur-xl ${
+            isMac ? "pt-14" : "pt-5"
+          }`}
           style={{ background: "var(--sidebar-gradient)" }}
         >
           <div className="mb-5 flex items-center gap-2 px-2">
@@ -92,7 +96,7 @@ export function Onboarding() {
           })}
         </aside>
 
-        <section className="flex-1 overflow-y-auto px-10 py-8">
+        <section className={`flex-1 overflow-y-auto px-10 pb-8 ${isMac ? "pt-14" : "pt-8"}`}>
           {step === 0 && <Welcome />}
           {step === 1 && <DetectStep />}
           {step === 2 && <InstallStep />}

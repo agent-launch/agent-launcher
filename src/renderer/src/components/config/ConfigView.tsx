@@ -11,9 +11,7 @@ import type {
   CliId,
   CliProfile,
   InstalledMcpEntry,
-  InstalledSkillEntry,
-  McpTransport,
-  SkillsShSkill
+  InstalledSkillEntry
 } from '@shared/types'
 
 interface NativeFiles {
@@ -242,20 +240,10 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
       )}
 
       {tab === 'mcp' && (
-        <McpPanel
-          cliId={cliId}
-          entries={mcpEntries}
-          onChange={setMcpEntries}
-        />
+        <McpPanel entries={mcpEntries} />
       )}
       {tab === 'skills' && (
-        <SkillsPanel
-          cliId={cliId}
-          entries={skillEntries}
-          onChange={setSkillEntries}
-          onConfigChange={setCfg}
-          onRefresh={refresh}
-        />
+        <SkillsPanel entries={skillEntries} />
       )}
     </div>
   )
@@ -313,22 +301,13 @@ function IconButton({
   )
 }
 
-function PanelHeader({
-  title,
-  desc,
-  action
-}: {
-  title: string
-  desc: string
-  action?: React.ReactNode
-}) {
+function PanelHeader({ title, desc }: { title: string; desc: string }) {
   return (
     <div className="mb-4 flex items-start justify-between gap-3">
       <div>
         <h3 className="text-[14px] font-medium text-text-strong">{title}</h3>
         <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{desc}</p>
       </div>
-      {action}
     </div>
   )
 }
@@ -360,17 +339,8 @@ function LocalSearch({
   )
 }
 
-function McpPanel({
-  cliId,
-  entries,
-  onChange
-}: {
-  cliId: CliId
-  entries: InstalledMcpEntry[]
-  onChange: (entries: InstalledMcpEntry[]) => void
-}) {
+function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
   const t = useT()
-  const [editing, setEditing] = useState<InstalledMcpEntry | 'new' | null>(null)
   const [filter, setFilter] = useState('')
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
@@ -381,33 +351,10 @@ function McpPanel({
       )
     )
   }, [entries, filter])
-  const update = async (entry: InstalledMcpEntry, enabled: boolean) => {
-    try {
-      onChange(await window.api.resources.updateMcp(cliId, entry.id, { enabled }))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
-  }
-  const remove = async (id: string) => {
-    try {
-      onChange(await window.api.resources.deleteMcp(cliId, id))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
-  }
 
   return (
     <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
-      <PanelHeader
-        title={t('config.mcpTitle')}
-        desc={t('config.mcpDesc')}
-        action={
-          <Button size="sm" variant="secondary" onClick={() => setEditing('new')}>
-            <Plus size={13} />
-            {t('config.addMcp')}
-          </Button>
-        }
-      />
+      <PanelHeader title={t('config.mcpTitle')} desc={t('config.mcpDesc')} />
       <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localMcpSearchPlaceholder')} />
       {entries.length === 0 ? (
         <EmptyPanel>{t('config.noMcp')}</EmptyPanel>
@@ -420,124 +367,22 @@ function McpPanel({
               key={entry.id}
               icon={<Server size={15} />}
               title={entry.name}
-              enabled={entry.enabled}
               detail={entry.transport === 'stdio' ? [entry.command, entry.args].filter(Boolean).join(' ') || '-' : entry.url || '-'}
               meta={entry.transport.toUpperCase()}
               notes={entry.configPath}
-              onToggle={entry.supportsEnabled ? (enabled) => update(entry, enabled) : undefined}
-              onEdit={() => setEditing(entry)}
-              onDelete={() => remove(entry.id)}
+              statusLabel={entry.supportsEnabled ? (entry.enabled ? t('config.enabled') : t('config.disabled')) : undefined}
+              statusTone={entry.enabled ? 'success' : 'muted'}
             />
           ))}
         </div>
-      )}
-      {editing && (
-        <McpForm
-          cliId={cliId}
-          initial={editing === 'new' ? undefined : editing}
-          onCancel={() => setEditing(null)}
-          onDone={(next) => {
-            onChange(next)
-            setEditing(null)
-          }}
-        />
       )}
     </section>
   )
 }
 
-function McpForm({
-  cliId,
-  initial,
-  onCancel,
-  onDone
-}: {
-  cliId: CliId
-  initial?: InstalledMcpEntry
-  onCancel: () => void
-  onDone: (entries: InstalledMcpEntry[]) => void
-}) {
+function SkillsPanel({ entries }: { entries: InstalledSkillEntry[] }) {
   const t = useT()
-  const [name, setName] = useState(initial?.name ?? '')
-  const [enabled, setEnabled] = useState(initial?.enabled ?? true)
-  const [transport, setTransport] = useState<McpTransport>(initial?.transport ?? 'stdio')
-  const [command, setCommand] = useState(initial?.command ?? '')
-  const [args, setArgs] = useState(initial?.args ?? '')
-  const [url, setUrl] = useState(initial?.url ?? '')
-  const [env, setEnv] = useState(initial?.env ?? '')
-
-  const submit = async () => {
-    const patch = {
-      name: name.trim() || t('config.untitledMcp'),
-      enabled,
-      transport,
-      command: command.trim() || undefined,
-      args: args.trim() || undefined,
-      url: url.trim() || undefined,
-      env: env.trim() || undefined
-    }
-    try {
-      onDone(
-        initial
-          ? await window.api.resources.updateMcp(cliId, initial.id, patch)
-          : await window.api.resources.addMcp(cliId, patch)
-      )
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  return (
-    <div className="mt-3 rounded-xl border border-border-selected bg-surface/95 shadow-[var(--shadow-card)] p-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={t('config.mcpName')} value={name} onChange={setName} />
-        <label className="block">
-          <span className="text-[12px] text-text-weak">{t('config.mcpTransport')}</span>
-          <select
-            value={transport}
-            onChange={(e) => setTransport(e.target.value as McpTransport)}
-            className="mt-1 w-full rounded-md border border-border-weak bg-surface px-2 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
-          >
-            <option value="stdio">stdio</option>
-            <option value="http">http</option>
-            <option value="sse">sse</option>
-          </select>
-        </label>
-        <Field label={t('config.mcpCommand')} value={command} onChange={setCommand} />
-        <Field label={t('config.mcpArgs')} value={args} onChange={setArgs} />
-        <Field label={t('config.mcpUrl')} value={url} onChange={setUrl} placeholder="https://..." />
-        <TextareaField label={t('config.mcpEnv')} value={env} onChange={setEnv} mono placeholder="KEY=value" />
-      </div>
-      <label className="mt-3 flex items-center gap-2 text-[13px] text-text-base">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        {t('config.enabled')}
-      </label>
-      <FormActions onSubmit={submit} onCancel={onCancel} submitLabel={initial ? t('common.save') : t('common.add')} />
-    </div>
-  )
-}
-
-function SkillsPanel({
-  cliId,
-  entries,
-  onChange,
-  onConfigChange,
-  onRefresh
-}: {
-  cliId: CliId
-  entries: InstalledSkillEntry[]
-  onChange: (entries: InstalledSkillEntry[]) => void
-  onConfigChange: (cfg: AppConfig) => void
-  onRefresh: () => void
-}) {
-  const t = useT()
-  const [editing, setEditing] = useState<InstalledSkillEntry | null>(null)
   const [filter, setFilter] = useState('')
-  const [query, setQuery] = useState('')
-  const [searching, setSearching] = useState(false)
-  const [installingId, setInstallingId] = useState<string | null>(null)
-  const [searchError, setSearchError] = useState('')
-  const [results, setResults] = useState<SkillsShSkill[]>([])
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
     if (!q) return entries
@@ -547,49 +392,6 @@ function SkillsPanel({
       )
     )
   }, [entries, filter])
-  const remove = async (id: string) => {
-    try {
-      onChange(await window.api.resources.deleteSkill(cliId, id))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
-  }
-  const search = async () => {
-    const nextQuery = query.trim()
-    if (!nextQuery) {
-      setResults([])
-      setSearchError('')
-      return
-    }
-    setSearching(true)
-    setSearchError('')
-    const result = await window.api.skillsSh.search(nextQuery, 8)
-    setSearching(false)
-    if (result.ok) setResults(result.skills)
-    else {
-      setResults([])
-      setSearchError(result.error)
-    }
-  }
-  const install = async (skill: SkillsShSkill) => {
-    setInstallingId(skill.id)
-    const result = await window.api.skillsSh.install(cliId, skill)
-    setInstallingId(null)
-    if (result.ok) {
-      toast.success(t('config.skillsShInstallDone', { name: result.skill.name }))
-      onConfigChange(result.config)
-      onChange(await window.api.resources.listSkills(cliId))
-      return
-    }
-    toast.error(result.error)
-  }
-  const installedKeys = new Set(
-    entries.flatMap((entry) =>
-      [entry.name, entry.source, entry.dir]
-        .filter((value): value is string => Boolean(value))
-        .map((value) => value.toLowerCase())
-    )
-  )
 
   return (
     <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
@@ -598,87 +400,6 @@ function SkillsPanel({
         desc={t('config.skillsDesc')}
       />
       <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localSkillSearchPlaceholder')} />
-      <div className="mb-4 rounded-xl border border-border-weak bg-surface/80 shadow-[var(--shadow-sm)] p-3">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-surface-weak px-2 py-0.5 font-mono text-[11px] text-text-weak">
-            skills.sh
-          </span>
-          <span className="text-[12px] text-text-weak">{t('config.skillsShDesc')}</span>
-        </div>
-        <div className="flex gap-2">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') search()
-            }}
-            placeholder={t('config.skillsShPlaceholder')}
-            className="selectable h-9 min-w-0 flex-1 rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
-          />
-          <Button size="sm" variant="secondary" className="h-9" onClick={search} disabled={searching}>
-            {searching ? t('config.skillsShSearching') : t('config.skillsShSearch')}
-          </Button>
-        </div>
-        {searchError && (
-          <div className="mt-2 rounded-md border border-danger/25 bg-danger/5 px-3 py-2 text-[12px] leading-relaxed text-danger">
-            {searchError}
-          </div>
-        )}
-        {results.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {results.map((skill) => {
-              const searchKeys = [skill.id, skill.installUrl, skill.slug, skill.name, `${skill.source}/${skill.slug}`]
-                .filter((value): value is string => Boolean(value))
-                .map((value) => String(value).toLowerCase())
-              const installed = searchKeys.some(
-                (key) => installedKeys.has(key) || [...installedKeys].some((item) => item.endsWith(key))
-              )
-              return (
-                <div key={skill.id} className="rounded-md border border-border-weak bg-surface px-3 py-3">
-                  <div className="flex items-start gap-3">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
-                      <Blocks size={15} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-text-strong">
-                        {skill.name}
-                        <span className="rounded-full bg-surface-weak px-2 py-0.5 font-mono text-[11px] text-text-weak">
-                          skills.sh
-                        </span>
-                        {typeof skill.installs === 'number' && (
-                          <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-text-weak">
-                            {t('config.skillsShInstalls', { count: String(skill.installs) })}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 truncate font-mono text-[11px] text-text-weak">
-                        {skill.source} / {skill.slug}
-                      </div>
-                      {skill.description && (
-                        <div className="mt-1 line-clamp-2 text-[12px] leading-relaxed text-text-weak">
-                          {skill.description}
-                        </div>
-                      )}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={installed ? 'ghost' : 'secondary'}
-                      disabled={installed || !skill.installUrl || installingId === skill.id}
-                      onClick={() => install(skill)}
-                    >
-                      {installed
-                        ? t('config.skillsShInstalled')
-                        : installingId === skill.id
-                          ? t('config.skillsShInstalling')
-                          : t('config.skillsShInstall')}
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
       {entries.length === 0 ? (
         <EmptyPanel>{t('config.noSkills')}</EmptyPanel>
       ) : filtered.length === 0 ? (
@@ -690,92 +411,36 @@ function SkillsPanel({
               key={entry.id}
               icon={<Blocks size={15} />}
               title={entry.name}
-              enabled={entry.enabled}
               detail={entry.source || entry.dir}
               meta={entry.provider === 'skills.sh' ? 'skills.sh' : 'Skill'}
               notes={entry.description || entry.path}
-              onEdit={() => setEditing(entry)}
-              onDelete={() => remove(entry.id)}
+              statusLabel={entry.enabled ? t('config.enabled') : t('config.disabled')}
+              statusTone={entry.enabled ? 'success' : 'muted'}
             />
           ))}
         </div>
       )}
-      {editing && (
-        <SkillForm
-          cliId={cliId}
-          initial={editing}
-          onCancel={() => setEditing(null)}
-          onDone={(next) => {
-            onChange(next)
-            setEditing(null)
-            onRefresh()
-          }}
-        />
-      )}
     </section>
-  )
-}
-
-function SkillForm({
-  cliId,
-  initial,
-  onCancel,
-  onDone
-}: {
-  cliId: CliId
-  initial: InstalledSkillEntry
-  onCancel: () => void
-  onDone: (entries: InstalledSkillEntry[]) => void
-}) {
-  const t = useT()
-  const [name, setName] = useState(initial?.name ?? '')
-  const [description, setDescription] = useState(initial?.description ?? '')
-
-  const submit = async () => {
-    const patch = {
-      name: name.trim() || t('config.untitledSkill'),
-      description: description.trim()
-    }
-    try {
-      onDone(await window.api.resources.updateSkill(cliId, initial.id, patch))
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  return (
-    <div className="mt-3 rounded-xl border border-border-selected bg-surface/95 shadow-[var(--shadow-card)] p-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Field label={t('config.skillName')} value={name} onChange={setName} />
-        <TextareaField label={t('config.skillDescription')} value={description} onChange={setDescription} />
-      </div>
-      <FormActions onSubmit={submit} onCancel={onCancel} submitLabel={t('common.save')} />
-    </div>
   )
 }
 
 function ResourceRow({
   icon,
   title,
-  enabled,
   detail,
   meta,
   notes,
-  onToggle,
-  onEdit,
-  onDelete
+  statusLabel,
+  statusTone = 'muted'
 }: {
   icon: React.ReactNode
   title: string
-  enabled: boolean
   detail: string
   meta: string
   notes?: string
-  onToggle?: (enabled: boolean) => void
-  onEdit: () => void
-  onDelete: () => void
+  statusLabel?: string
+  statusTone?: 'success' | 'muted'
 }) {
-  const t = useT()
   return (
     <div className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3">
       <div className="flex items-start gap-3">
@@ -786,79 +451,21 @@ function ResourceRow({
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-text-strong">
             {title}
             <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-text-weak">{meta}</span>
-            {onToggle && (
-              <span className={`rounded-full px-2 py-0.5 text-[11px] ${enabled ? 'bg-success/10 text-success' : 'bg-surface-weak text-text-weak'}`}>
-                {enabled ? t('config.enabled') : t('config.disabled')}
+            {statusLabel && (
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] ${
+                  statusTone === 'success' ? 'bg-success/10 text-success' : 'bg-surface-weak text-text-weak'
+                }`}
+              >
+                {statusLabel}
               </span>
             )}
           </div>
           <div className="mt-1 truncate font-mono text-[11px] text-text-weak">{detail}</div>
           {notes && <div className="mt-1 truncate text-[11px] text-text-weak">{notes}</div>}
         </div>
-        {onToggle && (
-          <label className="mt-1 flex items-center gap-1.5 text-[12px] text-text-weak">
-            <input type="checkbox" checked={enabled} onChange={(e) => onToggle(e.target.checked)} />
-          </label>
-        )}
-        <IconButton title={t('common.edit')} onClick={onEdit}>
-          <Pencil size={13} />
-        </IconButton>
-        <IconButton title={t('common.delete')} danger onClick={onDelete}>
-          <Trash2 size={13} />
-        </IconButton>
       </div>
     </div>
-  )
-}
-
-function FormActions({
-  onSubmit,
-  onCancel,
-  submitLabel
-}: {
-  onSubmit: () => void
-  onCancel: () => void
-  submitLabel: string
-}) {
-  const t = useT()
-  return (
-    <div className="mt-3 flex gap-2">
-      <Button size="sm" onClick={onSubmit}>
-        {submitLabel}
-      </Button>
-      <Button size="sm" variant="ghost" onClick={onCancel}>
-        {t('common.cancel')}
-      </Button>
-    </div>
-  )
-}
-
-function TextareaField({
-  label,
-  value,
-  onChange,
-  placeholder,
-  mono
-}: {
-  label: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  mono?: boolean
-}) {
-  return (
-    <label className="col-span-2 block">
-      <span className="text-[12px] text-text-weak">{label}</span>
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        rows={2}
-        placeholder={placeholder}
-        className={`selectable mt-1 w-full resize-none rounded-md border border-border-weak bg-surface px-3 py-2 text-text-strong outline-none focus:border-border-selected ${
-          mono ? 'font-mono text-[12px]' : 'text-[13px]'
-        }`}
-      />
-    </label>
   )
 }
 
