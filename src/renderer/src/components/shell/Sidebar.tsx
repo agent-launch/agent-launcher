@@ -52,7 +52,7 @@ export function Sidebar({
           transition: dragging ? undefined : 'opacity 120ms ease-out'
         }}
       >
-        {isMac && <div className="h-10 shrink-0" />}
+        {isMac && <div className="drag-region h-10 shrink-0" />}
         <nav className={`flex flex-1 flex-col gap-1 px-2.5 ${isMac ? 'pt-3' : 'pt-2.5'}`}>
           {CLIS.map((c) => {
             const selected = view !== 'settings' && c.id === activeCli
