@@ -5,13 +5,19 @@ import { Onboarding } from '@/components/onboarding/Onboarding'
 import { Shell } from '@/components/shell/Shell'
 import { useAppStore } from '@/store/app'
 import { useTheme } from '@/theme'
+import { resolveLocale } from '@/i18n'
 import type { AppInfo } from '@shared/types'
 
 export default function App() {
   const onboarded = useAppStore((s) => s.onboarded)
   const resetOnboarding = useAppStore((s) => s.resetOnboarding)
+  const localeMode = useAppStore((s) => s.localeMode)
   const [info, setInfo] = useState<AppInfo | null>(null)
   useTheme()
+
+  useEffect(() => {
+    window.api.app.setMenuLocale?.(resolveLocale(localeMode))
+  }, [localeMode])
 
   useEffect(() => {
     let alive = true
@@ -28,7 +34,7 @@ export default function App() {
   const showOnboarding = info ? !onboarded : false
 
   return (
-    <div className="flex h-full flex-col bg-base">
+    <div className="relative flex h-full flex-col bg-base">
       <Titlebar />
       <div className="min-h-0 flex-1">{showOnboarding ? <Onboarding /> : info ? <Shell /> : null}</div>
       <Toaster

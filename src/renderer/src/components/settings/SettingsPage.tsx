@@ -11,9 +11,19 @@ import type { AppConfig, AppInfo, CliId, CliUpdateStatus, InstallProgress } from
 
 type SettingsTab = 'general' | 'about'
 
-export function SettingsPage() {
+export function SettingsPage({
+  initialTab = 'general',
+  checkUpdatesKey = 0
+}: {
+  initialTab?: SettingsTab
+  checkUpdatesKey?: number
+}) {
   const t = useT()
-  const [tab, setTab] = useState<SettingsTab>('general')
+  const [tab, setTab] = useState<SettingsTab>(initialTab)
+
+  useEffect(() => {
+    setTab(initialTab)
+  }, [initialTab, checkUpdatesKey])
 
   return (
     <div className="mx-auto flex w-full max-w-[980px] flex-col gap-5 px-7 py-6">
@@ -22,7 +32,7 @@ export function SettingsPage() {
         <p className="mt-1 text-[13px] text-text-weak">{t('settings.pageDesc')}</p>
       </div>
 
-      <div className="flex w-fit rounded-md border border-border-weak bg-surface-weak p-0.5">
+      <div className="flex w-fit rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
         <TabButton active={tab === 'general'} icon={<Settings2 size={14} />} onClick={() => setTab('general')}>
           {t('settings.tabGeneral')}
         </TabButton>
@@ -31,7 +41,7 @@ export function SettingsPage() {
         </TabButton>
       </div>
 
-      {tab === 'general' ? <GeneralSettings /> : <AboutSettings />}
+      {tab === 'general' ? <GeneralSettings /> : <AboutSettings checkUpdatesKey={checkUpdatesKey} />}
     </div>
   )
 }
@@ -51,7 +61,9 @@ function TabButton({
     <button
       onClick={onClick}
       className={`flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[13px] transition-colors ${
-        active ? 'bg-surface text-text-strong' : 'text-text-weak hover:text-text-strong'
+        active
+          ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
+          : 'text-text-weak hover:text-text-strong'
       }`}
     >
       {icon}
@@ -92,7 +104,7 @@ function GeneralSettings() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-border-weak bg-surface/90 p-4">
+      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
         <div className="space-y-4">
           <Row label={t('settings.appearance')}>
             <Segmented options={themeOptions} value={themeMode} onChange={setThemeMode} />
@@ -116,7 +128,7 @@ function GeneralSettings() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-border-weak bg-surface/90 p-4">
+      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
         <div className="flex items-center gap-2">
           <h3 className="text-[14px] font-medium text-text-strong">{t('settings.yolo.title')}</h3>
           <span
@@ -135,7 +147,7 @@ function GeneralSettings() {
             return (
               <div
                 key={cli.id}
-                className="flex items-center gap-3 rounded-lg border border-border-weak bg-surface/90 px-3 py-2.5"
+                className="flex items-center gap-3 rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-2.5"
               >
                 <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
                   <CliIcon cliId={cli.id as CliId} size={15} />
@@ -160,7 +172,7 @@ function GeneralSettings() {
   )
 }
 
-function AboutSettings() {
+function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
   const t = useT()
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [statuses, setStatuses] = useState<CliUpdateStatus[] | null>(null)
@@ -173,11 +185,14 @@ function AboutSettings() {
   }, [])
 
   useEffect(() => {
-    void refreshStatuses()
     return window.api.install.onProgress((p) => {
       setProgress((prev) => ({ ...prev, [p.cliId]: p }))
     })
   }, [])
+
+  useEffect(() => {
+    void refreshStatuses()
+  }, [checkUpdatesKey])
 
   const refreshStatuses = async () => {
     setChecking(true)
@@ -225,30 +240,31 @@ function AboutSettings() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-border-weak bg-surface/90 p-5">
-        <div className="flex items-start gap-4">
-          <div className="grid size-11 shrink-0 place-items-center rounded-lg bg-surface-weak text-text-strong">
-            <Info size={20} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-display text-[18px] font-semibold text-text-strong">AgentLauncher</h3>
-            <p className="mt-1 text-[13px] leading-relaxed text-text-weak">{t('settings.aboutDesc')}</p>
-            <div className="mt-5 grid gap-2 text-[13px]">
-              <InfoRow label={t('settings.aboutVersion')} value={info?.version ?? '-'} />
-              <InfoRow label={t('settings.aboutPlatform')} value={info?.platform ?? '-'} />
-              <InfoRow label={t('settings.aboutConfigPath')} value={info?.configPath ?? '-'} mono />
-            </div>
+      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-5">
+        <div className="min-w-0">
+          <h3 className="font-display text-[18px] font-semibold text-text-strong">AgentLauncher</h3>
+          <p className="mt-1 text-[13px] leading-relaxed text-text-weak">{t('settings.aboutDesc')}</p>
+          <div className="mt-5 grid gap-2 text-[13px]">
+            <InfoRow label={t('settings.aboutVersion')} value={info?.version ?? '-'} />
+            <InfoRow label={t('settings.aboutPlatform')} value={info?.platform ?? '-'} />
+            <InfoRow label={t('settings.aboutConfigPath')} value={info?.configPath ?? '-'} mono />
           </div>
         </div>
       </section>
 
-      <section className="rounded-lg border border-border-weak bg-surface/90 p-5">
+      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-[14px] font-medium text-text-strong">{t('settings.cliStatus.title')}</h3>
             <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.cliStatus.desc')}</p>
           </div>
-          <Button size="sm" variant="secondary" onClick={refreshStatuses} disabled={checking || !!installing}>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shrink-0"
+            onClick={refreshStatuses}
+            disabled={checking || !!installing}
+          >
             <RefreshCw size={13} className={checking ? 'animate-spin' : ''} />
             {checking ? t('settings.cliStatus.checking') : t('settings.cliStatus.check')}
           </Button>
@@ -344,7 +360,7 @@ function CliStatusRow({
         : t('settings.cliStatus.current')
 
   return (
-    <div className="grid gap-3 rounded-lg border border-border-weak bg-surface/90 px-3 py-3 md:grid-cols-[minmax(180px,1fr)_minmax(0,1.2fr)_auto] md:items-center">
+    <div className="grid gap-3 rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3 md:grid-cols-[minmax(180px,1fr)_minmax(0,1.2fr)_auto] md:items-center">
       <div className="flex min-w-0 items-center gap-3">
         <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
           <CliIcon cliId={cliId} size={16} />
@@ -439,14 +455,14 @@ function Segmented<T extends string>({
   onChange: (v: T) => void
 }) {
   return (
-    <div className="flex rounded-md border border-border-weak bg-surface-weak p-0.5">
+    <div className="flex rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
       {options.map((option) => (
         <button
           key={option.value}
           onClick={() => onChange(option.value)}
           className={`rounded-[5px] px-3 py-1 text-[12px] transition-colors ${
             value === option.value
-              ? 'bg-surface text-text-strong'
+              ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
               : 'text-text-weak hover:text-text-strong'
           }`}
         >

@@ -50,7 +50,7 @@ export function Onboarding() {
     >
       <div className="flex flex-1 overflow-hidden">
         <aside
-          className="flex w-56 shrink-0 flex-col gap-1 border-r border-border-weak/80 p-3 pt-5"
+          className="flex w-56 shrink-0 flex-col gap-1 border-r border-border-weak/80 p-3 pt-5 backdrop-blur-xl"
           style={{ background: "var(--sidebar-gradient)" }}
         >
           <div className="mb-5 flex items-center gap-2 px-2">
@@ -69,7 +69,7 @@ export function Onboarding() {
                 key={key}
                 className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] transition-colors ${
                   active
-                    ? "bg-selection font-medium text-text-strong"
+                    ? "bg-surface font-medium text-text-strong shadow-[var(--shadow-sm)]"
                     : done
                       ? "text-text-base"
                       : "text-text-weak"
@@ -101,7 +101,7 @@ export function Onboarding() {
         </section>
       </div>
 
-      <footer className="flex shrink-0 items-center justify-between border-t border-border-weak bg-base/95 px-5 py-2.5">
+      <footer className="flex shrink-0 items-center justify-between border-t border-border-weak bg-base/80 px-5 py-2.5 backdrop-blur-xl">
         <Button variant="ghost" size="sm" onClick={skip}>
           {t("onboarding.skip")}
         </Button>
@@ -124,7 +124,7 @@ function Welcome() {
   const t = useT();
   return (
     <div className="mx-auto max-w-xl pt-16 text-center">
-      <div className="mx-auto mb-6 grid size-14 place-items-center rounded-xl bg-text-strong text-2xl font-bold text-(--background-base)">
+      <div className="mx-auto mb-6 grid size-14 place-items-center rounded-xl bg-text-strong text-2xl font-bold text-(--background-base) shadow-[var(--shadow-card)]">
         A
       </div>
       <h1 className="font-display text-[28px] font-semibold text-text-strong">
@@ -172,7 +172,7 @@ function DetectStep() {
               return (
                 <li
                   key={it.key}
-                  className="rounded-lg border border-border-weak bg-surface/90 px-4 py-3 text-[14px]"
+                  className="rounded-xl border border-border-weak bg-surface/92 px-4 py-3 text-[14px] shadow-[var(--shadow-sm)]"
                 >
                   <div className="flex min-h-7 items-center gap-3">
                     <span
@@ -412,7 +412,7 @@ function CliPathManager({
       </div>
       {detected.duplicate && isExpanded && (
         <div className={layout === "detect" ? "mt-3" : "basis-full pl-12"}>
-          <div className="space-y-1 rounded-md bg-surface-weak/60 p-2">
+          <div className="space-y-1 rounded-lg border border-border-weak bg-surface/70 p-2 shadow-[var(--shadow-sm)]">
             {detected.candidates.map((candidate) => {
               const selected = selectedPath === candidate.path;
               return (
@@ -636,7 +636,7 @@ function InstallStep() {
       title={t("onboarding.installTitle")}
       desc={t("onboarding.installDesc")}
     >
-      <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-border-weak bg-surface/90 px-4 py-3">
+      <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-border-weak bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)]">
         <div className="min-w-0 truncate text-[12px] text-text-base">
           {t("onboarding.systemManageDesc")}
         </div>
@@ -652,7 +652,7 @@ function InstallStep() {
           return (
             <div
               key={c.id}
-              className="flex flex-wrap items-center gap-3 rounded-lg border border-border-weak bg-surface/90 px-4 py-3"
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border-weak bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)]"
             >
               <span
                 className={`grid size-9 place-items-center rounded-md ${
@@ -873,7 +873,7 @@ function ConfigStep() {
             onClick={() => selectCli(c.id as CliId)}
             className={`rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
               cliId === c.id
-                ? "bg-selection text-text-strong"
+                ? "bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]"
                 : "text-text-base hover:bg-surface-weak"
             }`}
           >
@@ -889,10 +889,10 @@ function ConfigStep() {
               setMode("official");
               setSaved(false);
             }}
-            className={`rounded-lg border bg-surface/90 px-3 py-2.5 text-left transition-colors ${
+            className={`rounded-xl border bg-surface/92 px-3 py-2.5 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] ${
               mode === "official"
-                ? "border-border-selected bg-selection/45"
-                : "border-border-weak hover:border-border-base"
+                ? "border-border-selected bg-surface shadow-[var(--shadow-card)]"
+                : "border-border-weak hover:border-border-base hover:bg-surface"
             }`}
           >
             <div className="flex items-center gap-2">
@@ -916,10 +916,10 @@ function ConfigStep() {
           <button
             key={p.id}
             onClick={() => select(p.id)}
-            className={`rounded-lg border bg-surface/90 px-3 py-2.5 text-left transition-colors ${
+            className={`rounded-xl border bg-surface/92 px-3 py-2.5 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] ${
               mode === "api" && providerId === p.id
-                ? "border-border-selected bg-selection/45"
-                : "border-border-weak hover:border-border-base"
+                ? "border-border-selected bg-surface shadow-[var(--shadow-card)]"
+                : "border-border-weak hover:border-border-base hover:bg-surface"
             }`}
           >
             <div className="truncate text-[13px] font-medium text-text-strong">
@@ -1041,7 +1041,7 @@ function OfficialAuthPanel({
           : t("onboarding.authNotLoggedIn");
 
   return (
-    <div className="mt-4 rounded-lg border border-border-weak bg-surface/90 p-4">
+    <div className="mt-4 rounded-xl border border-border-weak bg-surface/92 p-4 shadow-[var(--shadow-sm)]">
       <div className="flex items-center gap-3">
         <span className="grid size-9 place-items-center rounded-md bg-surface-weak text-text-strong">
           <CliIcon cliId={cliId} size={18} />
@@ -1138,7 +1138,7 @@ function Done() {
   const t = useT();
   return (
     <div className="mx-auto max-w-xl pt-16 text-center">
-      <div className="mx-auto mb-6 grid size-14 place-items-center rounded-xl bg-success text-2xl text-white">
+      <div className="mx-auto mb-6 grid size-14 place-items-center rounded-xl bg-success text-2xl text-white shadow-[var(--shadow-card)]">
         ✓
       </div>
       <h1 className="font-display text-[30px] font-semibold text-text-strong">

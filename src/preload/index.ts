@@ -46,10 +46,28 @@ const api = {
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
+    toggleFullscreen: () => ipcRenderer.send('window:toggle-fullscreen'),
     close: () => ipcRenderer.send('window:close')
   },
   app: {
-    info: (): Promise<AppInfo> => ipcRenderer.invoke('app:info')
+    info: (): Promise<AppInfo> => ipcRenderer.invoke('app:info'),
+    setMenuLocale: (locale: 'zh' | 'en') => ipcRenderer.send('app:set-menu-locale', locale),
+    checkUpdates: () => ipcRenderer.send('app:check-updates-request'),
+    openAbout: () => ipcRenderer.send('app:open-about-request'),
+    onCheckUpdates: (cb: () => void) => {
+      const listener = () => cb()
+      ipcRenderer.on('app:check-updates', listener)
+      return () => {
+        ipcRenderer.removeListener('app:check-updates', listener)
+      }
+    },
+    onOpenAbout: (cb: () => void) => {
+      const listener = () => cb()
+      ipcRenderer.on('app:open-about', listener)
+      return () => {
+        ipcRenderer.removeListener('app:open-about', listener)
+      }
+    }
   },
   detect: (): Promise<DetectResult> => ipcRenderer.invoke('detect'),
   pickDir: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDir'),

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Gauge, Play, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react'
+import { Gauge, PanelLeftClose, PanelLeftOpen, Play, Trash2 } from 'lucide-react'
 import { useAppStore } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { Button } from '@/components/ui/Button'
@@ -17,6 +17,7 @@ import type { AppConfig, CliId, SessionInfo } from '@shared/types'
 
 /** In-UI chat is implemented for every supported CLI. */
 const CHAT_CLIS = new Set<CliId>(['claude-code', 'codex', 'opencode', 'pi'])
+const MAC_SIDEBAR_TOGGLE_LEFT = 70
 
 interface ActiveTerminal {
   key: string
@@ -28,12 +29,17 @@ interface ActiveTerminal {
 export function Shell() {
   const t = useT()
   const activeCli = useAppStore((s) => s.activeCli)
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const transcriptRenderingPreferred = useAppStore((s) => s.renderTranscript)
   const renderTranscript = ENABLE_CHAT_HISTORY_RENDERING && transcriptRenderingPreferred
   const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
+  const isMac = window.api?.platform === 'darwin'
 
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [view, setView] = useState<'run' | 'config' | 'settings'>('run')
+  const [settingsTab, setSettingsTab] = useState<'general' | 'about'>('general')
+  const [settingsCheckUpdatesKey, setSettingsCheckUpdatesKey] = useState(0)
   const [terminal, setTerminal] = useState<ActiveTerminal | null>(null)
   const [transcriptFor, setTranscriptFor] = useState<SessionInfo | null>(null)
   const [chatFor, setChatFor] = useState<{ key: string; cwd?: string; resumeId?: string } | null>(null)
@@ -46,6 +52,7 @@ export function Shell() {
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
+  const sidebarToggleGuardRef = useRef(0)
 
   // Reload config whenever we land on the run view (profiles may have changed).
   useEffect(() => {
@@ -89,8 +96,43 @@ export function Shell() {
     setTerminal(null)
     setTranscriptFor(null)
     setChatFor(null)
+    setSettingsTab('general')
     setView('settings')
   }
+
+  const toggleSidebarFromChrome = (event: SyntheticEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const now = Date.now()
+    if (now - sidebarToggleGuardRef.current < 180) return
+    sidebarToggleGuardRef.current = now
+    toggleSidebar()
+  }
+
+  const stopChromePointer = (event: SyntheticEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+  }
+
+  useEffect(() => {
+    return window.api.app.onCheckUpdates?.(() => {
+      setTerminal(null)
+      setTranscriptFor(null)
+      setChatFor(null)
+      setSettingsTab('about')
+      setSettingsCheckUpdatesKey((key) => key + 1)
+      setView('settings')
+    })
+  }, [])
+
+  useEffect(() => {
+    return window.api.app.onOpenAbout?.(() => {
+      setTerminal(null)
+      setTranscriptFor(null)
+      setChatFor(null)
+      setSettingsTab('about')
+      setView('settings')
+    })
+  }, [])
 
   const openExternalTerminal = async () => {
     setOpeningTerminal(true)
@@ -183,7 +225,21 @@ export function Shell() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-base">
+    <div className="relative flex h-full overflow-hidden bg-base">
+      {isMac && (
+        <button
+          type="button"
+          onPointerDown={stopChromePointer}
+          onMouseDown={stopChromePointer}
+          onClick={toggleSidebarFromChrome}
+          className="no-drag absolute top-1.5 z-50 grid size-7 place-items-center rounded-md text-text-weak transition-colors hover:bg-[var(--selection-base)] hover:text-text-strong"
+          style={{ left: MAC_SIDEBAR_TOGGLE_LEFT }}
+          title={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+          aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+        </button>
+      )}
       <Modal
         open={!!deleteTarget}
         onClose={() => {
@@ -235,19 +291,24 @@ export function Shell() {
 
       {/* Main pane */}
       <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-base">
-        <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak bg-base/95 px-4">
+        <div
+          className={`flex shrink-0 items-center gap-3 bg-base/80 px-4 backdrop-blur-xl ${
+            isMac ? 'h-10 pr-4' : 'h-11 border-b border-border-weak'
+          }`}
+          style={{ paddingLeft: isMac ? (sidebarCollapsed ? MAC_SIDEBAR_TOGGLE_LEFT + 38 : 20) : undefined }}
+        >
           {view === 'settings' ? (
             <h1 className="font-display text-[15px] font-semibold text-text-strong">{t('settings.title')}</h1>
           ) : (
             <>
-              <div className="flex gap-0.5 rounded-md bg-surface-weak p-0.5">
+              <div className="flex gap-0.5 rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
                 {(['run', 'config'] as const).map((v) => (
                   <button
                     key={v}
                     onClick={() => setView(v)}
                     className={`no-drag rounded-[5px] px-2.5 py-1 text-[13px] font-medium transition-colors ${
                       view === v
-                        ? 'bg-surface text-text-strong'
+                        ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
                         : 'text-text-weak hover:text-text-strong'
                     }`}
                   >
@@ -265,7 +326,7 @@ export function Shell() {
 
         {view === 'settings' ? (
           <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
-            <SettingsPage />
+            <SettingsPage initialTab={settingsTab} checkUpdatesKey={settingsCheckUpdatesKey} />
           </div>
         ) : view === 'config' ? (
           <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
@@ -274,7 +335,7 @@ export function Shell() {
         ) : (
           <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: 'var(--canvas-gradient)' }}>
             {terminal ? (
-              <div className="absolute inset-0 p-2">
+              <div className="absolute inset-0 p-3">
                 <TerminalView
                   cliId={active.id as CliId}
                   mode={terminal.mode}
@@ -308,7 +369,7 @@ export function Shell() {
               <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-4 px-7 py-6">
                 <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-baseline gap-3">
-                    <span className="text-[12px] font-semibold uppercase tracking-[0.08em] text-text-weak">
+                    <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-text-weak">
                       {t('shell.history')}
                     </span>
                     <button
@@ -367,7 +428,7 @@ export function Shell() {
                   {loadingSessions ? (
                     <div className="px-1 text-[13px] text-text-weak">{t('shell.loadingSessions')}</div>
                   ) : sessions.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-12 text-center text-[13px] text-text-weak">
+                    <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 px-4 py-12 text-center text-[13px] text-text-weak shadow-[var(--shadow-card)]">
                       {t('shell.noHistory', { name: active.name })}
                     </div>
                   ) : (
@@ -375,14 +436,14 @@ export function Shell() {
                       {sessions.map((s) => (
                         <div
                           key={s.id}
-                          className="group relative rounded-lg border border-border-weak bg-surface/90 text-left transition-colors hover:border-border-base hover:bg-surface"
+                          className="group relative rounded-xl border border-border-weak bg-surface/92 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]"
                         >
                           <button
                             onClick={() => resume(s)}
-                            className="flex w-full min-w-0 items-center gap-3 rounded-lg px-3 py-2 text-left"
+                            className="flex w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
                             title={t('shell.resumeTitle')}
                           >
-                            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong group-hover:bg-selection">
+                            <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak text-text-strong group-hover:bg-selection">
                               <CliIcon cliId={active.id as CliId} size={15} />
                             </span>
                             <div className="min-w-0 flex-1">
@@ -434,7 +495,7 @@ export function Shell() {
 
 function Chip({ label, color }: { label: string; color?: string }) {
   return (
-    <span className="flex items-center gap-1.5 rounded-md border border-border-weak bg-surface px-2 py-0.5 text-[12px] text-text-base">
+    <span className="flex items-center gap-1.5 rounded-md border border-border-weak bg-surface/80 px-2 py-0.5 text-[12px] text-text-base shadow-[0_1px_1px_rgba(0,0,0,0.03)]">
       {color && <span className="size-2 rounded-full" style={{ background: color }} />}
       {label}
     </span>

@@ -9,16 +9,18 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'no-drag inline-flex items-center justify-center gap-1.5 rounded-md font-medium ' +
-  'transition-colors duration-150 disabled:opacity-45 disabled:pointer-events-none select-none'
+  'no-drag inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium ' +
+  'shadow-[0_1px_1px_rgba(0,0,0,0.04)] transition-[background,border-color,color,box-shadow,filter,transform] duration-150 ' +
+  'disabled:pointer-events-none disabled:opacity-45 active:translate-y-px select-none'
 
 const variants: Record<Variant, string> = {
   primary:
-    'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] hover:brightness-110',
+    'border border-transparent bg-[var(--button-primary-base)] text-[var(--button-primary-text)] ' +
+    'hover:brightness-105 hover:shadow-[0_2px_5px_rgba(0,0,0,0.16)]',
   secondary:
     'bg-[var(--button-secondary-base)] text-text-strong border border-border-base ' +
-    'hover:border-border-selected hover:bg-surface-hover',
-  ghost: 'text-text-base hover:text-text-strong hover:bg-selection'
+    'hover:border-border-selected hover:bg-surface',
+  ghost: 'border border-transparent text-text-base shadow-none hover:text-text-strong hover:bg-selection'
 }
 
 const sizes: Record<Size, string> = {

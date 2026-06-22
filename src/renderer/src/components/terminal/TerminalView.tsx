@@ -139,5 +139,10 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     return () => observer.disconnect()
   }, [])
 
-  return <div ref={hostRef} className="h-full w-full" />
+  return (
+    <div
+      ref={hostRef}
+      className="h-full w-full overflow-hidden rounded-xl border border-border-base bg-[var(--terminal-background)] shadow-[var(--shadow-card)]"
+    />
+  )
 }

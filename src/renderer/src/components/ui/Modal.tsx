@@ -60,12 +60,12 @@ export function Modal({ open, onClose, title, children }: Props) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`modal-panel flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border-weak bg-stronger outline-none ${
+        className={`modal-panel flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border-base bg-stronger/95 outline-none ${
           open ? 'modal-panel--open' : 'modal-panel--closed'
         }`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-weak px-5">
+        <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-weak bg-surface-weak/35 px-5">
           <h2 id={titleId} className="min-w-0 truncate font-display text-[15px] font-semibold text-text-strong">
             {title}
           </h2>

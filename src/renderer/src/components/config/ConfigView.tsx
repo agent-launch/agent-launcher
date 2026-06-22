@@ -87,7 +87,7 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
       </div>
       <p className="mb-6 text-[13px] leading-relaxed text-text-weak">{t('config.intro', { cliId })}</p>
 
-      <div className="mb-5 flex w-fit rounded-md border border-border-weak bg-surface-weak p-0.5">
+      <div className="mb-5 flex w-fit rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
         <ConfigTabButton active={tab === 'profiles'} icon={<FolderCog size={14} />} onClick={() => setTab('profiles')}>
           {t('config.tabProfiles')}
         </ConfigTabButton>
@@ -103,7 +103,7 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
         <>
           <div className="space-y-2">
             {cli.profiles.length === 0 && (
-              <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-7 text-center text-[13px] text-text-weak">
+              <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 shadow-[var(--shadow-sm)] px-4 py-7 text-center text-[13px] text-text-weak">
                 {t('config.noProfiles')}
               </div>
             )}
@@ -131,9 +131,9 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
                       setActive(p.id)
                     }
                   }}
-                  className={`flex items-center gap-3 rounded-lg border bg-surface/90 px-4 py-3 ${
-                    activeId === p.id ? 'border-border-selected bg-selection/35' : 'border-border-weak'
-                  } cursor-pointer transition-colors hover:border-border-selected/70 hover:bg-surface-weak/60`}
+                  className={`flex items-center gap-3 rounded-xl border bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)] ${
+                    activeId === p.id ? 'border-border-selected bg-surface shadow-[var(--shadow-card)]' : 'border-border-weak'
+                  } cursor-pointer transition-[background,border-color,box-shadow] hover:border-border-selected/70 hover:bg-surface`}
                 >
                   <button
                     onClick={(e) => {
@@ -276,7 +276,9 @@ function ConfigTabButton({
     <button
       onClick={onClick}
       className={`flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[13px] transition-colors ${
-        active ? 'bg-surface text-text-strong' : 'text-text-weak hover:text-text-strong'
+        active
+          ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
+          : 'text-text-weak hover:text-text-strong'
       }`}
     >
       {icon}
@@ -333,7 +335,7 @@ function PanelHeader({
 
 function EmptyPanel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-lg border border-dashed border-border-weak bg-surface/60 px-4 py-8 text-center text-[13px] text-text-weak">
+    <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 shadow-[var(--shadow-sm)] px-4 py-8 text-center text-[13px] text-text-weak">
       {children}
     </div>
   )
@@ -395,7 +397,7 @@ function McpPanel({
   }
 
   return (
-    <section className="rounded-lg border border-border-weak bg-surface/90 p-4">
+    <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
       <PanelHeader
         title={t('config.mcpTitle')}
         desc={t('config.mcpDesc')}
@@ -486,7 +488,7 @@ function McpForm({
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-border-selected bg-surface/95 p-4">
+    <div className="mt-3 rounded-xl border border-border-selected bg-surface/95 shadow-[var(--shadow-card)] p-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label={t('config.mcpName')} value={name} onChange={setName} />
         <label className="block">
@@ -590,13 +592,13 @@ function SkillsPanel({
   )
 
   return (
-    <section className="rounded-lg border border-border-weak bg-surface/90 p-4">
+    <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
       <PanelHeader
         title={t('config.skillsTitle')}
         desc={t('config.skillsDesc')}
       />
       <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localSkillSearchPlaceholder')} />
-      <div className="mb-4 rounded-lg border border-border-weak bg-surface/80 p-3">
+      <div className="mb-4 rounded-xl border border-border-weak bg-surface/80 shadow-[var(--shadow-sm)] p-3">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-surface-weak px-2 py-0.5 font-mono text-[11px] text-text-weak">
             skills.sh
@@ -742,7 +744,7 @@ function SkillForm({
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-border-selected bg-surface/95 p-4">
+    <div className="mt-3 rounded-xl border border-border-selected bg-surface/95 shadow-[var(--shadow-card)] p-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label={t('config.skillName')} value={name} onChange={setName} />
         <TextareaField label={t('config.skillDescription')} value={description} onChange={setDescription} />
@@ -775,7 +777,7 @@ function ResourceRow({
 }) {
   const t = useT()
   return (
-    <div className="rounded-lg border border-border-weak bg-surface/90 px-3 py-3">
+    <div className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3">
       <div className="flex items-start gap-3">
         <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
           {icon}
@@ -863,7 +865,7 @@ function TextareaField({
 function FileBlock({ name, content }: { name: string; content: string }) {
   const lang = languageForFile(name)
   return (
-    <div className="overflow-hidden rounded-lg border border-border-weak bg-surface/90">
+    <div className="overflow-hidden rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)]">
       <div className="border-b border-border-weak px-3 py-1.5 font-mono text-[11px] text-text-weak">
         {name}
       </div>
@@ -945,7 +947,7 @@ function ProfileForm({
   }
 
   return (
-    <div className="rounded-lg border border-border-selected bg-surface/90 p-4">
+    <div className="rounded-xl border border-border-selected bg-surface/95 p-4 shadow-[var(--shadow-card)]">
       <div className="grid grid-cols-2 gap-3">
         <label className="col-span-2 block">
           <span className="text-[12px] text-text-weak">{t('config.provider')}</span>
