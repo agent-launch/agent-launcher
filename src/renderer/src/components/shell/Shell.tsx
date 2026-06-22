@@ -294,8 +294,14 @@ export function Shell() {
         <div
           className={`flex shrink-0 items-center gap-3 bg-base/80 px-4 backdrop-blur-xl ${
             isMac ? 'h-10 pr-4' : 'h-11 border-b border-border-weak'
-          }`}
-          style={{ paddingLeft: isMac ? (sidebarCollapsed ? MAC_SIDEBAR_TOGGLE_LEFT + 38 : 20) : undefined }}
+          } ${isMac ? 'transition-[padding-left] duration-180 ease-out' : ''}`}
+          style={{
+            paddingLeft: isMac
+              ? sidebarCollapsed
+                ? MAC_SIDEBAR_TOGGLE_LEFT + 38
+                : 20
+              : undefined
+          }}
         >
           {view === 'settings' ? (
             <h1 className="font-display text-[15px] font-semibold text-text-strong">{t('settings.title')}</h1>

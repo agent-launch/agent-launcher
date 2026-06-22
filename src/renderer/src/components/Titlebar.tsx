@@ -166,7 +166,7 @@ export function Titlebar() {
 
   return (
     <div
-      className="drag-region relative flex h-10 shrink-0 items-center bg-base/78 backdrop-blur-xl"
+      className="drag-region relative z-[100] flex h-10 shrink-0 items-center bg-base/78 backdrop-blur-xl"
       style={{
         paddingLeft: '8px',
         paddingRight: '140px'
@@ -206,7 +206,7 @@ export function Titlebar() {
 
         {!isMac && openMenu && (
           <div
-            className="absolute top-10 z-50 w-[286px] overflow-hidden rounded-xl border border-border-base bg-stronger/92 p-2 text-text-strong shadow-[0_18px_52px_rgba(0,0,0,0.22),0_2px_8px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
+            className="absolute top-10 z-[120] w-[286px] overflow-hidden rounded-xl border border-border-base bg-stronger/92 p-2 text-text-strong shadow-[0_18px_52px_rgba(0,0,0,0.22),0_2px_8px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
             style={{ left: menuLeft }}
           >
             {menuGroups[openMenu].map((group, groupIndex) => (

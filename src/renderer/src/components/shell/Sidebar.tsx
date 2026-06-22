@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { RotateCcw, Settings } from 'lucide-react'
-import { useAppStore, SIDEBAR_MIN, SIDEBAR_MAX, SIDEBAR_COLLAPSED } from '@/store/app'
+import { useAppStore, SIDEBAR_MIN, SIDEBAR_MAX } from '@/store/app'
 import { CLIS } from '@/data/clis'
 import { CliIcon } from '@/components/CliIcon'
 import { ResizeHandle } from '@/components/ui/ResizeHandle'
@@ -28,6 +28,8 @@ export function Sidebar({
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed)
   const [dragging, setDragging] = useState(false)
   const isMac = window.api?.platform === 'darwin'
+  const sidebarWidth = collapsed ? 0 : width
+  const contentWidth = collapsed ? width : sidebarWidth
 
   return (
     <aside
@@ -35,24 +37,20 @@ export function Sidebar({
         dragging ? '' : 'transition-[width,border-color] duration-180 ease-out'
       }`}
       style={{
-        width: collapsed ? (isMac ? 0 : SIDEBAR_COLLAPSED) : width,
-        borderRightColor: collapsed && isMac ? 'transparent' : undefined,
+        width: sidebarWidth,
+        borderRightColor: collapsed ? 'transparent' : undefined,
         background: 'var(--sidebar-gradient)'
       }}
     >
       <div
         className="flex h-full flex-col"
-        style={
-          isMac
-            ? {
-                width,
-                minWidth: width,
-                opacity: collapsed ? 0 : 1,
-                pointerEvents: collapsed ? 'none' : undefined,
-                transition: dragging ? undefined : 'opacity 120ms ease-out'
-              }
-            : undefined
-        }
+        style={{
+          width: contentWidth,
+          minWidth: contentWidth,
+          opacity: collapsed ? 0 : 1,
+          pointerEvents: collapsed ? 'none' : undefined,
+          transition: dragging ? undefined : 'opacity 120ms ease-out'
+        }}
       >
         {isMac && <div className="h-10 shrink-0" />}
         <nav className={`flex flex-1 flex-col gap-1 px-2.5 ${isMac ? 'pt-3' : 'pt-2.5'}`}>
@@ -120,7 +118,7 @@ export function Sidebar({
           <button
             onClick={onOpenSettings}
             title={collapsed ? t('sidebar.settings') : undefined}
-            className={`no-drag flex w-full items-center gap-2 rounded-md py-2 text-[13px] transition-[background,box-shadow,color] hover:bg-[var(--sidebar-selection)] ${
+            className={`no-drag flex w-full min-w-0 items-center gap-2 rounded-md py-2 text-[13px] transition-[background,box-shadow,color] hover:bg-[var(--sidebar-selection)] ${
               collapsed ? 'justify-center px-0' : 'px-2.5'
             }`}
             style={{
@@ -129,18 +127,18 @@ export function Sidebar({
             }}
           >
             <Settings size={14} className="shrink-0" />
-            {!collapsed && <span>{t('sidebar.settings')}</span>}
+            {!collapsed && <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.settings')}</span>}
           </button>
           <button
             onClick={resetOnboarding}
             title={collapsed ? t('sidebar.rerunOnboarding') : undefined}
-            className={`no-drag flex w-full items-center gap-2 rounded-md py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)] ${
+            className={`no-drag flex w-full min-w-0 items-center gap-2 rounded-md py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)] ${
               collapsed ? 'justify-center px-0' : 'px-2.5'
             }`}
             style={{ color: 'var(--sidebar-text-weak)' }}
           >
             <RotateCcw size={13} className="shrink-0" />
-            {!collapsed && <span>{t('sidebar.rerunOnboarding')}</span>}
+            {!collapsed && <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.rerunOnboarding')}</span>}
           </button>
         </div>
 
