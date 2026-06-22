@@ -35,7 +35,7 @@ export default function App() {
 
   return (
     <div className="relative flex h-full flex-col bg-base">
-      <Titlebar />
+      <Titlebar showSidebarToggle={!showOnboarding} />
       <div className="min-h-0 flex-1">{showOnboarding ? <Onboarding /> : info ? <Shell /> : null}</div>
       <Toaster
         position="bottom-right"

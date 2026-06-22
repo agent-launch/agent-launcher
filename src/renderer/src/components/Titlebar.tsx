@@ -31,7 +31,7 @@ interface MenuGroup {
   items: MenuItem[]
 }
 
-export function Titlebar() {
+export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boolean }) {
   const t = useT()
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
@@ -181,17 +181,19 @@ export function Titlebar() {
       )}
 
       <div ref={menuRef} className="no-drag relative z-[120] flex h-full items-center gap-1">
-        <button
-          onClick={toggleSidebar}
-          className="no-drag grid size-7 -translate-y-px place-items-center rounded-md text-text-weak transition-colors hover:bg-surface-hover hover:text-text-strong"
-          title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-          aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-        >
-          {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
-        </button>
+        {showSidebarToggle && (
+          <button
+            onClick={toggleSidebar}
+            className="no-drag grid size-7 -translate-y-px place-items-center rounded-md text-text-weak transition-colors hover:bg-surface-hover hover:text-text-strong"
+            title={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+            aria-label={collapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
 
         {!isMac && (
-          <div className="ml-1 flex h-full items-center gap-0.5">
+          <div className={`${showSidebarToggle ? 'ml-1' : ''} flex h-full items-center gap-0.5`}>
             {appMenu.map((menu) => (
               <button
                 key={menu.id}
