@@ -172,7 +172,15 @@ export function Titlebar() {
         paddingRight: '140px'
       }}
     >
-      <div ref={menuRef} className="no-drag relative flex h-full items-center gap-1">
+      {openMenu && (
+        <div
+          aria-hidden="true"
+          className="no-drag fixed inset-0 z-[110] cursor-default"
+          onPointerDown={() => setOpenMenu(null)}
+        />
+      )}
+
+      <div ref={menuRef} className="no-drag relative z-[120] flex h-full items-center gap-1">
         <button
           onClick={toggleSidebar}
           className="no-drag grid size-7 -translate-y-px place-items-center rounded-md text-text-weak transition-colors hover:bg-surface-hover hover:text-text-strong"
@@ -206,13 +214,13 @@ export function Titlebar() {
 
         {!isMac && openMenu && (
           <div
-            className="absolute top-10 z-[120] w-[286px] overflow-hidden rounded-xl border border-border-base bg-stronger/92 p-2 text-text-strong shadow-[0_18px_52px_rgba(0,0,0,0.22),0_2px_8px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
+            className="absolute top-10 z-[130] w-[272px] overflow-hidden rounded-lg border border-border-base bg-stronger p-1 text-[14px] text-text-strong shadow-[0_8px_22px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.08)]"
             style={{ left: menuLeft }}
           >
             {menuGroups[openMenu].map((group, groupIndex) => (
-              <div key={`${openMenu}-${groupIndex}`} className={groupIndex > 0 ? 'mt-2 border-t border-border-weak pt-2' : ''}>
+              <div key={`${openMenu}-${groupIndex}`} className={groupIndex > 0 ? 'mt-1 border-t border-border-weak pt-1' : ''}>
                 {group.title && (
-                  <div className="px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">
+                  <div className="px-2.5 pb-1 pt-1 text-[12px] font-medium text-text-muted">
                     {group.title}
                   </div>
                 )}
@@ -221,7 +229,7 @@ export function Titlebar() {
                     <button
                       key={item.label}
                       onClick={() => runMenuAction(item)}
-                      className="no-drag flex h-9 w-full items-center gap-3 rounded-lg px-3 text-left text-[14px] text-text-strong transition-colors hover:bg-surface-hover"
+                      className="no-drag flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[14px] text-text-strong transition-colors hover:bg-surface-hover"
                     >
                       <span className="grid size-5 shrink-0 place-items-center text-text-muted">
                         {item.icon}
