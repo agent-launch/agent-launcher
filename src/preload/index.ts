@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import type {
   AppConfig,
   AppInfo,
@@ -48,6 +48,10 @@ const api = {
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),
     toggleFullscreen: () => ipcRenderer.send('window:toggle-fullscreen'),
     close: () => ipcRenderer.send('window:close')
+  },
+  clipboard: {
+    readText: (): string => clipboard.readText(),
+    writeText: (text: string): void => clipboard.writeText(text)
   },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke('app:info'),

@@ -333,12 +333,15 @@ function claudeSettingsPatch(): Record<string, any> {
   if (getAuthMode('claude-code') !== 'official') {
     if (p?.baseUrl) env.ANTHROPIC_BASE_URL = p.baseUrl
     if (p?.apiKey) env.ANTHROPIC_AUTH_TOKEN = p.apiKey
-    if (p?.model) {
-      env.ANTHROPIC_MODEL = p.model
-      env.ANTHROPIC_DEFAULT_HAIKU_MODEL = p.model
-      env.ANTHROPIC_DEFAULT_SONNET_MODEL = p.model
-      env.ANTHROPIC_DEFAULT_OPUS_MODEL = p.model
-    }
+    const fallback = p?.model?.trim()
+    const defaultModel = p?.defaultModel?.trim() || fallback
+    const haikuModel = p?.haikuModel?.trim() || fallback
+    const sonnetModel = p?.sonnetModel?.trim() || fallback
+    const opusModel = p?.opusModel?.trim() || fallback
+    if (defaultModel) env.ANTHROPIC_MODEL = defaultModel
+    if (haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = haikuModel
+    if (sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = sonnetModel
+    if (opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = opusModel
   }
   return Object.keys(env).length ? { env } : {}
 }

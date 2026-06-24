@@ -80,7 +80,13 @@ export interface CliProfile {
   baseUrl?: string
   /** Stored in PLAINTEXT locally per product decision (no keychain). */
   apiKey?: string
+  /** Generic/default model for CLIs that expose a single model setting. */
   model?: string
+  /** Claude Code model aliases written to its native ANTHROPIC_* env config. */
+  defaultModel?: string
+  opusModel?: string
+  sonnetModel?: string
+  haikuModel?: string
 }
 
 export type AuthMode = 'official' | 'api'

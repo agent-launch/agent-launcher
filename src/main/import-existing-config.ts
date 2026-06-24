@@ -114,17 +114,18 @@ function importedProfile(name: string, baseUrl?: string, apiKey?: string, model?
 function importClaudeProfile(): CliProfilePatch | null {
   const settings = readJsonObject(join(systemCliConfigDir('claude-code'), 'settings.json'))
   const env = objectValue(settings?.env)
-  return importedProfile(
+  const profile = importedProfile(
     '本机默认配置',
     firstString(env?.ANTHROPIC_BASE_URL),
     firstString(env?.ANTHROPIC_AUTH_TOKEN, env?.ANTHROPIC_API_KEY),
-    firstString(
-      env?.ANTHROPIC_MODEL,
-      env?.ANTHROPIC_DEFAULT_OPUS_MODEL,
-      env?.ANTHROPIC_DEFAULT_SONNET_MODEL,
-      env?.ANTHROPIC_DEFAULT_HAIKU_MODEL
-    )
+    firstString(env?.ANTHROPIC_MODEL, env?.ANTHROPIC_DEFAULT_SONNET_MODEL)
   )
+  if (!profile) return null
+  profile.defaultModel = firstString(env?.ANTHROPIC_MODEL)
+  profile.opusModel = firstString(env?.ANTHROPIC_DEFAULT_OPUS_MODEL)
+  profile.sonnetModel = firstString(env?.ANTHROPIC_DEFAULT_SONNET_MODEL)
+  profile.haikuModel = firstString(env?.ANTHROPIC_DEFAULT_HAIKU_MODEL)
+  return profile
 }
 
 function unquoteToml(value: string): string {

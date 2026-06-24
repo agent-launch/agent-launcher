@@ -3,7 +3,7 @@ import { homedir } from 'node:os'
 import { paths } from './sandbox'
 import { hermesHomeDir } from './config-paths'
 import { getActiveProfile, getAuthMode, getInstallSource } from './store'
-import type { CliId, EnvPair } from '@shared/types'
+import type { CliId, CliProfile, EnvPair } from '@shared/types'
 
 function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (process.platform === 'win32') return env
@@ -36,6 +36,21 @@ function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
   }
 }
 
+function claudeModelEnv(profile: CliProfile | undefined): EnvPair[] {
+  if (!profile) return []
+  const fallback = profile.model?.trim() || undefined
+  const defaultModel = profile.defaultModel?.trim() || fallback
+  const haikuModel = profile.haikuModel?.trim() || fallback
+  const sonnetModel = profile.sonnetModel?.trim() || fallback
+  const opusModel = profile.opusModel?.trim() || fallback
+  const out: EnvPair[] = []
+  if (defaultModel) out.push({ key: 'ANTHROPIC_MODEL', value: defaultModel })
+  if (haikuModel) out.push({ key: 'ANTHROPIC_DEFAULT_HAIKU_MODEL', value: haikuModel })
+  if (sonnetModel) out.push({ key: 'ANTHROPIC_DEFAULT_SONNET_MODEL', value: sonnetModel })
+  if (opusModel) out.push({ key: 'ANTHROPIC_DEFAULT_OPUS_MODEL', value: opusModel })
+  return out
+}
+
 /**
  * The CLI-specific env vars we inject (config dir + relay endpoint + auth +
  * model). Separated from PATH so it can also drive the "Resolved Environment"
@@ -53,7 +68,7 @@ function cliVars(cliId: CliId): EnvPair[] {
     if (getAuthMode(cliId) === 'official') return out
     if (p?.baseUrl) out.push({ key: 'ANTHROPIC_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'ANTHROPIC_AUTH_TOKEN', value: p.apiKey, secret: true })
-    if (p?.model) out.push({ key: 'ANTHROPIC_MODEL', value: p.model })
+    out.push(...claudeModelEnv(p))
   } else if (cliId === 'codex') {
     out.push({ key: 'CODEX_HOME', value: configDir })
   } else if (cliId === 'opencode') {

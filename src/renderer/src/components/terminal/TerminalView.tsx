@@ -68,6 +68,8 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10000,
+      scrollOnUserInput: true,
+      smoothScrollDuration: 0,
       theme: terminalTheme()
     })
     termRef.current = term
@@ -95,6 +97,46 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     )
 
     term.onData((d) => ptyId && window.api.pty.write(ptyId, d))
+
+    const copySelection = () => {
+      const selection = term.getSelection()
+      if (!selection) return false
+      try {
+        window.api.clipboard.writeText(selection)
+        return true
+      } catch {
+        return false
+      }
+    }
+    const pasteClipboard = () => {
+      if (!ptyId) return
+      try {
+        const text = window.api.clipboard.readText()
+        if (text) window.api.pty.write(ptyId, text)
+      } catch {
+        /* clipboard access may be unavailable in some system policies */
+      }
+    }
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown') return true
+      const shortcut = event.ctrlKey || event.metaKey
+      if (!shortcut || event.altKey) return true
+      const key = event.key.toLowerCase()
+      if (key === 'c') {
+        if (term.hasSelection()) {
+          copySelection()
+          event.preventDefault()
+          return false
+        }
+        return true
+      }
+      if (key === 'v') {
+        pasteClipboard()
+        event.preventDefault()
+        return false
+      }
+      return true
+    })
 
     window.api.pty
       .create({ cliId, mode, cwd, resumeId, cols: term.cols, rows: term.rows })
@@ -142,7 +184,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
   return (
     <div
       ref={hostRef}
-      className="h-full w-full overflow-hidden rounded-xl border border-border-base bg-[var(--terminal-background)] shadow-[var(--shadow-card)]"
+      className="h-full min-w-0 w-full overflow-hidden rounded-xl border border-border-base bg-[var(--terminal-background)] shadow-[var(--shadow-card)]"
     />
   )
 }

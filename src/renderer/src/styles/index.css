@@ -227,7 +227,17 @@
 }
 
 .xterm {
+  width: 100%;
+  max-width: 100%;
   padding: 12px;
+}
+
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-helpers,
+.xterm .xterm-accessibility,
+.xterm canvas {
+  max-width: 100%;
 }
 
 .xterm .xterm-viewport {

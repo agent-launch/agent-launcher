@@ -513,6 +513,11 @@ function ProfileForm({
   const [baseUrl, setBaseUrl] = useState(initial?.baseUrl ?? '')
   const [apiKey, setApiKey] = useState(initial?.apiKey ?? '')
   const [model, setModel] = useState(initial?.model ?? '')
+  const [defaultModel, setDefaultModel] = useState(initial?.defaultModel ?? initial?.model ?? '')
+  const [opusModel, setOpusModel] = useState(initial?.opusModel ?? initial?.model ?? '')
+  const [sonnetModel, setSonnetModel] = useState(initial?.sonnetModel ?? initial?.model ?? '')
+  const [haikuModel, setHaikuModel] = useState(initial?.haikuModel ?? initial?.model ?? '')
+  const isClaude = cliId === 'claude-code'
 
   const onProvider = (id: string) => {
     setProviderId(id)
@@ -528,9 +533,18 @@ function ProfileForm({
     const nextProviderId = providerId.trim()
     const nextBaseUrl = baseUrl.trim()
     const nextApiKey = apiKey.trim()
-    const nextModel = model.trim()
+    const nextModel = isClaude ? defaultModel.trim() : model.trim()
+    const nextDefaultModel = defaultModel.trim()
+    const nextOpusModel = opusModel.trim()
+    const nextSonnetModel = sonnetModel.trim()
+    const nextHaikuModel = haikuModel.trim()
     const hasPresetProvider = Boolean(nextProviderId && nextProviderId !== 'custom')
-    const hasManualConfig = Boolean(nextBaseUrl || nextApiKey || nextModel)
+    const hasManualConfig = Boolean(
+      nextBaseUrl ||
+        nextApiKey ||
+        nextModel ||
+        (isClaude && (nextDefaultModel || nextOpusModel || nextSonnetModel || nextHaikuModel))
+    )
 
     if (!initial && !hasPresetProvider && !hasManualConfig) {
       toast.error(t('config.emptyProfileToast'))
@@ -542,7 +556,11 @@ function ProfileForm({
       providerId: nextProviderId || undefined,
       baseUrl: nextBaseUrl,
       apiKey: nextApiKey,
-      model: nextModel
+      model: nextModel,
+      defaultModel: isClaude ? nextDefaultModel || nextModel : undefined,
+      opusModel: isClaude ? nextOpusModel : undefined,
+      sonnetModel: isClaude ? nextSonnetModel : undefined,
+      haikuModel: isClaude ? nextHaikuModel : undefined
     }
     if (initial) await window.api.config.updateProfile(cliId, initial.id, patch)
     else {
@@ -577,12 +595,41 @@ function ProfileForm({
           onChange={setName}
           placeholder={t('config.profileNamePlaceholder')}
         />
-        <Field
-          label={t('config.modelOptional')}
-          value={model}
-          onChange={setModel}
-          placeholder={t('config.modelPlaceholder')}
-        />
+        {isClaude ? (
+          <>
+            <Field
+              label={t('config.claudeDefaultModel')}
+              value={defaultModel}
+              onChange={setDefaultModel}
+              placeholder={t('config.claudeDefaultModelPlaceholder')}
+            />
+            <Field
+              label={t('config.claudeSonnetModel')}
+              value={sonnetModel}
+              onChange={setSonnetModel}
+              placeholder={t('config.claudeSonnetModelPlaceholder')}
+            />
+            <Field
+              label={t('config.claudeOpusModel')}
+              value={opusModel}
+              onChange={setOpusModel}
+              placeholder={t('config.claudeOpusModelPlaceholder')}
+            />
+            <Field
+              label={t('config.claudeHaikuModel')}
+              value={haikuModel}
+              onChange={setHaikuModel}
+              placeholder={t('config.claudeHaikuModelPlaceholder')}
+            />
+          </>
+        ) : (
+          <Field
+            label={t('config.modelOptional')}
+            value={model}
+            onChange={setModel}
+            placeholder={t('config.modelPlaceholder')}
+          />
+        )}
         <label className="col-span-2 block">
           <span className="text-[12px] text-text-weak">Base URL</span>
           <input

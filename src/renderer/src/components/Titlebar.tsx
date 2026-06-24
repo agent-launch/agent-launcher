@@ -1,23 +1,18 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Check,
-  Copy,
-  Edit3,
   Maximize2,
   Minus,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCw,
-  Scissors,
   Settings2,
-  TextCursorInput,
-  Undo2,
   X
 } from 'lucide-react'
 import { useAppStore } from '@/store/app'
 import { useT } from '@/i18n'
 
-type MenuId = 'file' | 'edit' | 'view' | 'window' | 'help'
+type MenuId = 'file' | 'view' | 'window' | 'help'
 
 interface MenuItem {
   label: string
@@ -60,7 +55,6 @@ export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boo
   const appMenu = useMemo(
     () => [
       { id: 'file' as const, label: t('menu.file') },
-      { id: 'edit' as const, label: t('menu.edit') },
       { id: 'view' as const, label: t('menu.view') },
       { id: 'window' as const, label: t('menu.window') },
       { id: 'help' as const, label: t('menu.help') }
@@ -79,27 +73,6 @@ export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boo
               icon: <X size={15} />,
               action: () => window.api.window.close()
             }
-          ]
-        }
-      ],
-      edit: [
-        {
-          title: t('menu.edit'),
-          items: [
-            { label: t('menu.undo'), icon: <Undo2 size={15} />, action: () => document.execCommand('undo') },
-            { label: t('menu.redo'), icon: <Undo2 size={15} className="scale-x-[-1]" />, action: () => document.execCommand('redo') }
-          ]
-        },
-        {
-          items: [
-            { label: t('menu.cut'), icon: <Scissors size={15} />, action: () => document.execCommand('cut') },
-            { label: t('menu.copy'), icon: <Copy size={15} />, action: () => document.execCommand('copy') },
-            { label: t('menu.paste'), icon: <TextCursorInput size={15} />, action: () => document.execCommand('paste') }
-          ]
-        },
-        {
-          items: [
-            { label: t('menu.selectAll'), icon: <Edit3 size={15} />, action: () => document.execCommand('selectAll') }
           ]
         }
       ],
