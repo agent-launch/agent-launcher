@@ -1,5 +1,6 @@
 appId: org.matrixlabs.agentlauncher
 productName: AgentLauncher
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release
   buildResources: build
@@ -14,6 +15,7 @@ mac:
   category: public.app-category.developer-tools
   target:
     - dmg
+    - zip
 win:
   icon: build/icon.ico
   target:
@@ -23,3 +25,8 @@ linux:
   target:
     - AppImage
   category: Development
+publish:
+  provider: github
+  owner: matrixlabs
+  repo: agent-launcher
+  releaseType: release

@@ -1,267 +1,509 @@
-import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from 'react'
-import { Gauge, PanelLeftClose, PanelLeftOpen, Play, Trash2 } from 'lucide-react'
-import { useAppStore } from '@/store/app'
-import { CLIS } from '@/data/clis'
-import { Button } from '@/components/ui/Button'
-import { Modal } from '@/components/ui/Modal'
-import { TerminalView } from '@/components/terminal/TerminalView'
-import { ConfigView } from '@/components/config/ConfigView'
-import { CliIcon } from '@/components/CliIcon'
-import { Sidebar } from '@/components/shell/Sidebar'
-import { SettingsPage } from '@/components/settings/SettingsPage'
-import { TranscriptView } from '@/components/transcript/TranscriptView'
-import { ChatView } from '@/components/chat/ChatView'
-import { useT } from '@/i18n'
-import { ENABLE_CHAT_HISTORY_RENDERING } from '@/features'
-import type { AppConfig, CliId, SessionInfo } from '@shared/types'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from "react";
+import {
+  Gauge,
+  History,
+  Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Play,
+  Plus,
+  SlidersHorizontal,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useAppStore } from "@/store/app";
+import { CLIS } from "@/data/clis";
+import { Button } from "@/components/ui/Button";
+import { Modal } from "@/components/ui/Modal";
+import { TerminalView } from "@/components/terminal/TerminalView";
+import { ConfigView } from "@/components/config/ConfigView";
+import { CliIcon } from "@/components/CliIcon";
+import { Sidebar } from "@/components/shell/Sidebar";
+import { SettingsPage } from "@/components/settings/SettingsPage";
+import { SettingsSidebar } from "@/components/settings/SettingsSidebar";
+import { TranscriptView } from "@/components/transcript/TranscriptView";
+import { ChatView } from "@/components/chat/ChatView";
+import { useT } from "@/i18n";
+import { ENABLE_CHAT_HISTORY_RENDERING } from "@/features";
+import type { SettingsTab } from "@/components/settings/settingsTabs";
+import type { AppConfig, CliId, SessionInfo } from "@shared/types";
 
 /** In-UI chat is implemented for every supported CLI. */
-const CHAT_CLIS = new Set<CliId>(['claude-code', 'codex', 'opencode', 'pi'])
-const MAC_SIDEBAR_TOGGLE_LEFT = 70
+const CHAT_CLIS = new Set<CliId>(["claude-code", "codex", "opencode", "pi"]);
+const MAC_SIDEBAR_TOGGLE_LEFT = 74;
+const SHELL_FRAME_PADDING = 6;
+const SESSION_LOADING_DELAY_MS = 180;
 
-interface ActiveTerminal {
-  key: string
-  mode: 'cli' | 'shell'
-  cwd?: string
-  resumeId?: string
+type WorkspaceTabKind = "terminal" | "chat" | "transcript";
+
+interface WorkspaceTab {
+  id: string;
+  cliId: CliId;
+  kind: WorkspaceTabKind;
+  title: string;
+  cwd?: string;
+  resumeId?: string;
+  session?: SessionInfo;
+  mode?: "cli" | "shell";
+  status: "running" | "idle" | "exited";
+  busy?: boolean;
+}
+
+interface SessionState {
+  cliId: CliId | null;
+  items: SessionInfo[];
+  loaded: boolean;
 }
 
 export function Shell() {
-  const t = useT()
-  const activeCli = useAppStore((s) => s.activeCli)
-  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed)
-  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
-  const transcriptRenderingPreferred = useAppStore((s) => s.renderTranscript)
-  const renderTranscript = ENABLE_CHAT_HISTORY_RENDERING && transcriptRenderingPreferred
-  const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
-  const isMac = window.api?.platform === 'darwin'
+  const t = useT();
+  const activeCli = useAppStore((s) => s.activeCli);
+  const setActiveCli = useAppStore((s) => s.setActiveCli);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar);
+  const transcriptRenderingPreferred = useAppStore((s) => s.renderTranscript);
+  const renderTranscript =
+    ENABLE_CHAT_HISTORY_RENDERING && transcriptRenderingPreferred;
+  const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0];
+  const activeCliId = active.id as CliId;
+  const isMac = window.api?.platform === "darwin";
 
-  const [cfg, setCfg] = useState<AppConfig | null>(null)
-  const [view, setView] = useState<'run' | 'config' | 'settings'>('run')
-  const [settingsTab, setSettingsTab] = useState<'general' | 'about'>('general')
-  const [settingsCheckUpdatesKey, setSettingsCheckUpdatesKey] = useState(0)
-  const [terminal, setTerminal] = useState<ActiveTerminal | null>(null)
-  const [transcriptFor, setTranscriptFor] = useState<SessionInfo | null>(null)
-  const [chatFor, setChatFor] = useState<{ key: string; cwd?: string; resumeId?: string } | null>(null)
-  const [sessions, setSessions] = useState<SessionInfo[]>([])
-  const [loadingSessions, setLoadingSessions] = useState(false)
-  const [openingTerminal, setOpeningTerminal] = useState(false)
-  const [openingDashboard, setOpeningDashboard] = useState(false)
-  const [dashboardError, setDashboardError] = useState<string | null>(null)
-  const [dashboardUrl, setDashboardUrl] = useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
-  const sidebarToggleGuardRef = useRef(0)
+  const [cfg, setCfg] = useState<AppConfig | null>(null);
+  const [view, setView] = useState<"run" | "config" | "settings">("run");
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
+  const [settingsCheckUpdatesKey, setSettingsCheckUpdatesKey] = useState(0);
+  const [tabs, setTabs] = useState<WorkspaceTab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<string | null>(null);
+  const [sessionState, setSessionState] = useState<SessionState>({
+    cliId: null,
+    items: [],
+    loaded: false,
+  });
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [showSessionLoading, setShowSessionLoading] = useState(false);
+  const [openingTerminal, setOpeningTerminal] = useState(false);
+  const [openingDashboard, setOpeningDashboard] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboardUrl, setDashboardUrl] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
+    null,
+  );
+  const sidebarToggleGuardRef = useRef(0);
+  const sessionLoadIdRef = useRef(0);
+  const activeSessionRequestRef = useRef<string | null>(null);
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
 
   // Reload config whenever we land on the run view (profiles may have changed).
   useEffect(() => {
-    window.api.config.get().then(setCfg)
-  }, [view, activeCli])
+    window.api.config.get().then(setCfg);
+  }, [view, activeCli]);
 
   // Read the CLI's own saved sessions (Claude/Codex conversation history).
   const refreshSessions = useCallback(async () => {
-    setLoadingSessions(true)
-    try {
-      setSessions(await window.api.sessions.list(active.id as CliId))
-    } finally {
-      setLoadingSessions(false)
+    const cliId = activeCliId;
+    if (activeSessionRequestRef.current) {
+      void window.api.sessions.cancel(activeSessionRequestRef.current);
+      activeSessionRequestRef.current = null;
     }
-  }, [active.id])
+    const loadId = sessionLoadIdRef.current + 1;
+    sessionLoadIdRef.current = loadId;
+    const requestId = `sessions-${cliId}-${loadId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    activeSessionRequestRef.current = requestId;
+    setSessionState((current) =>
+      current.cliId === cliId ? current : { cliId, items: [], loaded: false },
+    );
+    setLoadingSessions(true);
+    setShowSessionLoading(false);
+    const loadingTimer = window.setTimeout(() => {
+      if (sessionLoadIdRef.current === loadId) setShowSessionLoading(true);
+    }, SESSION_LOADING_DELAY_MS);
+    try {
+      const nextSessions = await window.api.sessions.list(requestId, cliId);
+      if (sessionLoadIdRef.current === loadId && nextSessions)
+        setSessionState({ cliId, items: nextSessions, loaded: true });
+    } catch {
+      if (sessionLoadIdRef.current === loadId) {
+        setSessionState({ cliId, items: [], loaded: true });
+      }
+    } finally {
+      window.clearTimeout(loadingTimer);
+      if (activeSessionRequestRef.current === requestId) {
+        activeSessionRequestRef.current = null;
+      }
+      if (sessionLoadIdRef.current === loadId) {
+        setLoadingSessions(false);
+        setShowSessionLoading(false);
+      }
+    }
+  }, [activeCliId]);
 
   useEffect(() => {
-    if (view === 'run' && !terminal && !chatFor && !transcriptFor) refreshSessions()
-  }, [view, terminal, chatFor, transcriptFor, refreshSessions])
+    if (view === "run" && !activeTab) refreshSessions();
+  }, [view, activeTab, refreshSessions]);
 
-  // Switching CLI closes the current terminal/transcript/chat (back to landing).
   useEffect(() => {
-    setTerminal(null)
-    setTranscriptFor(null)
-    setChatFor(null)
-  }, [activeCli])
+    if (view === "run" && !activeTab) return;
+    const requestId = activeSessionRequestRef.current;
+    if (!requestId) return;
+    activeSessionRequestRef.current = null;
+    sessionLoadIdRef.current += 1;
+    setLoadingSessions(false);
+    setShowSessionLoading(false);
+    void window.api.sessions.cancel(requestId);
+  }, [view, activeTab]);
 
-  const chatSupported = ENABLE_CHAT_HISTORY_RENDERING && CHAT_CLIS.has(active.id as CliId)
+  useEffect(() => {
+    return () => {
+      const requestId = activeSessionRequestRef.current;
+      if (requestId) void window.api.sessions.cancel(requestId);
+      activeSessionRequestRef.current = null;
+    };
+  }, []);
 
-  const installed = cfg?.install[active.id as CliId]?.installed ?? false
+  const chatSupported =
+    ENABLE_CHAT_HISTORY_RENDERING && CHAT_CLIS.has(activeCliId);
 
-  const newKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+  const installed = cfg?.install[activeCliId]?.installed ?? false;
+  const visibleSessions =
+    sessionState.cliId === activeCliId ? sessionState.items : [];
+  const sessionsLoaded =
+    sessionState.cliId === activeCliId && sessionState.loaded;
+  const showSessionSkeleton = showSessionLoading && !sessionsLoaded;
 
-  const start = (mode: 'cli' | 'shell') =>
-    setTerminal({ key: newKey(), mode })
+  const newKey = () =>
+    `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+  const cliName = (cliId: CliId) =>
+    CLIS.find((c) => c.id === cliId)?.name ?? cliId;
+  const activateTab = useCallback(
+    (tab: WorkspaceTab) => {
+      setActiveTabId(tab.id);
+      setActiveCli(tab.cliId);
+      setView("run");
+    },
+    [setActiveCli],
+  );
+
+  const openTab = (
+    tab: Omit<WorkspaceTab, "id" | "status"> & {
+      status?: WorkspaceTab["status"];
+    },
+  ) => {
+    const next: WorkspaceTab = {
+      ...tab,
+      id: newKey(),
+      status: tab.status ?? (tab.kind === "transcript" ? "idle" : "running"),
+    };
+    setTabs((current) => [...current, next]);
+    activateTab(next);
+  };
+
+  const closeTab = (id: string) => {
+    const index = tabs.findIndex((tab) => tab.id === id);
+    if (index < 0) return;
+    const next = tabs.filter((tab) => tab.id !== id);
+    setTabs(next);
+    if (activeTabId === id) {
+      const fallback = next[Math.max(0, index - 1)] ?? next[0] ?? null;
+      setActiveTabId(fallback?.id ?? null);
+      if (fallback) setActiveCli(fallback.cliId);
+    }
+  };
+
+  const markTabExited = useCallback((id: string) => {
+    setTabs((current) =>
+      current.map((tab) =>
+        tab.id === id ? { ...tab, status: "exited", busy: false } : tab,
+      ),
+    );
+  }, []);
+
+  const setTabBusy = useCallback((id: string, busy: boolean) => {
+    setTabs((current) =>
+      current.map((tab) => {
+        if (tab.id !== id || tab.status === "exited" || tab.busy === busy)
+          return tab;
+        return { ...tab, busy };
+      }),
+    );
+  }, []);
+
+  const handleTerminalExit = useCallback(
+    (id: string, code: number): boolean => {
+      if (code !== 0) {
+        markTabExited(id);
+        return true;
+      }
+
+      setTabs((current) => current.filter((tab) => tab.id !== id));
+      if (activeTabId === id) setActiveTabId(null);
+      setView("run");
+      return false;
+    },
+    [activeTabId, markTabExited],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.isComposing || event.repeat) return;
+      const usesPrimaryModifier = isMac ? event.metaKey : event.ctrlKey;
+      if (!usesPrimaryModifier || event.altKey || event.shiftKey) return;
+      if (!/^[1-9]$/.test(event.key)) return;
+
+      const tab = tabs[Number(event.key) - 1];
+      if (!tab) return;
+      event.preventDefault();
+      activateTab(tab);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activateTab, isMac, tabs]);
+
+  const start = (mode: "cli" | "shell") =>
+    openTab({
+      cliId: activeCliId,
+      kind: "terminal",
+      mode,
+      title:
+        mode === "shell"
+          ? t("shell.shellTabTitle")
+          : t("shell.newSessionTitle", { name: active.name }),
+    });
 
   // Start a fresh in-UI chat (programmatic mode) with the CLI's default cwd.
-  const startChat = () => setChatFor({ key: newKey() })
+  const startChat = () =>
+    openTab({
+      cliId: activeCliId,
+      kind: "chat",
+      title: t("shell.newSessionTitle", { name: active.name }),
+    });
+
+  const backToHistory = () => {
+    setActiveTabId(null);
+    setView("run");
+  };
 
   const openSettings = () => {
-    setTerminal(null)
-    setTranscriptFor(null)
-    setChatFor(null)
-    setSettingsTab('general')
-    setView('settings')
-  }
+    setSettingsTab("general");
+    setView("settings");
+  };
 
-  const toggleSidebarFromChrome = (event: SyntheticEvent<HTMLButtonElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const now = Date.now()
-    if (now - sidebarToggleGuardRef.current < 180) return
-    sidebarToggleGuardRef.current = now
-    toggleSidebar()
-  }
+  const toggleSidebarFromChrome = (
+    event: SyntheticEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const now = Date.now();
+    if (now - sidebarToggleGuardRef.current < 180) return;
+    sidebarToggleGuardRef.current = now;
+    toggleSidebar();
+  };
 
   const stopChromePointer = (event: SyntheticEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-  }
+    event.stopPropagation();
+  };
 
   useEffect(() => {
     return window.api.app.onCheckUpdates?.(() => {
-      setTerminal(null)
-      setTranscriptFor(null)
-      setChatFor(null)
-      setSettingsTab('about')
-      setSettingsCheckUpdatesKey((key) => key + 1)
-      setView('settings')
-    })
-  }, [])
+      setSettingsTab("about");
+      setSettingsCheckUpdatesKey((key) => key + 1);
+      setView("settings");
+    });
+  }, []);
 
   useEffect(() => {
     return window.api.app.onOpenAbout?.(() => {
-      setTerminal(null)
-      setTranscriptFor(null)
-      setChatFor(null)
-      setSettingsTab('about')
-      setView('settings')
-    })
-  }, [])
+      setSettingsTab("about");
+      setView("settings");
+    });
+  }, []);
 
   const openExternalTerminal = async () => {
-    setOpeningTerminal(true)
+    setOpeningTerminal(true);
     try {
       await window.api.terminal.openExternal({
-        cliId: active.id as CliId,
-        mode: 'cli'
-      })
+        cliId: activeCliId,
+        mode: "cli",
+      });
     } finally {
-      setOpeningTerminal(false)
+      setOpeningTerminal(false);
     }
-  }
+  };
 
   const openDashboard = async () => {
-    setOpeningDashboard(true)
-    setDashboardError(null)
-    setDashboardUrl(null)
+    setOpeningDashboard(true);
+    setDashboardError(null);
+    setDashboardUrl(null);
     try {
-      const result = await window.api.dashboard.launch(active.id as CliId)
+      const result = await window.api.dashboard.launch(activeCliId);
       if (result.ok) {
-        setDashboardUrl(result.url)
+        setDashboardUrl(result.url);
       } else {
-        setDashboardError(result.error)
+        setDashboardError(result.error);
       }
     } finally {
-      setOpeningDashboard(false)
+      setOpeningDashboard(false);
     }
-  }
+  };
 
-  // Open a terminal resuming a session (or fresh when no id), closing chat/transcript.
-  const openTerminal = (resumeId?: string, dir?: string) => {
-    setTranscriptFor(null)
-    setChatFor(null)
-    setTerminal({ key: newKey(), mode: 'cli', cwd: dir, resumeId })
-  }
+  // Open a terminal resuming a session (or fresh when no id) in its own tab.
+  const openTerminal = (
+    cliId: CliId,
+    resumeId?: string,
+    dir?: string,
+    title?: string,
+  ) => {
+    openTab({
+      cliId,
+      kind: "terminal",
+      mode: "cli",
+      cwd: dir,
+      resumeId,
+      title: title ?? t("shell.newSessionTitle", { name: cliName(cliId) }),
+    });
+  };
 
   // Click a saved session. One clear path per mode:
   //  - UI mode + chat-capable CLI → open it in the chat view (history + continue).
   //  - UI mode + non-chat CLI → read-only transcript (defensive; all current CLIs chat).
   //  - terminal mode → resume straight in the terminal.
   const resume = (s: SessionInfo) => {
-    if (renderTranscript && CHAT_CLIS.has(s.cliId)) {
-      setChatFor({ key: newKey(), cwd: s.cwd, resumeId: s.id })
-    } else if (renderTranscript) {
-      setTranscriptFor(s)
-    } else {
-      openTerminal(s.id, s.cwd)
+    const existing = tabs.find(
+      (tab) =>
+        tab.cliId === s.cliId &&
+        tab.resumeId === s.id &&
+        tab.status !== "exited",
+    );
+    if (existing) {
+      activateTab(existing);
+      return;
     }
-  }
+
+    if (renderTranscript && CHAT_CLIS.has(s.cliId)) {
+      openTab({
+        cliId: s.cliId,
+        kind: "chat",
+        cwd: s.cwd,
+        resumeId: s.id,
+        session: s,
+        title: s.name,
+      });
+    } else if (renderTranscript) {
+      openTab({
+        cliId: s.cliId,
+        kind: "transcript",
+        resumeId: s.id,
+        session: s,
+        title: s.name,
+        status: "idle",
+      });
+    } else {
+      openTerminal(s.cliId, s.id, s.cwd, s.name);
+    }
+  };
 
   const confirmDeleteSession = async () => {
-    if (!deleteTarget || deletingSessionId) return
-    setDeletingSessionId(deleteTarget.id)
-    setDeleteError(null)
+    if (!deleteTarget || deletingSessionId) return;
+    setDeletingSessionId(deleteTarget.id);
+    setDeleteError(null);
     try {
       const deleteSession =
-        window.api.sessions.remove ??
-        window.api.sessions.delete
+        window.api.sessions.remove ?? window.api.sessions.delete;
       if (!deleteSession) {
-        throw new Error('会话删除 API 尚未加载，请重启应用窗口后重试')
+        throw new Error("会话删除 API 尚未加载，请重启应用窗口后重试");
       }
-      const result = await deleteSession(deleteTarget.cliId, deleteTarget.id)
+      const result = await deleteSession(deleteTarget.cliId, deleteTarget.id);
       if (!result.ok) {
         setDeleteError(
-          t('shell.deleteSessionFailed', { error: result.error ?? 'Unknown error' })
-        )
-        return
+          t("shell.deleteSessionFailed", {
+            error: result.error ?? "Unknown error",
+          }),
+        );
+        return;
       }
-      setSessions((prev) =>
-        prev.filter((entry) => entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id)
-      )
-      setDeleteTarget(null)
+      setSessionState((current) => ({
+        ...current,
+        items: current.items.filter(
+          (entry) =>
+            entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id,
+        ),
+      }));
+      setDeleteTarget(null);
     } catch (error) {
       setDeleteError(
-        t('shell.deleteSessionFailed', {
-          error: error instanceof Error ? error.message : String(error)
-        })
-      )
+        t("shell.deleteSessionFailed", {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+      );
     } finally {
-      setDeletingSessionId(null)
+      setDeletingSessionId(null);
     }
-  }
-
-  // CLI exited — drop the dead terminal, return to the list (which refetches).
-  const onTerminalExit = () => setTerminal(null)
+  };
 
   const fmtTime = (ms: number) => {
-    const d = new Date(ms)
-    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  }
+    const d = new Date(ms);
+    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  };
 
   return (
-    <div className="relative flex h-full overflow-hidden bg-base">
-      {isMac && (
+    <div className="relative flex h-full overflow-hidden bg-base p-1.5">
+      {isMac && view !== "settings" && (
         <button
           type="button"
           onPointerDown={stopChromePointer}
           onMouseDown={stopChromePointer}
           onClick={toggleSidebarFromChrome}
-          className="no-drag absolute top-1.5 z-50 grid size-7 place-items-center rounded-md text-text-weak transition-colors hover:bg-[var(--selection-base)] hover:text-text-strong"
-          style={{ left: MAC_SIDEBAR_TOGGLE_LEFT }}
-          title={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
-          aria-label={sidebarCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+          className="no-drag absolute z-50 grid size-7 place-items-center rounded-md text-text-weak transition-colors hover:bg-[var(--selection-base)] hover:text-text-strong"
+          style={{
+            top: SHELL_FRAME_PADDING + 10,
+            left: SHELL_FRAME_PADDING + MAC_SIDEBAR_TOGGLE_LEFT,
+          }}
+          title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+          aria-label={
+            sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")
+          }
         >
-          {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          {sidebarCollapsed ? (
+            <PanelLeftOpen size={16} />
+          ) : (
+            <PanelLeftClose size={16} />
+          )}
         </button>
       )}
       <Modal
         open={!!deleteTarget}
         onClose={() => {
-          if (deletingSessionId) return
-          setDeleteTarget(null)
-          setDeleteError(null)
+          if (deletingSessionId) return;
+          setDeleteTarget(null);
+          setDeleteError(null);
         }}
-        title={t('shell.deleteSessionTitle')}
+        title={t("shell.deleteSessionTitle")}
       >
         <div className="space-y-4">
           <div>
             <p className="text-[14px] text-text-strong">
-              {t('shell.deleteSessionMessage', { name: deleteTarget?.name ?? '' })}
+              {t("shell.deleteSessionMessage", {
+                name: deleteTarget?.name ?? "",
+              })}
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-text-weak">
-              {t('shell.deleteSessionHint')}
+              {t("shell.deleteSessionHint")}
             </p>
           </div>
           {deleteError && (
             <div
               className="rounded-lg border border-dashed px-3 py-2 text-[12px]"
-              style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+              style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
             >
               {deleteError}
             </div>
@@ -270,240 +512,576 @@ export function Shell() {
             <Button
               variant="secondary"
               onClick={() => {
-                setDeleteTarget(null)
-                setDeleteError(null)
+                setDeleteTarget(null);
+                setDeleteError(null);
               }}
               disabled={!!deletingSessionId}
             >
-              {t('common.cancel')}
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={confirmDeleteSession}
               disabled={!!deletingSessionId}
-              style={{ background: 'var(--danger)', color: '#fff' }}
+              style={{ background: "var(--danger)", color: "#fff" }}
             >
-              {deletingSessionId ? t('shell.deleteSessionDeleting') : t('shell.deleteSessionConfirm')}
+              {deletingSessionId
+                ? t("shell.deleteSessionDeleting")
+                : t("shell.deleteSessionConfirm")}
             </Button>
           </div>
         </div>
       </Modal>
-      <Sidebar cfg={cfg} view={view} onSelectCli={() => setView('run')} onOpenSettings={openSettings} />
+      {view === "settings" ? (
+        <SettingsSidebar
+          activeTab={settingsTab}
+          onSelectTab={setSettingsTab}
+          onBack={() => setView("run")}
+        />
+      ) : (
+        <Sidebar
+          cfg={cfg}
+          view={view}
+          onSelectCli={() => {
+            setActiveTabId(null);
+            setView("run");
+          }}
+          onOpenSettings={openSettings}
+        />
+      )}
 
       {/* Main pane */}
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-base">
-        <div
-          className={`flex shrink-0 items-center gap-3 bg-base/80 px-4 backdrop-blur-xl ${
-            isMac ? 'h-10 pr-4' : 'h-11 border-b border-border-weak'
-          } ${isMac ? 'drag-region transition-[padding-left] duration-180 ease-out' : ''}`}
-          style={{
-            paddingLeft: isMac
-              ? sidebarCollapsed
-                ? MAC_SIDEBAR_TOGGLE_LEFT + 38
-                : 20
-              : undefined
-          }}
-        >
-          {view === 'settings' ? (
-            <h1 className="font-display text-[15px] font-semibold text-text-strong">{t('settings.title')}</h1>
-          ) : (
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border-weak bg-stronger">
+        {view === "run" && (
+          <div
+            className={`relative flex shrink-0 items-center gap-3 bg-stronger px-5 ${
+              isMac ? "h-[46px] pr-4" : "h-11 border-b border-border-weak"
+            } ${isMac ? "transition-[padding-left] duration-180 ease-out" : ""}`}
+            style={{
+              paddingLeft: isMac
+                ? sidebarCollapsed
+                  ? MAC_SIDEBAR_TOGGLE_LEFT + 38
+                  : 20
+                : undefined,
+            }}
+          >
+            {isMac && (
+              <div
+                className="drag-region absolute inset-y-0 right-0"
+                style={{
+                  left: sidebarCollapsed ? MAC_SIDEBAR_TOGGLE_LEFT + 36 : 0,
+                }}
+              />
+            )}
             <>
-              <div className="flex gap-0.5 rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
-                {(['run', 'config'] as const).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => setView(v)}
-                    className={`no-drag rounded-[5px] px-2.5 py-1 text-[13px] font-medium transition-colors ${
-                      view === v
-                        ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
-                        : 'text-text-weak hover:text-text-strong'
-                    }`}
-                  >
-                    {v === 'run' ? t('shell.tabRun') : t('shell.tabConfig')}
-                  </button>
-                ))}
-              </div>
-              <div className="ml-auto flex items-center gap-2">
+              <h1 className="relative z-10 font-display text-[15px] font-semibold leading-none text-text-strong">
+                {active.name}
+              </h1>
+              <div className="relative z-10 ml-auto flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setView("config")}
+                  title={t("shell.openAgentSettings", { name: active.name })}
+                >
+                  <SlidersHorizontal size={13} />
+                  {t("shell.agentSettings")}
+                </Button>
                 <Chip label={active.name} color={active.accent} />
-                <Chip label={installed ? t('sidebar.installed') : t('sidebar.notInstalled')} />
+                <Chip
+                  label={
+                    installed
+                      ? t("sidebar.installed")
+                      : t("sidebar.notInstalled")
+                  }
+                />
               </div>
             </>
-          )}
-        </div>
-
-        {view === 'settings' ? (
-          <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
-            <SettingsPage initialTab={settingsTab} checkUpdatesKey={settingsCheckUpdatesKey} />
-          </div>
-        ) : view === 'config' ? (
-          <div className="min-h-0 flex-1 overflow-y-auto" style={{ background: 'var(--canvas-gradient)' }}>
-            <ConfigView cliId={active.id as CliId} />
-          </div>
-        ) : (
-          <div className="relative min-h-0 flex-1 overflow-hidden" style={{ background: 'var(--canvas-gradient)' }}>
-            {terminal ? (
-              <div className="absolute inset-0 p-3">
-                <TerminalView
-                  cliId={active.id as CliId}
-                  mode={terminal.mode}
-                  cwd={terminal.cwd}
-                  resumeId={terminal.resumeId}
-                  sessionKey={terminal.key}
-                  onExit={onTerminalExit}
-                />
-              </div>
-            ) : chatFor ? (
-              <div className="absolute inset-0">
-                <ChatView
-                  key={chatFor.key}
-                  cliId={active.id as CliId}
-                  cwd={chatFor.cwd}
-                  resumeId={chatFor.resumeId}
-                  onBack={() => setChatFor(null)}
-                />
-              </div>
-            ) : transcriptFor ? (
-              <div className="absolute inset-0">
-                <TranscriptView
-                  cliId={active.id as CliId}
-                  sessionId={transcriptFor.id}
-                  name={transcriptFor.name}
-                  onResume={() => openTerminal(transcriptFor.id, transcriptFor.cwd)}
-                  onBack={() => setTranscriptFor(null)}
-                />
-              </div>
-            ) : (
-              <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-4 px-7 py-6">
-                <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-text-weak">
-                      {t('shell.history')}
-                    </span>
-                    <button
-                      onClick={refreshSessions}
-                      className="text-[12px] text-text-weak hover:text-text-strong"
-                    >
-                      {t('shell.refresh')}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap items-center justify-end gap-2">
-                    {active.id === 'hermes' && (
-                      <Button
-                        variant="secondary"
-                        onClick={openDashboard}
-                        disabled={openingDashboard || !installed}
-                        title={dashboardError ?? undefined}
-                      >
-                        <Gauge size={13} />
-                        {openingDashboard ? t('shell.openingDashboard') : t('shell.openDashboard')}
-                      </Button>
-                    )}
-                    <Button variant="secondary" onClick={openExternalTerminal} disabled={openingTerminal || !installed}>
-                      {t('shell.openTerminal')}
-                    </Button>
-                    {renderTranscript && chatSupported ? (
-                      <Button onClick={startChat} disabled={!installed}>
-                        {installed ? t('shell.newSession') : t('shell.installFirst')}
-                      </Button>
-                    ) : (
-                      <Button onClick={() => start('cli')} disabled={!installed}>
-                        {installed ? t('shell.newSession') : t('shell.installFirst')}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                  {dashboardError && active.id === 'hermes' && (
-                    <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
-                      {dashboardError}
-                    </div>
-                  )}
-                  {dashboardUrl && active.id === 'hermes' && (
-                    <div className="mb-3 rounded-md border border-border-weak bg-surface/85 px-3 py-2 text-[12px] text-text-base">
-                      {t('shell.dashboardReady')}{' '}
-                      <a
-                        className="text-accent hover:underline"
-                        href={dashboardUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {dashboardUrl}
-                      </a>
-                    </div>
-                  )}
-                  {loadingSessions ? (
-                    <div className="px-1 text-[13px] text-text-weak">{t('shell.loadingSessions')}</div>
-                  ) : sessions.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 px-4 py-12 text-center text-[13px] text-text-weak shadow-[var(--shadow-card)]">
-                      {t('shell.noHistory', { name: active.name })}
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {sessions.map((s) => (
-                        <div
-                          key={s.id}
-                          className="group relative rounded-xl border border-border-weak bg-surface/92 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]"
-                        >
-                          <button
-                            onClick={() => resume(s)}
-                            className="flex w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
-                            title={t('shell.resumeTitle')}
-                          >
-                            <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak text-text-strong group-hover:bg-selection">
-                              <CliIcon cliId={active.id as CliId} size={15} />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate text-[13px] text-text-strong">{s.name}</div>
-                              <div className="truncate text-[11px] text-text-weak">
-                                {fmtTime(s.updatedAt)}
-                              </div>
-                            </div>
-                          </button>
-                          <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 rounded-md bg-surface/95 p-1 opacity-0 ring-1 ring-border-weak transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                resume(s)
-                              }}
-                              className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text-strong focus:bg-surface-hover focus:text-text-strong"
-                              title={t('shell.resumeTitle')}
-                              aria-label={t('shell.resumeTitle')}
-                            >
-                              <Play size={13} />
-                            </button>
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                setDeleteError(null)
-                                setDeleteTarget(s)
-                              }}
-                              className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-danger focus:bg-surface-hover focus:text-danger"
-                              title={t('shell.deleteSession')}
-                              aria-label={t('shell.deleteSession')}
-                              disabled={deletingSessionId === s.id}
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
+
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-stronger">
+          {view === "settings" && (
+            <div className="absolute inset-0 z-20 overflow-hidden">
+              <SettingsPage
+                tab={settingsTab}
+                checkUpdatesKey={settingsCheckUpdatesKey}
+              />
+            </div>
+          )}
+          {view === "config" && (
+            <div className="absolute inset-0 z-20 overflow-y-auto">
+              <ConfigView
+                cliId={activeCliId}
+                onBack={() => {
+                  setActiveTabId(null);
+                  setView("run");
+                }}
+              />
+            </div>
+          )}
+          <div
+            className={`absolute inset-0 flex min-h-0 flex-col transition-opacity duration-120 ${
+              view === "run"
+                ? "z-10 opacity-100"
+                : "z-0 pointer-events-none opacity-0"
+            }`}
+          >
+            {tabs.length > 0 && (
+              <WorkspaceTabs
+                tabs={tabs}
+                activeTabId={activeTabId}
+                cliName={cliName}
+                onActivate={activateTab}
+                onClose={closeTab}
+                onNew={() => {
+                  if (renderTranscript && chatSupported) startChat();
+                  else start("cli");
+                }}
+                newDisabled={!installed}
+                newTitle={
+                  installed ? t("shell.newTab") : t("shell.installFirst")
+                }
+                closeTitle={t("shell.closeTab")}
+                runningLabel={t("shell.tabRunning")}
+                exitedLabel={t("shell.tabExited")}
+                backToHistoryLabel={t("shell.backToHistory")}
+                onBackToHistory={backToHistory}
+              />
+            )}
+            <div className="relative min-h-0 flex-1 overflow-hidden">
+              {tabs.map((tab) => {
+                const selected = tab.id === activeTabId;
+                return (
+                  <div
+                    key={tab.id}
+                    className={`absolute inset-0 ${
+                      selected
+                        ? "visible pointer-events-auto z-10"
+                        : "invisible pointer-events-none z-0"
+                    } ${tab.kind === "terminal" ? "p-3" : ""}`}
+                    aria-hidden={!selected}
+                  >
+                    {tab.kind === "terminal" ? (
+                      <TerminalView
+                        cliId={tab.cliId}
+                        mode={tab.mode ?? "cli"}
+                        cwd={tab.cwd}
+                        resumeId={tab.resumeId}
+                        sessionKey={tab.id}
+                        onActivityChange={(busy) => setTabBusy(tab.id, busy)}
+                        onExit={(code) => handleTerminalExit(tab.id, code)}
+                      />
+                    ) : tab.kind === "chat" ? (
+                      <ChatView
+                        cliId={tab.cliId}
+                        cwd={tab.cwd}
+                        resumeId={tab.resumeId}
+                        onStreamingChange={(streaming) =>
+                          setTabBusy(tab.id, streaming)
+                        }
+                        onBack={() => closeTab(tab.id)}
+                      />
+                    ) : tab.session ? (
+                      <TranscriptView
+                        cliId={tab.cliId}
+                        sessionId={tab.session.id}
+                        name={tab.session.name}
+                        onResume={() =>
+                          openTerminal(
+                            tab.cliId,
+                            tab.session?.id,
+                            tab.session?.cwd,
+                            tab.session?.name,
+                          )
+                        }
+                        onBack={() => closeTab(tab.id)}
+                      />
+                    ) : null}
+                  </div>
+                );
+              })}
+              {!activeTab && (
+                <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-4 px-7 py-6">
+                  <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-text-weak">
+                        {t("shell.history")}
+                      </span>
+                      <button
+                        onClick={refreshSessions}
+                        disabled={loadingSessions}
+                        className="no-drag text-[12px] text-text-weak transition-colors hover:text-text-strong disabled:cursor-default disabled:text-text-muted"
+                      >
+                        {loadingSessions
+                          ? t("shell.loadingSessions")
+                          : t("shell.refresh")}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {activeCliId === "hermes" && (
+                        <Button
+                          variant="secondary"
+                          onClick={openDashboard}
+                          disabled={openingDashboard || !installed}
+                          title={dashboardError ?? undefined}
+                        >
+                          <Gauge size={13} />
+                          {openingDashboard
+                            ? t("shell.openingDashboard")
+                            : t("shell.openDashboard")}
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        onClick={openExternalTerminal}
+                        disabled={openingTerminal || !installed}
+                      >
+                        {t("shell.openTerminal")}
+                      </Button>
+                      {renderTranscript && chatSupported ? (
+                        <Button onClick={startChat} disabled={!installed}>
+                          {installed
+                            ? t("shell.newSession")
+                            : t("shell.installFirst")}
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => start("cli")}
+                          disabled={!installed}
+                        >
+                          {installed
+                            ? t("shell.newSession")
+                            : t("shell.installFirst")}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <ScrollFade
+                    className="h-full min-h-0 overflow-y-auto pr-1"
+                    ariaBusy={loadingSessions}
+                    watchKey={`${activeCliId}:${visibleSessions.length}:${showSessionSkeleton ? "loading" : "loaded"}`}
+                  >
+                    {dashboardError && activeCliId === "hermes" && (
+                      <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
+                        {dashboardError}
+                      </div>
+                    )}
+                    {dashboardUrl && activeCliId === "hermes" && (
+                      <div className="mb-3 rounded-md border border-border-weak bg-surface/85 px-3 py-2 text-[12px] text-text-base">
+                        {t("shell.dashboardReady")}{" "}
+                        <a
+                          className="text-accent hover:underline"
+                          href={dashboardUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {dashboardUrl}
+                        </a>
+                      </div>
+                    )}
+                    {showSessionSkeleton ? (
+                      <SessionListSkeleton label={t("shell.loadingSessions")} />
+                    ) : !sessionsLoaded ? null : visibleSessions.length ===
+                      0 ? (
+                      <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 px-4 py-12 text-center text-[13px] text-text-weak shadow-[var(--shadow-card)]">
+                        {t("shell.noHistory", { name: active.name })}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {visibleSessions.map((s) => (
+                          <div
+                            key={s.id}
+                            className="group relative rounded-xl border border-border-weak bg-surface/92 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]"
+                          >
+                            <button
+                              onClick={() => resume(s)}
+                              className="flex w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+                              title={t("shell.resumeTitle")}
+                            >
+                              <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak text-text-strong group-hover:bg-selection">
+                                <CliIcon cliId={activeCliId} size={15} />
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-[13px] text-text-strong">
+                                  {s.name}
+                                </div>
+                                <div className="truncate text-[11px] text-text-weak">
+                                  {fmtTime(s.updatedAt)}
+                                </div>
+                              </div>
+                            </button>
+                            <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 rounded-md bg-surface/95 p-1 opacity-0 ring-1 ring-border-weak transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  resume(s);
+                                }}
+                                className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text-strong focus:bg-surface-hover focus:text-text-strong"
+                                title={t("shell.resumeTitle")}
+                                aria-label={t("shell.resumeTitle")}
+                              >
+                                <Play size={13} />
+                              </button>
+                              <button
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setDeleteError(null);
+                                  setDeleteTarget(s);
+                                }}
+                                className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-danger focus:bg-surface-hover focus:text-danger"
+                                title={t("shell.deleteSession")}
+                                aria-label={t("shell.deleteSession")}
+                                disabled={deletingSessionId === s.id}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </ScrollFade>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </main>
     </div>
-  )
+  );
 }
 
 function Chip({ label, color }: { label: string; color?: string }) {
   return (
-    <span className="flex items-center gap-1.5 rounded-md border border-border-weak bg-surface/80 px-2 py-0.5 text-[12px] text-text-base shadow-[0_1px_1px_rgba(0,0,0,0.03)]">
-      {color && <span className="size-2 rounded-full" style={{ background: color }} />}
+    <span className="flex h-7 items-center gap-1.5 rounded-md border border-border-weak bg-surface/80 px-2.5 text-[12px] leading-none text-text-base shadow-[0_1px_1px_rgba(0,0,0,0.03)]">
+      {color && (
+        <span className="size-2 rounded-full" style={{ background: color }} />
+      )}
       {label}
     </span>
-  )
+  );
+}
+
+function ScrollFade({
+  children,
+  className,
+  ariaBusy,
+  watchKey,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  ariaBusy?: boolean;
+  watchKey?: string;
+}) {
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [showBottomFade, setShowBottomFade] = useState(false);
+
+  const updateFade = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const remaining = el.scrollHeight - el.clientHeight - el.scrollTop;
+    setShowBottomFade(remaining > 2);
+  }, []);
+
+  useLayoutEffect(() => {
+    updateFade();
+  }, [updateFade, watchKey]);
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const resizeObserver = new ResizeObserver(updateFade);
+    resizeObserver.observe(el);
+    resizeObserver.observe(el.parentElement ?? el);
+    updateFade();
+    return () => resizeObserver.disconnect();
+  }, [updateFade]);
+
+  return (
+    <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={scrollerRef}
+        className={className}
+        aria-busy={ariaBusy}
+        onScroll={updateFade}
+      >
+        {children}
+      </div>
+      <div
+        className={`scroll-fade-bottom pointer-events-none absolute inset-x-0 bottom-0 h-10 transition-opacity duration-150 ${
+          showBottomFade ? "opacity-100" : "opacity-0"
+        }`}
+      />
+    </div>
+  );
+}
+
+function WorkspaceTabs({
+  tabs,
+  activeTabId,
+  cliName,
+  onActivate,
+  onClose,
+  onNew,
+  newDisabled,
+  newTitle,
+  closeTitle,
+  runningLabel,
+  exitedLabel,
+  backToHistoryLabel,
+  onBackToHistory,
+}: {
+  tabs: WorkspaceTab[];
+  activeTabId: string | null;
+  cliName: (cliId: CliId) => string;
+  onActivate: (tab: WorkspaceTab) => void;
+  onClose: (id: string) => void;
+  onNew: () => void;
+  newDisabled: boolean;
+  newTitle: string;
+  closeTitle: string;
+  runningLabel: string;
+  exitedLabel: string;
+  backToHistoryLabel: string;
+  onBackToHistory: () => void;
+}) {
+  return (
+    <div className="no-drag flex h-11 shrink-0 items-center gap-1 border-b border-border-weak bg-stronger px-2">
+      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        {tabs.map((tab) => {
+          const selected = tab.id === activeTabId;
+          const isRunning = tab.status === "running";
+          const isBusy = tab.status !== "exited" && tab.busy;
+          const statusTitle =
+            tab.status === "exited"
+              ? exitedLabel
+              : isRunning
+                ? runningLabel
+                : cliName(tab.cliId);
+          return (
+            <div
+              key={tab.id}
+              className={`group flex h-8 min-w-[150px] max-w-[240px] shrink-0 items-center gap-2 rounded-md border px-2 text-[12px] shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-[background,border-color,color,box-shadow,filter] ${
+                selected
+                  ? "border-border-base bg-surface text-text-strong shadow-[var(--shadow-sm)]"
+                  : "border-border-weak bg-surface/58 text-text-base hover:border-border-base hover:bg-surface hover:text-text-strong hover:shadow-[var(--shadow-sm)]"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => onActivate(tab)}
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+                title={`${tab.title} · ${cliName(tab.cliId)}`}
+              >
+                <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-border-weak bg-surface-weak">
+                  <CliIcon cliId={tab.cliId} size={14} />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+                <span
+                  className="grid size-3.5 shrink-0 place-items-center"
+                  title={statusTitle}
+                >
+                  {isBusy ? (
+                    <Loader2 size={12} className="animate-spin text-success" />
+                  ) : (
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        tab.status === "exited"
+                          ? "bg-text-muted"
+                          : isRunning
+                            ? "bg-success"
+                            : "bg-border-base"
+                      }`}
+                    />
+                  )}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onClose(tab.id);
+                }}
+                className="grid size-5 shrink-0 place-items-center rounded-[5px] text-text-muted opacity-70 transition-[background,color,opacity] hover:bg-surface-hover hover:text-text-strong group-hover:opacity-100"
+                title={closeTitle}
+                aria-label={closeTitle}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      {activeTabId && (
+        <button
+          type="button"
+          onClick={onBackToHistory}
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border-weak bg-surface/75 px-2.5 text-[12px] font-medium text-text-base shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-[background,border-color,color,box-shadow] hover:border-border-base hover:bg-surface hover:text-text-strong hover:shadow-[var(--shadow-sm)]"
+          title={backToHistoryLabel}
+          aria-label={backToHistoryLabel}
+        >
+          <History size={13} />
+          {backToHistoryLabel}
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onNew}
+        disabled={newDisabled}
+        className="grid size-8 shrink-0 place-items-center rounded-md text-text-weak transition-[background,color] hover:bg-surface-hover hover:text-text-strong disabled:pointer-events-none disabled:opacity-45"
+        title={newTitle}
+        aria-label={newTitle}
+      >
+        <Plus size={15} />
+      </button>
+    </div>
+  );
+}
+
+function SessionListSkeleton({ label }: { label: string }) {
+  const rows = [
+    { title: "50%", meta: 96 },
+    { title: "40%", meta: 112 },
+    { title: "60%", meta: 80 },
+  ];
+
+  return (
+    <div
+      className="space-y-2"
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+    >
+      {rows.map((row, index) => (
+        <div
+          key={`${row.title}-${row.meta}`}
+          className="rounded-xl border border-border-weak bg-surface/86 px-3 py-2.5 shadow-[var(--shadow-sm)]"
+        >
+          <div className="flex items-center gap-3">
+            <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak">
+              <span
+                className="size-4 animate-pulse rounded bg-border-weak"
+                style={{ animationDelay: `${index * 120}ms` }}
+              />
+            </span>
+            <div className="min-w-0 flex-1 space-y-2">
+              <span
+                className="block h-3 animate-pulse rounded-full bg-surface-weak"
+                style={{ width: row.title, animationDelay: `${index * 120}ms` }}
+              />
+              <span
+                className="block h-2.5 animate-pulse rounded-full bg-surface-weak/70"
+                style={{
+                  width: row.meta,
+                  animationDelay: `${index * 120 + 80}ms`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+      <span className="sr-only">{label}</span>
+    </div>
+  );
 }

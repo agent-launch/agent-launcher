@@ -10,6 +10,7 @@ interface Props {
   cliId: CliId
   cwd?: string
   resumeId?: string
+  onStreamingChange?: (streaming: boolean) => void
   onBack: () => void
 }
 
@@ -17,7 +18,7 @@ interface Props {
  * Live in-UI chat with a CLI running in programmatic mode (MVP: Claude Code).
  * Reuses the shared MessageList renderer; appends streamed parts as they arrive.
  */
-export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
+export function ChatView({ cliId, cwd, resumeId, onStreamingChange, onBack }: Props) {
   const t = useT()
   const active = useMemo(() => CLIS.find((c) => c.id === cliId), [cliId])
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
@@ -28,6 +29,16 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
   const handleRef = useRef<string | null>(null)
   const pendingRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const onStreamingChangeRef = useRef(onStreamingChange)
+  onStreamingChangeRef.current = onStreamingChange
+
+  useEffect(() => {
+    onStreamingChangeRef.current?.(streaming)
+  }, [streaming])
+
+  useEffect(() => {
+    return () => onStreamingChangeRef.current?.(false)
+  }, [])
 
   // Start the chat process once; subscribe before starting so no early event is missed.
   useEffect(() => {
@@ -109,8 +120,8 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
   }, [])
 
   return (
-    <div className="flex h-full flex-col bg-base">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak bg-base/95 px-4">
+    <div className="flex h-full flex-col bg-stronger">
+      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border-weak bg-stronger px-4">
         <button
           onClick={onBack}
           className="no-drag grid size-7 place-items-center rounded-md text-text-weak hover:bg-surface-hover hover:text-text-strong"
@@ -237,7 +248,7 @@ const ChatComposer = memo(function ChatComposer({
   }
 
   return (
-    <div className="shrink-0 bg-base px-6 pb-5 pt-3">
+    <div className="shrink-0 bg-stronger px-6 pb-5 pt-3">
       <div className="mx-auto w-full max-w-[980px]">
         <div className="rounded-xl border border-border-base bg-[var(--composer-background)] p-2.5 shadow-[var(--shadow-composer)] transition-colors focus-within:border-border-selected">
           <textarea

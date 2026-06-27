@@ -156,6 +156,7 @@ export type CliSkillPatch = Partial<Omit<CliSkillEntry, 'id'>>
 
 export type InstalledMcpConfigKind =
   | 'codex-toml'
+  | 'codex-plugin'
   | 'json-mcp'
   | 'json-mcp-servers'
   | 'hermes-yaml'
@@ -166,6 +167,9 @@ export interface InstalledMcpEntry {
   name: string
   enabled: boolean
   supportsEnabled: boolean
+  /** Read-only entries (e.g. MCP servers bundled by a Codex plugin) can't be
+   * added/edited/deleted from the UI — they're managed by their plugin. */
+  readOnly?: boolean
   transport: McpTransport
   command?: string
   args?: string
@@ -262,6 +266,122 @@ export interface AppInfo {
   configPath: string
   /** True when AgentLauncher's sandbox config existed before renderer startup. */
   hasConfig: boolean
+}
+
+export interface AppUpdateReleaseAsset {
+  name: string
+  url: string
+  size?: number
+}
+
+export interface AppUpdateRelease {
+  version: string
+  tagName: string
+  name: string
+  notes?: string
+  url: string
+  publishedAt?: string
+  assets: AppUpdateReleaseAsset[]
+}
+
+export interface AppUpdatePolicy {
+  force: boolean
+  minVersion?: string
+  latestVersion?: string
+  message?: string
+  url?: string
+}
+
+export type AppUpdateStatusKind =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'up-to-date'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export interface AppUpdateStatus {
+  status: AppUpdateStatusKind
+  supported: boolean
+  /** False when this package format supports updates, but no updater feed was found for this version/platform. */
+  canAutoDownload?: boolean
+  currentVersion: string
+  latestRelease?: AppUpdateRelease
+  policy?: AppUpdatePolicy
+  percent?: number
+  error?: string
+  checkedAt?: number
+}
+
+export type AppUpdateCheckResult =
+  | { ok: true; status: AppUpdateStatus }
+  | { ok: false; status: AppUpdateStatus; error: string }
+
+export type AppUpdateDownloadResult =
+  | { ok: true; status: AppUpdateStatus }
+  | { ok: false; status: AppUpdateStatus; error: string }
+
+export interface AppUpdateDownloadProgress {
+  percent: number
+  bytesPerSecond?: number
+  transferred?: number
+  total?: number
+}
+
+export interface UsageTokenTotals {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheCreationTokens: number
+  totalTokens: number
+}
+
+export interface UsageCostTotals {
+  inputCost: number
+  outputCost: number
+  cacheReadCost: number
+  cacheCreationCost: number
+  totalCost: number
+}
+
+export interface UsageModelBreakdown {
+  model: string
+  requestCount: number
+  tokens: UsageTokenTotals
+  cost: UsageCostTotals
+}
+
+export interface UsageDailyBucket {
+  date: string
+  requestCount: number
+  tokens: UsageTokenTotals
+  cost: UsageCostTotals
+}
+
+export interface UsageCliSummary {
+  cliId: CliId
+  requestCount: number
+  sessionCount: number
+  tokens: UsageTokenTotals
+  cost: UsageCostTotals
+}
+
+export interface UsageScanResult {
+  rangeDays: number
+  summaryDays: number
+  generatedAt: number
+  startedAt: number
+  summaryStartedAt: number
+  endedAt: number
+  requestCount: number
+  sessionCount: number
+  tokens: UsageTokenTotals
+  cost: UsageCostTotals
+  byCli: UsageCliSummary[]
+  byModel: UsageModelBreakdown[]
+  daily: UsageDailyBucket[]
+  errors: string[]
 }
 
 /** A normalized, read-only view of a CLI's saved conversation (for in-UI render). */

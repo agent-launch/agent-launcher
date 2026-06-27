@@ -2,6 +2,10 @@ import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import type {
   AppConfig,
   AppInfo,
+  AppUpdateCheckResult,
+  AppUpdateDownloadProgress,
+  AppUpdateDownloadResult,
+  AppUpdateStatus,
   CliId,
   CliUpdateStatus,
   CliMcpPatch,
@@ -29,7 +33,8 @@ import type {
   ChatEvent,
   ChatStartOptions,
   AuthLoginMethod,
-  AuthStatus
+  AuthStatus,
+  UsageScanResult
 } from '../shared/types'
 
 interface SpawnOptions {
@@ -70,6 +75,28 @@ const api = {
       ipcRenderer.on('app:open-about', listener)
       return () => {
         ipcRenderer.removeListener('app:open-about', listener)
+      }
+    }
+  },
+  appUpdate: {
+    getStatus: (): Promise<AppUpdateStatus> => ipcRenderer.invoke('appUpdate:getStatus'),
+    check: (): Promise<AppUpdateCheckResult> => ipcRenderer.invoke('appUpdate:check'),
+    download: (): Promise<AppUpdateDownloadResult> => ipcRenderer.invoke('appUpdate:download'),
+    install: (): Promise<void> => ipcRenderer.invoke('appUpdate:install'),
+    openReleasePage: (version?: string): Promise<void> =>
+      ipcRenderer.invoke('appUpdate:openReleasePage', version),
+    onStatus: (cb: (status: AppUpdateStatus) => void) => {
+      const listener = (_e: unknown, status: AppUpdateStatus) => cb(status)
+      ipcRenderer.on('appUpdate:status', listener)
+      return () => {
+        ipcRenderer.removeListener('appUpdate:status', listener)
+      }
+    },
+    onDownloadProgress: (cb: (progress: AppUpdateDownloadProgress) => void) => {
+      const listener = (_e: unknown, progress: AppUpdateDownloadProgress) => cb(progress)
+      ipcRenderer.on('appUpdate:download-progress', listener)
+      return () => {
+        ipcRenderer.removeListener('appUpdate:download-progress', listener)
       }
     }
   },
@@ -143,7 +170,9 @@ const api = {
     revealNative: (id: CliId): Promise<string> => ipcRenderer.invoke('config:revealNative', id)
   },
   sessions: {
-    list: (id: CliId): Promise<SessionInfo[]> => ipcRenderer.invoke('sessions:list', id),
+    list: (requestId: string, id: CliId): Promise<SessionInfo[] | null> =>
+      ipcRenderer.invoke('sessions:list', requestId, id),
+    cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke('sessions:cancel', requestId),
     transcript: (id: CliId, sid: string): Promise<Transcript> =>
       ipcRenderer.invoke('sessions:transcript', id, sid),
     remove: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
@@ -164,6 +193,11 @@ const api = {
         ipcRenderer.removeListener('install:progress', listener)
       }
     }
+  },
+  usage: {
+    read: (requestId: string, rangeDays?: number, summaryDays?: number): Promise<UsageScanResult | null> =>
+      ipcRenderer.invoke('usage:read', requestId, rangeDays, summaryDays),
+    cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke('usage:cancel', requestId)
   },
   auth: {
     status: (id: CliId): Promise<AuthStatus> => ipcRenderer.invoke('auth:status', id),

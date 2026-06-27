@@ -10,6 +10,7 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { cliConfigDir, hermesHomeDir, systemCliConfigDir } from './config-paths'
+import { getInstallSource } from './store'
 import type {
   CliId,
   InstalledMcpEntry,
@@ -228,7 +229,11 @@ function parseTomlValue(value: string): unknown {
 
 function listCodexMcp(cliId: CliId, configPath: string): InstalledMcpEntry[] {
   const text = safeRead(configPath)
-  const sections = [...text.matchAll(/^\[mcp_servers\.([^\]]+)\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
+  // Only match direct server tables `[mcp_servers.<name>]`. A bare key with a
+  // dot (e.g. `[mcp_servers.node_repl.env]`) is a TOML subtable, not a server —
+  // the old `[^\]]+` captured it as a bogus `node_repl.env` entry. Quoted names
+  // may legitimately contain dots (`[mcp_servers."my.server"]`).
+  const sections = [...text.matchAll(/^\[mcp_servers\.([A-Za-z0-9_-]+|"[^"]*")\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
   return sections
     .map((match) => {
       const name = match[1].replace(/^"|"$/g, '')
@@ -242,9 +247,81 @@ function listCodexMcp(cliId: CliId, configPath: string): InstalledMcpEntry[] {
     .filter((entry): entry is InstalledMcpEntry => Boolean(entry))
 }
 
+/** Parse `[plugins."<name>@<marketplace>"]` blocks that are `enabled = true`
+ * from a Codex config.toml. Returns `<name>@<marketplace>` ids. */
+function enabledCodexPlugins(configPath: string): string[] {
+  const text = safeRead(configPath)
+  const out: string[] = []
+  // Plugin ids are quoted ("computer-use@openai-bundled") and sit in [plugins."..."].
+  const sections = [...text.matchAll(/^\[plugins\."([^"]+)"\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
+  for (const match of sections) {
+    const id = match[1]
+    const enabled = /^\s*enabled\s*=\s*true\s*$/m.test(match[2])
+    if (enabled) out.push(id)
+  }
+  return out
+}
+
+/** Parse `[marketplaces.<key>]` blocks → { key: sourcePath } for `source_type = "local"`. */
+function codexMarketplaceSources(configPath: string): Record<string, string> {
+  const text = safeRead(configPath)
+  const out: Record<string, string> = {}
+  const sections = [...text.matchAll(/^\[marketplaces\.([A-Za-z0-9_.-]+)\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
+  for (const match of sections) {
+    const key = match[1]
+    const body = match[2]
+    if (!/^\s*source_type\s*=\s*"local"\s*$/m.test(body)) continue
+    const source = body.match(/^\s*source\s*=\s*"([^"]*)"\s*$/m)
+    if (source) out[key] = source[1]
+  }
+  return out
+}
+
+/**
+ * Codex plugins can bundle MCP servers via their plugin.json's `mcpServers`
+ * field pointing at a relative `.mcp.json`. These are real MCP servers (shown
+ * by `codex /mcp`) but live outside config.toml's `[mcp_servers.*]`, so they're
+ * surfaced read-only — managed by their plugin, not editable from the UI.
+ */
+function listCodexPluginMcp(cliId: CliId, configPath: string): InstalledMcpEntry[] {
+  const plugins = enabledCodexPlugins(configPath)
+  if (!plugins.length) return []
+  const sources = codexMarketplaceSources(configPath)
+  const out: InstalledMcpEntry[] = []
+  for (const pluginId of plugins) {
+    const at = pluginId.lastIndexOf('@')
+    const name = at > 0 ? pluginId.slice(0, at) : pluginId
+    const marketplace = at > 0 ? pluginId.slice(at + 1) : ''
+    const root = sources[marketplace]
+    if (!root) continue
+    const pluginJsonPath = join(root, 'plugins', name, '.codex-plugin', 'plugin.json')
+    const pluginJson = readJsonObject(pluginJsonPath)
+    const mcpServersRef = typeof pluginJson.mcpServers === 'string' ? pluginJson.mcpServers : undefined
+    if (!mcpServersRef) continue
+    const mcpJsonPath = resolve(join(root, 'plugins', name), mcpServersRef)
+    if (!existsSync(mcpJsonPath)) continue
+    const mcpJson = readJsonObject(mcpJsonPath)
+    const servers = isObject(mcpJson.mcpServers) ? mcpJson.mcpServers : {}
+    for (const [serverName, raw] of Object.entries(servers)) {
+      const entry = normalizeMcpEntry(cliId, mcpJsonPath, 'codex-plugin', `${pluginId}/${serverName}`, raw)
+      if (!entry) continue
+      entry.name = serverName
+      entry.readOnly = true
+      // The bundled command/path are relative to the plugin dir; show them as-is.
+      out.push(entry)
+    }
+  }
+  return out
+}
+
 function stripCodexMcpSection(content: string, name: string): string {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return content.replace(new RegExp(`^\\[mcp_servers\\.(?:"${escaped}"|${escaped})\\]\\s*\\n[\\s\\S]*?(?=^\\[|(?![\\s\\S]))`, 'm'), '').trimEnd()
+  // Strip the server's own table plus any of its subtables (e.g. `.env`),
+  // which sit as `[mcp_servers.<name>.<sub>]` right after the main block.
+  const header = `^\\[mcp_servers\\.(?:"${escaped}"|${escaped})\\]`
+  const subHeader = `^\\[mcp_servers\\.(?:"${escaped}"|${escaped})\\.[^\\]]+\\]`
+  const block = `${header}\\s*\\n[\\s\\S]*?(?=^\\[|(?![\\s\\S]))(?:${subHeader}\\s*\\n[\\s\\S]*?(?=^\\[|(?![\\s\\S])))*`
+  return content.replace(new RegExp(block, 'm'), '').trimEnd()
 }
 
 function codexMcpBlock(name: string, patch: InstalledMcpPatch): string {
@@ -409,10 +486,16 @@ function mcpConfigPaths(cliId: CliId): Array<{ path: string; key?: 'mcp' | 'mcpS
   if (cliId === 'codex') return [{ path: join(dir, 'config.toml'), kind: 'codex' }]
   if (cliId === 'opencode') return [{ path: join(dir, 'opencode.json'), key: 'mcp' }]
   if (cliId === 'claude-code') {
-    return [
-      { path: join(dir, '.mcp.json'), key: 'mcpServers' },
-      { path: join(dir, 'settings.json'), key: 'mcpServers' }
-    ]
+    // Claude Code keeps user-scope MCP servers in `.claude.json` under
+    // `mcpServers`. Where it looks for that file depends on CLAUDE_CONFIG_DIR:
+    //   - system install (no env var): `~/.claude.json` (home root, sibling
+    //     of the ~/.claude dir, NOT inside it)
+    //   - sandbox install (CLAUDE_CONFIG_DIR set): `<configDir>/.claude.json`
+    //     (inside the redirected config dir)
+    // It does NOT read `settings.json`'s `mcpServers` or a config-dir
+    // `.mcp.json` (that one is project-scoped, read from the cwd).
+    const claudeJson = getInstallSource(cliId) === 'system' ? join(homedir(), '.claude.json') : join(dir, '.claude.json')
+    return [{ path: claudeJson, key: 'mcpServers' }]
   }
   if (cliId === 'hermes') return [{ path: join(dir, 'config.yaml'), kind: 'hermes' }]
   return [
@@ -422,12 +505,19 @@ function mcpConfigPaths(cliId: CliId): Array<{ path: string; key?: 'mcp' | 'mcpS
 }
 
 export function listInstalledMcp(cliId: CliId): InstalledMcpEntry[] {
-  return mcpConfigPaths(cliId).flatMap((config) => {
-    if (config.kind === 'codex') return listCodexMcp(cliId, config.path)
-    if (config.kind === 'hermes') return listHermesMcp(cliId, config.path)
-    if (config.key && existsSync(config.path)) return listJsonMcp(cliId, config.path, config.key)
-    return []
-  })
+  const out: InstalledMcpEntry[] = []
+  for (const config of mcpConfigPaths(cliId)) {
+    if (config.kind === 'codex') {
+      out.push(...listCodexMcp(cliId, config.path))
+      // Plugin-bundled MCP servers (read-only) live outside config.toml.
+      out.push(...listCodexPluginMcp(cliId, config.path))
+    } else if (config.kind === 'hermes') {
+      out.push(...listHermesMcp(cliId, config.path))
+    } else if (config.key && existsSync(config.path)) {
+      out.push(...listJsonMcp(cliId, config.path, config.key))
+    }
+  }
+  return out
 }
 
 export function addInstalledMcp(cliId: CliId, patch: InstalledMcpPatch): InstalledMcpEntry[] {
@@ -442,6 +532,7 @@ export function addInstalledMcp(cliId: CliId, patch: InstalledMcpPatch): Install
 export function updateInstalledMcp(cliId: CliId, entryId: string, patch: InstalledMcpPatch): InstalledMcpEntry[] {
   const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('找不到这个 MCP')
+  if (entry.readOnly) throw new Error('这个 MCP 由插件管理，不能在应用内修改')
   if (entry.configKind === 'codex-toml') updateCodexMcp(entry.configPath, entryId, patch)
   else if (entry.configKind === 'hermes-yaml') updateHermesMcp(entry.configPath, entryId, patch)
   else updateJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId, patch)
@@ -451,6 +542,7 @@ export function updateInstalledMcp(cliId: CliId, entryId: string, patch: Install
 export function deleteInstalledMcp(cliId: CliId, entryId: string): InstalledMcpEntry[] {
   const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('找不到这个 MCP')
+  if (entry.readOnly) throw new Error('这个 MCP 由插件管理，不能在应用内删除')
   if (entry.configKind === 'codex-toml') deleteCodexMcp(entry.configPath, entryId)
   else if (entry.configKind === 'hermes-yaml') deleteHermesMcp(entry.configPath, entryId)
   else deleteJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId)

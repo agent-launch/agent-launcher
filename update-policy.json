@@ -1,0 +1,7 @@
+{
+  "force": false,
+  "minVersion": "0.1.0",
+  "latestVersion": "0.1.0",
+  "message": "请更新到最新版 AgentLauncher，以继续获得安装、配置和安全修复。",
+  "url": "https://github.com/matrixlabs/agent-launcher/releases/latest"
+}

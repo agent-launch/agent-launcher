@@ -22,7 +22,7 @@ import { paths } from './sandbox'
 import { cliConfigDir } from './config-paths'
 import { resolvedEnvPreview } from './cli-env'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
-import { deleteSession, listSessions, readTranscript } from './sessions-history'
+import { deleteSession, readTranscript } from './sessions-history'
 import { detectEnvironment } from './install/detect'
 import { cleanupSystemCli, getCliUpdateStatuses, installCli } from './install/installer'
 import {
@@ -38,6 +38,8 @@ import { authStatus, startAuthLogin, writeAuth, stopAuth } from './auth'
 import { launchDashboard } from './dashboard'
 import { ensureSystemConfigImported } from './import-existing-config'
 import { installSkillFromSkillsSh, searchSkillsSh } from './skills-sh'
+import { cancelUsageRead, readUsageInWorker } from './usage-runner'
+import { cancelSessionList, listSessionsInWorker } from './sessions-runner'
 import {
   addInstalledMcp,
   deleteInstalledMcp,
@@ -158,6 +160,10 @@ export function registerIpc(): void {
   })
   ipcMain.handle('install:cleanupCli', (_e, id: CliId, binPath: string) => cleanupSystemCli(id, binPath))
   ipcMain.handle('install:status', () => getCliUpdateStatuses())
+  ipcMain.handle('usage:read', (_e, requestId: string, rangeDays?: number, summaryDays?: number) =>
+    readUsageInWorker(requestId, rangeDays, summaryDays)
+  )
+  ipcMain.handle('usage:cancel', (_e, requestId: string) => cancelUsageRead(requestId))
 
   ipcMain.handle('auth:status', (_e, id: CliId) => authStatus(id))
   ipcMain.handle('auth:startLogin', (e, id: CliId, method: AuthLoginMethod) =>
@@ -178,7 +184,10 @@ export function registerIpc(): void {
   ipcMain.handle('dashboard:launch', (_e, id: CliId) => launchDashboard(id))
 
   // ---- sessions (CLI-native conversation history) ----
-  ipcMain.handle('sessions:list', (_e, id: CliId) => listSessions(id))
+  ipcMain.handle('sessions:list', (_e, requestId: string, id: CliId) =>
+    listSessionsInWorker(requestId, id)
+  )
+  ipcMain.handle('sessions:cancel', (_e, requestId: string) => cancelSessionList(requestId))
   ipcMain.handle('sessions:transcript', (_e, id: CliId, sid: string) => readTranscript(id, sid))
   ipcMain.handle('sessions:delete', (_e, id: CliId, sid: string) => deleteSession(id, sid))
 

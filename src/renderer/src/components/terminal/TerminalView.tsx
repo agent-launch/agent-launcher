@@ -5,6 +5,8 @@ import '@xterm/xterm/css/xterm.css'
 import { useT } from '@/i18n'
 import type { CliId } from '@shared/types'
 
+const FOCUS_ACTIVITY_SUPPRESS_MS = 1200
+
 interface Props {
   cliId: CliId
   mode: 'cli' | 'shell'
@@ -13,7 +15,8 @@ interface Props {
   resumeId?: string
   /** Bump to force a fresh session (e.g. restart / switch CLI). */
   sessionKey: string | number
-  onExit?: (code: number) => void
+  onActivityChange?: (busy: boolean) => void
+  onExit?: (code: number) => boolean | void
 }
 
 function readVar(name: string, fallback: string): string {
@@ -47,9 +50,11 @@ function terminalTheme() {
   }
 }
 
-export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
+export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivityChange, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const onActivityChangeRef = useRef(onActivityChange)
+  onActivityChangeRef.current = onActivityChange
   // Keep the latest translator in a ref so the once-per-session effect (which
   // intentionally excludes deps) always reads the current locale.
   const t = useT()
@@ -80,18 +85,47 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
 
     let ptyId: string | null = null
     let disposed = false
+    let active = false
+    let idleTimer: number | null = null
+    let suppressActivityUntil = 0
     const offs: Array<() => void> = []
+
+    const setActive = (next: boolean) => {
+      if (active === next) return
+      active = next
+      onActivityChangeRef.current?.(next)
+    }
+    const clearIdleTimer = () => {
+      if (idleTimer == null) return
+      window.clearTimeout(idleTimer)
+      idleTimer = null
+    }
+    const markActivity = () => {
+      if (disposed) return
+      if (Date.now() < suppressActivityUntil) return
+      setActive(true)
+      clearIdleTimer()
+      idleTimer = window.setTimeout(() => {
+        idleTimer = null
+        setActive(false)
+      }, 900)
+    }
 
     offs.push(
       window.api.pty.onData((id, data) => {
-        if (id === ptyId) term.write(data)
+        if (id === ptyId) {
+          markActivity()
+          term.write(data)
+        }
       })
     )
     offs.push(
       window.api.pty.onExit((id, code) => {
         if (id === ptyId) {
-          term.write(`\r\n\x1b[90m${tRef.current('terminal.exited', { code })}\x1b[0m\r\n`)
-          onExit?.(code)
+          clearIdleTimer()
+          setActive(false)
+          const shouldWriteExit = onExit?.(code) !== false
+          if (shouldWriteExit) term.write(`\r\n\x1b[90m${tRef.current('terminal.exited', { code })}\x1b[0m\r\n`)
         }
       })
     )
@@ -138,19 +172,33 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       return true
     })
 
-    window.api.pty
-      .create({ cliId, mode, cwd, resumeId, cols: term.cols, rows: term.rows })
-      .then((id) => {
-        if (disposed) {
-          window.api.pty.kill(id)
-          return
-        }
-        ptyId = id
-        term.focus()
-      })
-      .catch((e: Error) => {
-        term.write(`\r\n\x1b[31m${tRef.current('terminal.launchFailed', { error: e.message })}\x1b[0m\r\n`)
-      })
+    const suppressFocusActivity = () => {
+      suppressActivityUntil = Date.now() + FOCUS_ACTIVITY_SUPPRESS_MS
+      clearIdleTimer()
+      setActive(false)
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') suppressFocusActivity()
+    }
+    window.addEventListener('focus', suppressFocusActivity)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    const startTimer = window.setTimeout(() => {
+      if (disposed) return
+      window.api.pty
+        .create({ cliId, mode, cwd, resumeId, cols: term.cols, rows: term.rows })
+        .then((id) => {
+          if (disposed) {
+            window.api.pty.kill(id)
+            return
+          }
+          ptyId = id
+          term.focus()
+        })
+        .catch((e: Error) => {
+          term.write(`\r\n\x1b[31m${tRef.current('terminal.launchFailed', { error: e.message })}\x1b[0m\r\n`)
+        })
+    }, 0)
 
     const onResize = () => {
       fit.fit()
@@ -161,6 +209,11 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
 
     return () => {
       disposed = true
+      window.clearTimeout(startTimer)
+      clearIdleTimer()
+      setActive(false)
+      window.removeEventListener('focus', suppressFocusActivity)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
       ro.disconnect()
       offs.forEach((off) => off())
       if (ptyId) window.api.pty.kill(ptyId)

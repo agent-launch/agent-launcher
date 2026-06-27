@@ -184,30 +184,105 @@
   }
 }
 
-/* Sidebar resize handle: 8px hit area, graphite hairline on hover. */
+/* Sidebar resize handle: 8px hit area with a full-height edge highlight on hover/drag. */
 .resize-handle {
   position: absolute;
   inset-block: 0;
   inset-inline-end: 0;
   width: 8px;
   transform: translateX(50%);
-  z-index: 10;
+  z-index: 30;
   cursor: col-resize;
 }
 .resize-handle::after {
   content: "";
+  pointer-events: none;
   position: absolute;
-  inset-block: 0;
-  inset-inline-start: 50%;
-  width: 2px;
-  transform: translateX(-50%);
-  background: var(--accent);
+  top: 16px;
+  bottom: 16px;
+  left: calc(50% + 1px);
+  width: 1px;
+  border-radius: 999px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--border-selected) 18%, transparent) 18%,
+    color-mix(in srgb, var(--border-selected) 22%, transparent) 50%,
+    color-mix(in srgb, var(--border-selected) 18%, transparent) 82%,
+    transparent
+  );
   opacity: 0;
-  transition: opacity 0.15s ease-in-out;
+  transform: translateX(-50%) scaleY(0.98);
+  transform-origin: center;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    background 120ms ease;
 }
 .resize-handle:hover::after,
-.resize-handle:active::after {
+.resize-handle--dragging::after {
   opacity: 1;
+  transform: translateX(-50%) scaleY(1);
+}
+.resize-handle--dragging::after {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--accent) 22%, transparent) 18%,
+    color-mix(in srgb, var(--accent) 30%, transparent) 50%,
+    color-mix(in srgb, var(--accent) 22%, transparent) 82%,
+    transparent
+  );
+}
+
+.settings-select-menu {
+  transform-origin: top right;
+  will-change: opacity, transform;
+}
+.settings-select-menu[data-state='open'] {
+  animation: settings-select-menu-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.settings-select-menu[data-state='closed'] {
+  pointer-events: none;
+  animation: settings-select-menu-out 100ms ease both;
+}
+
+.scroll-fade-bottom {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--background-stronger) 0%, transparent),
+    color-mix(in srgb, var(--background-stronger) 88%, transparent) 62%,
+    var(--background-stronger)
+  );
+}
+
+@keyframes settings-select-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes settings-select-menu-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-select-menu[data-state='open'],
+  .settings-select-menu[data-state='closed'] {
+    animation-duration: 1ms;
+  }
 }
 
 /* Thin, theme-aware scrollbars. */

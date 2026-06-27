@@ -33,17 +33,16 @@ export function Sidebar({
 
   return (
     <aside
-      className={`relative flex shrink-0 flex-col overflow-hidden border-r border-border-weak/80 backdrop-blur-xl ${
-        dragging ? '' : 'transition-[width,border-color] duration-180 ease-out'
+      className={`relative z-20 flex shrink-0 flex-col overflow-visible ${
+        dragging ? '' : 'transition-[width] duration-180 ease-out'
       }`}
       style={{
         width: sidebarWidth,
-        borderRightColor: collapsed ? 'transparent' : undefined,
-        background: 'var(--sidebar-gradient)'
+        background: 'var(--background-base)'
       }}
     >
       <div
-        className="flex h-full flex-col"
+        className="flex h-full flex-col overflow-hidden"
         style={{
           width: contentWidth,
           minWidth: contentWidth,
@@ -52,7 +51,11 @@ export function Sidebar({
           transition: dragging ? undefined : 'opacity 120ms ease-out'
         }}
       >
-        {isMac && <div className="drag-region h-10 shrink-0" />}
+        {isMac && (
+          <div className="relative h-10 shrink-0" aria-hidden="true">
+            <div className="drag-region absolute inset-y-0 left-[106px] right-0" />
+          </div>
+        )}
         <nav className={`flex flex-1 flex-col gap-1 px-2.5 ${isMac ? 'pt-3' : 'pt-2.5'}`}>
           {CLIS.map((c) => {
             const selected = view !== 'settings' && c.id === activeCli

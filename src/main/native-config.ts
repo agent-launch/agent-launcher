@@ -34,7 +34,9 @@ function readJsonObject(path: string): Record<string, any> {
 }
 
 function writeJsonObject(path: string, data: Record<string, any>): void {
-  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, { mode: 0o600 })
+  const next = `${JSON.stringify(data, null, 2)}\n`
+  if (existsSync(path) && readFileSync(path, 'utf8') === next) return
+  writeFileSync(path, next, { mode: 0o600 })
 }
 
 function envString(value: string): string {

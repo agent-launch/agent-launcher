@@ -38,7 +38,7 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
   }, [cliId, sessionId])
 
   return (
-    <div className="flex h-full flex-col bg-base">
+    <div className="flex h-full flex-col bg-stronger">
       <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border-weak px-5">
         <button
           onClick={onBack}

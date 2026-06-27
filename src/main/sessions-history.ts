@@ -25,7 +25,7 @@ import type {
   TranscriptRole
 } from '@shared/types'
 
-const MAX_LIST = 50 // only parse the most-recently-touched files
+const CODEX_THREAD_LIST_LIMIT = 500
 const CODEX_THREAD_LIST_TIMEOUT_MS = 1800
 const SESSION_DELETE_TIMEOUT_MS = 15_000
 
@@ -56,11 +56,17 @@ function hermesDbPath(): string {
 }
 
 function opencodeDbPath(): string {
-  if (getInstallSource('opencode') !== 'system') {
-    return join(paths.cliConfig('opencode'), 'xdg-data', 'opencode', 'opencode.db')
-  }
+  return join(opencodeBaseDir(), 'opencode.db')
+}
+
+function opencodeBaseDir(): string {
+  if (getInstallSource('opencode') !== 'system') return join(paths.cliConfig('opencode'), 'xdg-data', 'opencode')
   const dataHome = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share')
-  return join(dataHome, 'opencode', 'opencode.db')
+  return join(dataHome, 'opencode')
+}
+
+function opencodeStorageDir(): string {
+  return join(opencodeBaseDir(), 'storage')
 }
 
 function isMissingFileError(error: unknown): boolean {
@@ -134,7 +140,7 @@ function runCaptured(
 }
 
 function recentJsonl(refs: FileRef[]): FileRef[] {
-  return refs.sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, MAX_LIST)
+  return refs.sort((a, b) => b.mtimeMs - a.mtimeMs)
 }
 
 function readLines(file: string): unknown[] {
@@ -512,8 +518,7 @@ function codexSessionIdFromPath(file: string): string {
 }
 
 function findCodexSessionFile(id: string): string | null {
-  const root = join(cliStateRoot('codex'), 'sessions')
-  if (!existsSync(root)) return null
+  const roots = codexSessionRoots()
   const candidates: string[] = []
   const walk = (dir: string): void => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -523,7 +528,9 @@ function findCodexSessionFile(id: string): string | null {
     }
   }
   try {
-    walk(root)
+    for (const root of roots) {
+      if (existsSync(root)) walk(root)
+    }
   } catch {
     return null
   }
@@ -544,6 +551,11 @@ function findCodexSessionFile(id: string): string | null {
     }
   }
   return null
+}
+
+function codexSessionRoots(): string[] {
+  const root = cliStateRoot('codex')
+  return [join(root, 'sessions'), join(root, 'archived_sessions')]
 }
 
 function createCodexAppServerClient(): CodexAppServerClient {
@@ -637,7 +649,7 @@ async function listCodexLive(): Promise<SessionInfo[]> {
     )
     client.notify('initialized')
     const response = await withTimeout(
-      client.request('thread/list', { cursor: null, limit: MAX_LIST }),
+      client.request('thread/list', { cursor: null, limit: CODEX_THREAD_LIST_LIMIT }),
       CODEX_THREAD_LIST_TIMEOUT_MS,
       'codex thread/list'
     )
@@ -686,7 +698,7 @@ function mergeCodexSessions(live: SessionInfo[], local: SessionInfo[]): SessionI
       byId.set(entry.id, entry)
     }
   }
-  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_LIST)
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 /** Claude: <cfg>/projects/<encoded-cwd>/<uuid>.jsonl, title from the first real user turn. */
@@ -758,8 +770,7 @@ function listClaude(): SessionInfo[] {
 
 /** Codex: <cfg>/sessions/YYYY/MM/DD/rollout-*-<uuid>.jsonl, meta in first line. */
 function listCodex(): SessionInfo[] {
-  const root = join(cliStateRoot('codex'), 'sessions')
-  if (!existsSync(root)) return []
+  const roots = codexSessionRoots()
   const refs: FileRef[] = []
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -775,7 +786,9 @@ function listCodex(): SessionInfo[] {
     }
   }
   try {
-    walk(root)
+    for (const root of roots) {
+      if (existsSync(root)) walk(root)
+    }
   } catch {
     return []
   }
@@ -952,14 +965,56 @@ function readSqliteSnapshot(dbPath: string): Buffer {
   }
 }
 
-async function listOpencode(): Promise<SessionInfo[]> {
+function collectJsonFiles(dir: string, out: string[]): void {
+  if (!existsSync(dir)) return
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) collectJsonFiles(full, out)
+      else if (entry.name.endsWith('.json')) out.push(full)
+    }
+  } catch {
+    /* ignore unreadable dirs */
+  }
+}
+
+function listOpencodeJson(): SessionInfo[] {
+  const storage = opencodeStorageDir()
+  const sessionRoot = join(storage, 'session')
+  const files: string[] = []
+  collectJsonFiles(sessionRoot, files)
+  const out: SessionInfo[] = []
+  for (const file of files) {
+    try {
+      const value = asRecord(JSON.parse(readFileSync(file, 'utf8')))
+      const id = readString(value, ['id'])
+      if (!id) continue
+      const directory = readString(value, ['directory'])
+      const title = displayTitleCandidate(value?.title)
+      const time = asRecord(value?.time)
+      const updatedAt = normalizeTs(time?.updated) ?? normalizeTs(time?.created) ?? statSync(file).mtimeMs
+      out.push({
+        id,
+        cliId: 'opencode',
+        name: displayTitle(title || (directory ? basename(directory) : undefined), 'OpenCode 会话'),
+        updatedAt,
+        cwd: directory
+      })
+    } catch {
+      /* skip bad legacy session files */
+    }
+  }
+  return out
+}
+
+async function listOpencodeSqlite(): Promise<SessionInfo[]> {
   const dbPath = opencodeDbPath()
   if (!existsSync(dbPath)) return []
   const SQL = await getSql()
   const db = new SQL.Database(readSqliteSnapshot(dbPath))
   try {
     const res = db.exec(
-      'SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC LIMIT 50'
+      'SELECT id, title, directory, time_updated FROM session ORDER BY time_updated DESC'
     )
     if (!res.length) return []
     return res[0].values.map((row) => {
@@ -978,7 +1033,72 @@ async function listOpencode(): Promise<SessionInfo[]> {
   }
 }
 
-async function listHermes(): Promise<SessionInfo[]> {
+async function listOpencode(): Promise<SessionInfo[]> {
+  const sqlite = await listOpencodeSqlite()
+  const byId = new Map<string, SessionInfo>()
+  for (const entry of sqlite) byId.set(entry.id, entry)
+  for (const entry of listOpencodeJson()) {
+    if (!byId.has(entry.id)) byId.set(entry.id, entry)
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+function listHermesJson(): SessionInfo[] {
+  const root = join(cliStateRoot('hermes'), 'sessions')
+  if (!existsSync(root)) return []
+  const files: string[] = []
+  try {
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isFile() || (!entry.name.endsWith('.jsonl') && !entry.name.endsWith('.json'))) continue
+      files.push(join(root, entry.name))
+    }
+  } catch {
+    return []
+  }
+
+  const out: SessionInfo[] = []
+  for (const file of files) {
+    let id = basename(file).replace(/\.(jsonl|json)$/i, '')
+    let title: string | undefined
+    let cwd: string | undefined
+    let firstUser: string | undefined
+    let latestTs: number | undefined
+    try {
+      for (const rec of readLines(file)) {
+        const value = asRecord(rec)
+        if (!value) continue
+        const ts = normalizeTs(value.timestamp ?? value.ts)
+        if (ts) latestTs = latestTs ? Math.max(latestTs, ts) : ts
+        const type = readString(value, ['type'])
+        if (type === 'session' || type === 'init') {
+          id = readString(value, ['id', 'sessionId']) ?? id
+          title ??= displayTitleCandidate(value.title)
+          cwd ??= readString(value, ['cwd', 'directory'])
+        }
+        if (!firstUser) {
+          const message = asRecord(value.message)
+          const role = readString(value, ['role']) ?? readString(message, ['role'])
+          if (role === 'user') {
+            const text = extractTextFromContent(value.content) ?? extractTextFromContent(message?.content)
+            if (text?.trim()) firstUser = compactText(text)
+          }
+        }
+      }
+      out.push({
+        id,
+        cliId: 'hermes',
+        name: displayTitle(title || firstUser, 'Hermes 会话'),
+        updatedAt: latestTs ?? statSync(file).mtimeMs,
+        cwd
+      })
+    } catch {
+      /* skip bad Hermes session files */
+    }
+  }
+  return out.sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
+async function listHermesSqlite(): Promise<SessionInfo[]> {
   const dbPath = hermesDbPath()
   if (!existsSync(dbPath)) return []
   const SQL = await getSql()
@@ -1004,7 +1124,7 @@ async function listHermes(): Promise<SessionInfo[]> {
       updatedColumn ? `${quoteSqlIdentifier(updatedColumn)} AS updated` : '0 AS updated'
     ].join(', ')
     const order = updatedColumn ? ` ORDER BY ${quoteSqlIdentifier(updatedColumn)} DESC` : ''
-    const res = db.exec(`SELECT ${select} FROM sessions${order} LIMIT 50`)
+    const res = db.exec(`SELECT ${select} FROM sessions${order}`)
     if (!res.length) return []
     return res[0].values.map((row) => {
       const [id, title, cwd, updated] = row as [string, string, string, number | string]
@@ -1020,6 +1140,16 @@ async function listHermes(): Promise<SessionInfo[]> {
   } finally {
     db.close()
   }
+}
+
+async function listHermes(): Promise<SessionInfo[]> {
+  const sqlite = await listHermesSqlite()
+  const byId = new Map<string, SessionInfo>()
+  for (const entry of sqlite) byId.set(entry.id, entry)
+  for (const entry of listHermesJson()) {
+    if (!byId.has(entry.id)) byId.set(entry.id, entry)
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 function deleteClaudeSession(id: string): SessionDeleteResult {
@@ -1069,10 +1199,9 @@ function deleteClaudeSession(id: string): SessionDeleteResult {
 }
 
 function deleteCodexSession(id: string): SessionDeleteResult {
-  const root = join(cliStateRoot('codex'), 'sessions')
   const file = findCodexSessionFile(id)
   if (!file) return { ok: true, cliId: 'codex', id, deletedCount: 0, missing: true }
-  if (!isSafeSessionPath(file, root)) {
+  if (!codexSessionRoots().some((root) => isSafeSessionPath(file, root))) {
     return { ok: false, cliId: 'codex', id, deletedCount: 0, error: '非法会话路径' }
   }
 

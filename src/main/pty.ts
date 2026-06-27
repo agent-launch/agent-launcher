@@ -1,6 +1,6 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import * as pty from '@lydell/node-pty'
 import type { WebContents } from 'electron'
@@ -8,6 +8,7 @@ import { windowsShellTarget } from './process'
 import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getPrefs } from './store'
 import { buildCliEnv } from './cli-env'
+import { resolveLaunchCwd } from './launch-cwd'
 import { resumeArgs } from './sessions-history'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
 import type { CliId } from '@shared/types'
@@ -76,7 +77,8 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
     }
     return { file: install.binPath, args: [install.nodeEntry, ...extra] }
   }
-  const extra: string[] = [...(resume ?? []), ...yolo]
+  const session = opts.cliId === 'claude-code' && !opts.resumeId ? ['--session-id', randomUUID()] : []
+  const extra: string[] = [...(resume ?? []), ...session, ...yolo]
   if (opts.cliId === 'pi') {
     const profile = getActiveProfile('pi')
     if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
@@ -99,10 +101,10 @@ function launchEnvEntries(env: NodeJS.ProcessEnv): Array<[string, string]> {
 }
 
 function prepareCliLaunch(opts: SpawnOptions): { cwd: string; file: string; args: string[]; env: NodeJS.ProcessEnv } {
-  const cwd = opts.cwd && opts.cwd.length ? opts.cwd : homedir()
+  const cwd = resolveLaunchCwd(opts.cwd)
   const target = resolveTarget({ ...opts, mode: 'cli' })
 
-  if (hasNativeConfig(opts.cliId)) {
+  if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') {
     writeNativeConfig(opts.cliId)
   }
 
@@ -176,7 +178,7 @@ export function openExternalAgent(opts: SpawnOptions): void {
 export function createSession(wc: WebContents, opts: SpawnOptions): string {
   const prepared =
     opts.mode === 'shell'
-      ? { cwd: opts.cwd && opts.cwd.length ? opts.cwd : homedir(), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
+      ? { cwd: resolveLaunchCwd(opts.cwd), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
       : prepareCliLaunch(opts)
 
   const target = windowsShellTarget(prepared.file, prepared.args)

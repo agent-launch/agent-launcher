@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { Blocks, FolderCog, Pencil, Plus, Server, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowLeft, Blocks, FolderCog, Pencil, Plus, Server, Sparkles, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Markdown } from '@/components/ui/Markdown'
 import { Modal } from '@/components/ui/Modal'
@@ -21,7 +21,7 @@ interface NativeFiles {
 
 type ConfigTab = 'profiles' | 'mcp' | 'skills'
 
-export function ConfigView({ cliId }: { cliId: CliId }) {
+export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => void }) {
   const t = useT()
   const [cfg, setCfg] = useState<AppConfig | null>(null)
   const [nativeFiles, setNativeFiles] = useState<NativeFiles | null>(null)
@@ -57,8 +57,14 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
 
   if (!cfg) {
     return (
-      <div className="mx-auto w-full max-w-[980px] px-7 py-6 text-[13px] text-text-weak">
-        {t('common.loading')}
+      <div className="mx-auto w-full max-w-[980px] px-7 py-6">
+        {onBack && (
+          <Button className="mb-5" size="sm" variant="ghost" onClick={onBack}>
+            <ArrowLeft size={13} />
+            {t('config.backToSessions')}
+          </Button>
+        )}
+        <div className="text-[13px] text-text-weak">{t('common.loading')}</div>
       </div>
     )
   }
@@ -80,10 +86,18 @@ export function ConfigView({ cliId }: { cliId: CliId }) {
 
   return (
     <div className="mx-auto w-full max-w-[980px] px-7 py-6">
-      <div className="mb-1">
-        <h2 className="font-display text-[18px] font-semibold text-text-strong">{t('config.title')}</h2>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          {onBack && (
+            <Button className="-ml-2 mb-3" size="sm" variant="ghost" onClick={onBack}>
+              <ArrowLeft size={13} />
+              {t('config.backToSessions')}
+            </Button>
+          )}
+          <h2 className="font-display text-[28px] font-bold leading-tight text-text-strong">{t('config.title')}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-text-weak">{t('config.intro', { cliId })}</p>
+        </div>
       </div>
-      <p className="mb-6 text-[13px] leading-relaxed text-text-weak">{t('config.intro', { cliId })}</p>
 
       <div className="mb-5 flex w-fit rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
         <ConfigTabButton active={tab === 'profiles'} icon={<FolderCog size={14} />} onClick={() => setTab('profiles')}>
@@ -342,15 +356,20 @@ function LocalSearch({
 function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
   const t = useT()
   const [filter, setFilter] = useState('')
+  // Read-only (plugin-bundled) entries sort after user-managed ones.
+  const ordered = useMemo(
+    () => [...entries].sort((a, b) => Number(a.readOnly ?? 0) - Number(b.readOnly ?? 0)),
+    [entries]
+  )
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
-    if (!q) return entries
-    return entries.filter((entry) =>
+    if (!q) return ordered
+    return ordered.filter((entry) =>
       [entry.name, entry.command, entry.args, entry.url, entry.env, entry.configPath].some((value) =>
         value?.toLowerCase().includes(q)
       )
     )
-  }, [entries, filter])
+  }, [ordered, filter])
 
   return (
     <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
@@ -368,9 +387,9 @@ function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
               icon={<Server size={15} />}
               title={entry.name}
               detail={entry.transport === 'stdio' ? [entry.command, entry.args].filter(Boolean).join(' ') || '-' : entry.url || '-'}
-              meta={entry.transport.toUpperCase()}
+              meta={entry.readOnly ? t('config.mcpPlugin') : entry.transport.toUpperCase()}
               notes={entry.configPath}
-              statusLabel={entry.supportsEnabled ? (entry.enabled ? t('config.enabled') : t('config.disabled')) : undefined}
+              statusLabel={entry.readOnly ? undefined : entry.supportsEnabled ? (entry.enabled ? t('config.enabled') : t('config.disabled')) : undefined}
               statusTone={entry.enabled ? 'success' : 'muted'}
             />
           ))}

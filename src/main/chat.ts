@@ -1,10 +1,11 @@
 import type { ChildProcess } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { mkdirSync } from 'node:fs'
-import { homedir } from 'node:os'
 import type { WebContents } from 'electron'
 import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getInstallSource } from './store'
 import { buildCliEnv } from './cli-env'
+import { resolveLaunchCwd } from './launch-cwd'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
 import { spawnProcess } from './process'
 import type { ChatEvent, ChatStartOptions, CliId, TranscriptPart, TranscriptRole } from '@shared/types'
@@ -342,7 +343,7 @@ function turnTarget(s: ChatState, text: string): { file: string; args: string[] 
 }
 
 function spawnTurn(s: ChatState, id: string, text: string): void {
-  if (hasNativeConfig(s.cliId)) writeNativeConfig(s.cliId)
+  if (hasNativeConfig(s.cliId) && s.cliId !== 'claude-code') writeNativeConfig(s.cliId)
   const { file, args } = turnTarget(s, text)
   s.buf = ''
   s.sawText = false
@@ -373,8 +374,8 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
   const install = cfg.install[opts.cliId]
   if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} 尚未安装`)
 
-  const cwd = opts.cwd && opts.cwd.length ? opts.cwd : homedir()
-  if (hasNativeConfig(opts.cliId)) writeNativeConfig(opts.cliId)
+  const cwd = resolveLaunchCwd(opts.cwd)
+  if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') writeNativeConfig(opts.cliId)
   if (getInstallSource(opts.cliId) !== 'system') {
     mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
   }
@@ -394,6 +395,7 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
       '--dangerously-skip-permissions'
     ]
     if (opts.resumeId) args.push('--resume', opts.resumeId)
+    else args.push('--session-id', randomUUID())
     const proc = spawnProcess(install.binPath, args, { cwd, env: buildCliEnv(opts.cliId) as NodeJS.ProcessEnv })
     s.persistent = proc
     attachParser(s, id, proc.stdout!)

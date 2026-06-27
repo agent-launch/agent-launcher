@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 
 interface Props {
   /** Current size (px). */
@@ -17,7 +17,7 @@ interface Props {
 /**
  * A draggable edge handle (ported from opencode's ResizeHandle). Sits on the
  * right edge of the sidebar; drag to resize, release below threshold to collapse.
- * An accent line fades in on hover/active (see .resize-handle in index.css).
+ * A full-height edge highlight fades in on hover/active (see .resize-handle in index.css).
  */
 export function ResizeHandle({
   size,
@@ -31,6 +31,7 @@ export function ResizeHandle({
 }: Props) {
   const current = useRef(size)
   const raf = useRef<number | null>(null)
+  const [dragging, setDragging] = useState(false)
 
   const onMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -39,6 +40,7 @@ export function ResizeHandle({
     current.current = startSize
     document.body.style.userSelect = 'none'
     document.body.style.cursor = 'col-resize'
+    setDragging(true)
     onDragStart?.()
 
     const onMove = (ev: MouseEvent) => {
@@ -61,6 +63,7 @@ export function ResizeHandle({
         raf.current = null
       }
       onResize(current.current)
+      setDragging(false)
       onDragEnd?.()
       if (onCollapse && collapseThreshold > 0 && current.current < collapseThreshold) onCollapse()
     }
@@ -68,5 +71,10 @@ export function ResizeHandle({
     document.addEventListener('mouseup', onUp)
   }
 
-  return <div className="resize-handle no-drag" onMouseDown={onMouseDown} />
+  return (
+    <div
+      className={`resize-handle no-drag${dragging ? ' resize-handle--dragging' : ''}`}
+      onMouseDown={onMouseDown}
+    />
+  )
 }

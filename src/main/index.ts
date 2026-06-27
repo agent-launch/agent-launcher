@@ -4,6 +4,8 @@ import { registerIpc } from './ipc'
 import { killAll } from './pty'
 import { killAllChats } from './chat'
 import { killAllAuth } from './auth'
+import { cancelAllUsageReads } from './usage-runner'
+import { registerAppUpdateIpc, startAppUpdateAutoCheck } from './app-update'
 
 type MenuLocale = 'zh' | 'en'
 
@@ -121,12 +123,14 @@ function createWindow(): BrowserWindow {
     show: false,
     title: 'AgentLauncher',
     backgroundColor: '#ffffff',
-    // Frameless with a custom titlebar (see renderer Titlebar component).
-    titleBarStyle: 'hidden',
+    // Netcatty uses native macOS traffic lights with this window shape:
+    // frame + hiddenInset + explicit trafficLightPosition. Keeping the controls
+    // native preserves the system hover glyphs and window menu behavior.
+    frame: isMac,
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     // Windows / Linux: keep native min/max/close controls via the overlay.
     ...(!isMac ? { titleBarOverlay: { color: '#ffffff00', symbolColor: '#6e6e73', height: 40 } } : {}),
-    // macOS: inset the traffic lights to line up with our 40px top chrome.
-    ...(isMac ? { trafficLightPosition: { x: 12, y: 12 } } : {}),
+    ...(isMac ? { trafficLightPosition: { x: 16, y: 23 } } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -178,8 +182,10 @@ app.whenReady().then(() => {
   ipcMain.on('app:open-about-request', sendOpenAbout)
 
   registerIpc()
+  registerAppUpdateIpc()
 
   createWindow()
+  startAppUpdateAutoCheck()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -190,11 +196,13 @@ app.on('before-quit', () => {
   killAll()
   killAllChats()
   killAllAuth()
+  cancelAllUsageReads()
 })
 
 app.on('window-all-closed', () => {
   killAll()
   killAllChats()
   killAllAuth()
+  cancelAllUsageReads()
   if (process.platform !== 'darwin') app.quit()
 })
