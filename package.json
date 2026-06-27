@@ -6,7 +6,10 @@
   "license": "MIT",
   "main": "./out/main/index.js",
   "scripts": {
+    "ensure:electron": "node scripts/ensure-electron.cjs",
+    "predev": "pnpm ensure:electron",
     "dev": "electron-vite dev",
+    "prepreview": "pnpm ensure:electron",
     "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
     "preview": "electron-vite preview",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
