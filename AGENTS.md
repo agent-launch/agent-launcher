@@ -41,6 +41,7 @@ A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI confi
 ### Install layer (`src/main/install/`)
 
 Two strategies, per `CliMeta.install`:
+
 - **native-binary** (Codex, Codex, opencode): download the platform-specific npm tarball from the registry, extract with system `tar`, run the binary directly. Codex binaries live under `vendor/<rust-triple>/bin/`.
 - **node-npm** (Pi): a real Node app, so `node-runtime.ts` first fetches a **portable Node LTS** (SHA256-verified against `SHASUMS256.txt`), then `npm install`s the package into the sandbox with an empty `--userconfig` so the user's npmrc is never read. Spawned later via `binPath`(=node) + `nodeEntry`(=the JS entry).
 
@@ -61,3 +62,5 @@ React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run instal
 ## Adding a new CLI
 
 It's a `CliId` union member touched in many places — grep for an existing id like `'opencode'`. Minimally: `shared/types.ts` (`CliId`), `store.ts` (`CLI_IDS`), `cli-env.ts` (env vars), `install/installer.ts` (+`platform.ts` keys), `pty.ts` (`yoloArgs`, node-entry handling), `sessions-history.ts` (`list*` + `resumeArgs`), `native-config.ts` if file-configured, and renderer `data/clis.ts` + `data/providers.ts`.
+
+DO NOT send optional commentary

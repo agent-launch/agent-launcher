@@ -235,16 +235,16 @@
   );
 }
 
-.settings-select-menu {
+.ui-select-menu {
   transform-origin: top right;
   will-change: opacity, transform;
 }
-.settings-select-menu[data-state='open'] {
-  animation: settings-select-menu-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+.ui-select-menu[data-state='open'] {
+  animation: ui-select-menu-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.settings-select-menu[data-state='closed'] {
+.ui-select-menu[data-state='closed'] {
   pointer-events: none;
-  animation: settings-select-menu-out 100ms ease both;
+  animation: ui-select-menu-out 100ms ease both;
 }
 
 .scroll-fade-bottom {
@@ -256,7 +256,7 @@
   );
 }
 
-@keyframes settings-select-menu-in {
+@keyframes ui-select-menu-in {
   from {
     opacity: 0;
     transform: translateY(-4px) scale(0.98);
@@ -267,7 +267,7 @@
   }
 }
 
-@keyframes settings-select-menu-out {
+@keyframes ui-select-menu-out {
   from {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -279,8 +279,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .settings-select-menu[data-state='open'],
-  .settings-select-menu[data-state='closed'] {
+  .ui-select-menu[data-state='open'],
+  .ui-select-menu[data-state='closed'] {
     animation-duration: 1ms;
   }
 }

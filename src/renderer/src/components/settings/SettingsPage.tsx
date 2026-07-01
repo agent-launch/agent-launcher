@@ -1,17 +1,14 @@
 import {
   memo,
   useEffect,
-  useId,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
   type PointerEvent
 } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  ChevronDown,
   Download,
   ExternalLink,
   RefreshCw,
@@ -19,6 +16,7 @@ import {
   TriangleAlert
 } from 'lucide-react'
 import { Switch } from '@/components/ui/Switch'
+import { Select } from '@/components/ui/Select'
 import { CliIcon } from '@/components/CliIcon'
 import { CLIS, YOLO_SUPPORT } from '@/data/clis'
 import { useAppStore, type ThemeMode, type LocaleMode } from '@/store/app'
@@ -40,7 +38,6 @@ const HEATMAP_MONTH_HEIGHT = 16
 const HEATMAP_CELL_SIZE = 10
 const HEATMAP_CELL_GAP = 3
 const HEATMAP_ROWS = 7
-const SELECT_MENU_ANIMATION_MS = 120
 let usageCache: UsageScanResult | null = null
 
 export const SettingsPage = memo(function SettingsPage({
@@ -105,10 +102,10 @@ function GeneralSettings() {
       <section className="overflow-visible rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)]">
         <div className="divide-y divide-border-weak">
           <SettingControlRow title={t('settings.appearance')} desc={t('settings.appearanceDesc')}>
-            <SettingsSelect options={themeOptions} value={themeMode} onChange={setThemeMode} />
+            <Select options={themeOptions} value={themeMode} onChange={setThemeMode} />
           </SettingControlRow>
           <SettingControlRow title={t('settings.language')} desc={t('settings.languageDesc')}>
-            <SettingsSelect options={localeOptions} value={localeMode} onChange={setLocaleMode} />
+            <Select options={localeOptions} value={localeMode} onChange={setLocaleMode} />
           </SettingControlRow>
           {ENABLE_CHAT_HISTORY_RENDERING && (
             <SettingControlRow title={t('settings.renderTranscript')} desc={t('settings.renderTranscriptDesc')}>
@@ -1151,127 +1148,6 @@ function SettingControlRow({
         <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{desc}</p>
       </div>
       <div className="shrink-0">{children}</div>
-    </div>
-  )
-}
-
-function SettingsSelect<T extends string>({
-  options,
-  value,
-  onChange
-}: {
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (v: T) => void
-}) {
-  const listboxId = useId()
-  const rootRef = useRef<HTMLDivElement | null>(null)
-  const buttonRef = useRef<HTMLButtonElement | null>(null)
-  const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value))
-  const selected = options[selectedIndex] ?? options[0]
-
-  useEffect(() => {
-    if (open) {
-      setMounted(true)
-      return
-    }
-
-    if (!mounted) return
-    const timeout = window.setTimeout(() => setMounted(false), SELECT_MENU_ANIMATION_MS)
-    return () => window.clearTimeout(timeout)
-  }, [mounted, open])
-
-  useEffect(() => {
-    if (!open) return
-
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target
-      if (target instanceof Node && rootRef.current?.contains(target)) return
-      setOpen(false)
-    }
-
-    window.addEventListener('mousedown', onPointerDown)
-    return () => window.removeEventListener('mousedown', onPointerDown)
-  }, [open])
-
-  const commit = (nextValue: T) => {
-    onChange(nextValue)
-    setOpen(false)
-    buttonRef.current?.focus()
-  }
-
-  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault()
-      const direction = event.key === 'ArrowDown' ? 1 : -1
-      const nextIndex = (selectedIndex + direction + options.length) % options.length
-      onChange(options[nextIndex].value)
-      setOpen(true)
-      return
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      setOpen((current) => !current)
-      return
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      setOpen(false)
-    }
-  }
-
-  return (
-    <div ref={rootRef} className="relative w-[146px]">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listboxId}
-        onClick={() => setOpen((current) => !current)}
-        onKeyDown={onKeyDown}
-        className={`flex h-8 w-full items-center justify-between gap-2 rounded-md border bg-surface/95 px-3 text-left text-[13px] font-medium text-text-strong shadow-[0_1px_1px_rgba(0,0,0,0.04)] outline-none transition-[background,border-color,box-shadow] ${
-          open
-            ? 'border-border-selected shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_14%,transparent)]'
-            : 'border-border-weak hover:border-border-selected/70 hover:bg-surface'
-        }`}
-      >
-        <span className="min-w-0 truncate">{selected?.label}</span>
-        <ChevronDown
-          size={14}
-          className={`shrink-0 text-text-weak transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {mounted && (
-        <div
-          id={listboxId}
-          role="listbox"
-          data-state={open ? 'open' : 'closed'}
-          className="settings-select-menu absolute right-0 top-[calc(100%+6px)] z-50 w-full overflow-hidden rounded-lg border border-border-weak bg-stronger p-1 text-[13px] shadow-[0_8px_18px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.05)]"
-        >
-        {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="option"
-            aria-selected={option.value === value}
-            onClick={() => commit(option.value)}
-            className={`flex h-8 w-full items-center rounded-md px-2.5 text-left transition-colors ${
-              option.value === value
-                ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
-                : 'text-text-base hover:bg-selection hover:text-text-strong'
-            }`}
-          >
-            <span className="min-w-0 truncate">{option.label}</span>
-          </button>
-        ))}
-        </div>
-      )}
     </div>
   )
 }

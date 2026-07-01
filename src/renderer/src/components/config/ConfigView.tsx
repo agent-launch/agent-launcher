@@ -4,6 +4,7 @@ import { ArrowLeft, Blocks, FolderCog, Pencil, Plus, Server, Sparkles, Trash2 } 
 import { Button } from '@/components/ui/Button'
 import { Markdown } from '@/components/ui/Markdown'
 import { Modal } from '@/components/ui/Modal'
+import { Select } from '@/components/ui/Select'
 import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { useT } from '@/i18n'
 import type {
@@ -537,6 +538,13 @@ function ProfileForm({
   const [sonnetModel, setSonnetModel] = useState(initial?.sonnetModel ?? initial?.model ?? '')
   const [haikuModel, setHaikuModel] = useState(initial?.haikuModel ?? initial?.model ?? '')
   const isClaude = cliId === 'claude-code'
+  const providerOptions = useMemo(
+    () => [
+      { value: '', label: t('config.selectPlaceholder') },
+      ...providers.map((p) => ({ value: p.id, label: `${p.name} · ${t('category.' + p.category)}` }))
+    ],
+    [providers, t]
+  )
 
   const onProvider = (id: string) => {
     setProviderId(id)
@@ -595,18 +603,13 @@ function ProfileForm({
       <div className="grid grid-cols-2 gap-3">
         <label className="col-span-2 block">
           <span className="text-[12px] text-text-weak">{t('config.provider')}</span>
-          <select
+          <Select
             value={providerId}
-            onChange={(e) => onProvider(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border-weak bg-surface px-2 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
-          >
-            <option value="">{t('config.selectPlaceholder')}</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {t('category.' + p.category)}
-              </option>
-            ))}
-          </select>
+            onChange={onProvider}
+            options={providerOptions}
+            className="mt-1 w-full"
+            menuClassName="max-h-72 overflow-y-auto"
+          />
         </label>
         <Field
           label={t('config.profileName')}

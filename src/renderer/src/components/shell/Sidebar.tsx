@@ -29,7 +29,6 @@ export function Sidebar({
   const [dragging, setDragging] = useState(false)
   const isMac = window.api?.platform === 'darwin'
   const sidebarWidth = collapsed ? 0 : width
-  const contentWidth = collapsed ? width : sidebarWidth
 
   return (
     <aside
@@ -43,12 +42,13 @@ export function Sidebar({
     >
       <div
         className="flex h-full flex-col overflow-hidden"
+        aria-hidden={collapsed}
         style={{
-          width: contentWidth,
-          minWidth: contentWidth,
+          width,
+          minWidth: width,
           opacity: collapsed ? 0 : 1,
           pointerEvents: collapsed ? 'none' : undefined,
-          transition: dragging ? undefined : 'opacity 120ms ease-out'
+          transition: dragging ? undefined : 'opacity 180ms ease-out'
         }}
       >
         {isMac && (
@@ -63,13 +63,12 @@ export function Sidebar({
             return (
               <button
                 key={c.id}
+                tabIndex={collapsed ? -1 : 0}
                 onClick={() => {
                   setActiveCli(c.id)
                   onSelectCli()
                 }}
-                className={`group relative flex items-center gap-2.5 rounded-md py-2 text-left text-[13px] transition-[background,box-shadow,color] ${
-                  collapsed ? 'justify-center px-0' : 'px-2.5'
-                } ${
+                className={`group relative flex min-w-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-[13px] transition-[background,box-shadow,color] ${
                   selected
                     ? 'font-semibold shadow-[var(--shadow-sm)]'
                     : 'hover:bg-[var(--sidebar-selection)]'
@@ -87,31 +86,13 @@ export function Sidebar({
                   }}
                 >
                   <CliIcon cliId={c.id as CliId} size={16} />
-                  {collapsed && (
-                    <span
-                      className="absolute -right-0.5 -top-0.5 size-2 rounded-full border-2"
-                      style={{
-                        background: isInstalled ? 'var(--success)' : 'var(--border-base)',
-                        borderColor: 'var(--sidebar-background)'
-                      }}
-                    />
-                  )}
                 </span>
-                {!collapsed && (
-                  <>
-                    <span className="flex-1 truncate">{c.name}</span>
-                    <span
-                      className="size-1.5 rounded-full"
-                      style={{ background: isInstalled ? 'var(--success)' : 'var(--border-base)' }}
-                      title={isInstalled ? t('sidebar.installed') : t('sidebar.notInstalled')}
-                    />
-                  </>
-                )}
-                {collapsed && (
-                  <span className="pointer-events-none absolute left-full z-20 ml-2 whitespace-nowrap rounded-md border border-border-weak bg-stronger px-2 py-1 text-[12px] text-text-strong opacity-0 shadow-[var(--shadow-md)] transition-opacity group-hover:opacity-100">
-                    {c.name}
-                  </span>
-                )}
+                <span className="min-w-0 flex-1 truncate whitespace-nowrap">{c.name}</span>
+                <span
+                  className="size-1.5 shrink-0 rounded-full"
+                  style={{ background: isInstalled ? 'var(--success)' : 'var(--border-base)' }}
+                  title={isInstalled ? t('sidebar.installed') : t('sidebar.notInstalled')}
+                />
               </button>
             )
           })}
@@ -120,28 +101,24 @@ export function Sidebar({
         <div className="flex flex-col gap-1 border-t border-border-weak/80 p-2.5">
           <button
             onClick={onOpenSettings}
-            title={collapsed ? t('sidebar.settings') : undefined}
-            className={`no-drag flex w-full min-w-0 items-center gap-2 rounded-md py-2 text-[13px] transition-[background,box-shadow,color] hover:bg-[var(--sidebar-selection)] ${
-              collapsed ? 'justify-center px-0' : 'px-2.5'
-            }`}
+            tabIndex={collapsed ? -1 : 0}
+            className="no-drag flex w-full min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-[13px] transition-[background,box-shadow,color] hover:bg-[var(--sidebar-selection)]"
             style={{
               background: view === 'settings' ? 'var(--sidebar-selection)' : undefined,
               color: view === 'settings' ? 'var(--text-strong)' : 'var(--sidebar-text)'
             }}
           >
             <Settings size={14} className="shrink-0" />
-            {!collapsed && <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.settings')}</span>}
+            <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.settings')}</span>
           </button>
           <button
             onClick={resetOnboarding}
-            title={collapsed ? t('sidebar.rerunOnboarding') : undefined}
-            className={`no-drag flex w-full min-w-0 items-center gap-2 rounded-md py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)] ${
-              collapsed ? 'justify-center px-0' : 'px-2.5'
-            }`}
+            tabIndex={collapsed ? -1 : 0}
+            className="no-drag flex w-full min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)]"
             style={{ color: 'var(--sidebar-text-weak)' }}
           >
             <RotateCcw size={13} className="shrink-0" />
-            {!collapsed && <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.rerunOnboarding')}</span>}
+            <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.rerunOnboarding')}</span>
           </button>
         </div>
 
