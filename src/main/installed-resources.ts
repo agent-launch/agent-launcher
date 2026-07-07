@@ -16,6 +16,7 @@ import type {
   InstalledMcpEntry,
   InstalledMcpPatch,
   InstalledSkillEntry,
+  InstalledSkillFile,
   InstalledSkillPatch,
   McpTransport
 } from '@shared/types'
@@ -635,6 +636,17 @@ export function listInstalledSkills(cliId: CliId): InstalledSkillEntry[] {
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export function readInstalledSkill(cliId: CliId, entryId: string): InstalledSkillFile {
+  const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
+  if (!entry) throw new Error('找不到这个 Skill')
+  if (!isInside(entry.path, entry.root)) throw new Error('Skill 路径不在可管理目录内')
+  if (basename(entry.path) !== 'SKILL.md') throw new Error('这个文件不是 SKILL.md')
+  return {
+    path: entry.path,
+    content: safeRead(entry.path)
+  }
 }
 
 function updateSkillFrontmatter(content: string, patch: InstalledSkillPatch): string {

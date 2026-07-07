@@ -19,6 +19,7 @@ import type {
   InstalledMcpEntry,
   InstalledMcpPatch,
   InstalledSkillEntry,
+  InstalledSkillFile,
   InstalledSkillPatch,
   InstallOptions,
   InstallProgress,
@@ -125,6 +126,8 @@ const api = {
       ipcRenderer.invoke('resources:deleteMcp', id, entryId),
     listSkills: (id: CliId): Promise<InstalledSkillEntry[]> =>
       ipcRenderer.invoke('resources:listSkills', id),
+    readSkill: (id: CliId, entryId: string): Promise<InstalledSkillFile> =>
+      ipcRenderer.invoke('resources:readSkill', id, entryId),
     updateSkill: (id: CliId, entryId: string, patch: InstalledSkillPatch): Promise<InstalledSkillEntry[]> =>
       ipcRenderer.invoke('resources:updateSkill', id, entryId, patch),
     deleteSkill: (id: CliId, entryId: string): Promise<InstalledSkillEntry[]> =>

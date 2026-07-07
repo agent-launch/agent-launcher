@@ -22,7 +22,7 @@ export function Sidebar({
   const activeCli = useAppStore((s) => s.activeCli)
   const setActiveCli = useAppStore((s) => s.setActiveCli)
   const resetOnboarding = useAppStore((s) => s.resetOnboarding)
-  const width = useAppStore((s) => s.sidebarWidth)
+  const width = Math.min(useAppStore((s) => s.sidebarWidth), SIDEBAR_MAX)
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const setWidth = useAppStore((s) => s.setSidebarWidth)
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed)
@@ -56,7 +56,7 @@ export function Sidebar({
             <div className="drag-region absolute inset-y-0 left-[106px] right-0" />
           </div>
         )}
-        <nav className={`flex flex-1 flex-col gap-1 px-2.5 ${isMac ? 'pt-3' : 'pt-2.5'}`}>
+        <nav className="flex flex-1 flex-col gap-0.5 px-2 pt-2">
           {CLIS.map((c) => {
             const selected = view !== 'settings' && c.id === activeCli
             const isInstalled = cfg?.install[c.id as CliId]?.installed
@@ -68,7 +68,7 @@ export function Sidebar({
                   setActiveCli(c.id)
                   onSelectCli()
                 }}
-                className={`group relative flex min-w-0 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 py-2 text-left text-[13px] transition-[background,box-shadow,color] ${
+                className={`group relative flex min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-left text-[12px] transition-[background,box-shadow,color] ${
                   selected
                     ? 'font-semibold shadow-[var(--shadow-sm)]'
                     : 'hover:bg-[var(--sidebar-selection)]'
@@ -79,13 +79,13 @@ export function Sidebar({
                 }}
               >
                 <span
-                  className="relative grid size-7 shrink-0 place-items-center rounded-md"
+                  className="relative grid size-6 shrink-0 place-items-center rounded-md"
                   style={{
                     color: selected ? 'var(--text-strong)' : 'var(--sidebar-icon)',
                     opacity: selected ? 0.9 : 0.7
                   }}
                 >
-                  <CliIcon cliId={c.id as CliId} size={16} />
+                  <CliIcon cliId={c.id as CliId} size={14} />
                 </span>
                 <span className="min-w-0 flex-1 truncate whitespace-nowrap">{c.name}</span>
                 <span
@@ -98,26 +98,26 @@ export function Sidebar({
           })}
         </nav>
 
-        <div className="flex flex-col gap-1 border-t border-border-weak/80 p-2.5">
+        <div className="flex flex-col gap-0.5 border-t border-border-weak/80 p-2">
           <button
             onClick={onOpenSettings}
             tabIndex={collapsed ? -1 : 0}
-            className="no-drag flex w-full min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-[13px] transition-[background,box-shadow,color] hover:bg-[var(--sidebar-selection)]"
+            className="no-drag flex w-full min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-[12px] transition-[background,box-shadow,color] hover:bg-[var(--sidebar-selection)]"
             style={{
               background: view === 'settings' ? 'var(--sidebar-selection)' : undefined,
               color: view === 'settings' ? 'var(--text-strong)' : 'var(--sidebar-text)'
             }}
           >
-            <Settings size={14} className="shrink-0" />
+            <Settings size={13} className="shrink-0" />
             <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.settings')}</span>
           </button>
           <button
             onClick={resetOnboarding}
             tabIndex={collapsed ? -1 : 0}
-            className="no-drag flex w-full min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2.5 py-2 text-[13px] transition-colors hover:bg-[var(--sidebar-selection)]"
+            className="no-drag flex w-full min-w-0 items-center gap-2 whitespace-nowrap rounded-md px-2 py-1.5 text-[12px] transition-colors hover:bg-[var(--sidebar-selection)]"
             style={{ color: 'var(--sidebar-text-weak)' }}
           >
-            <RotateCcw size={13} className="shrink-0" />
+            <RotateCcw size={12} className="shrink-0" />
             <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.rerunOnboarding')}</span>
           </button>
         </div>

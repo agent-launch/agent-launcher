@@ -46,6 +46,7 @@ import {
   deleteInstalledSkill,
   listInstalledMcp,
   listInstalledSkills,
+  readInstalledSkill,
   updateInstalledMcp,
   updateInstalledSkill
 } from './installed-resources'
@@ -130,6 +131,9 @@ export function registerIpc(): void {
     deleteInstalledMcp(id, entryId)
   )
   ipcMain.handle('resources:listSkills', (_e, id: CliId) => listInstalledSkills(id))
+  ipcMain.handle('resources:readSkill', (_e, id: CliId, entryId: string) =>
+    readInstalledSkill(id, entryId)
+  )
   ipcMain.handle('resources:updateSkill', (_e, id: CliId, entryId: string, patch: InstalledSkillPatch) =>
     updateInstalledSkill(id, entryId, patch)
   )

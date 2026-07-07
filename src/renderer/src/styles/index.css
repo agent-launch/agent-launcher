@@ -128,15 +128,18 @@
   background:
     radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--background-stronger) 22%, transparent), transparent 38%),
     color-mix(in srgb, #1d1d1f 22%, transparent);
-  transition: opacity 0.15s ease;
-}
-.modal-backdrop--open {
-  opacity: 1;
-}
-.modal-backdrop--closed {
   opacity: 0;
 }
+.modal-backdrop[data-state='open'] {
+  animation: modal-backdrop-in 0.15s ease both;
+}
+.modal-backdrop[data-state='closed'] {
+  animation: modal-backdrop-out 0.15s ease both;
+}
 .modal-panel {
+  left: 50%;
+  top: 50%;
+  width: min(calc(100vw - 48px), 32rem);
   box-shadow:
     0 26px 72px rgba(0, 0, 0, 0.18),
     0 10px 28px rgba(0, 0, 0, 0.11),
@@ -145,41 +148,86 @@
   will-change: opacity, transform;
   backdrop-filter: blur(18px);
 }
-.modal-panel--open {
+.modal-panel[data-state='open'] {
   animation: modal-panel-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
-.modal-panel--closed {
+.modal-panel[data-state='closed'] {
   animation: modal-panel-out 0.15s ease both;
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 @keyframes modal-panel-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.97);
+    transform: translate(-50%, calc(-50% + 10px)) scale(0.97);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translate(-50%, -50%) scale(1);
   }
 }
 
 @keyframes modal-panel-out {
   from {
     opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 6px)) scale(0.985);
+  }
+}
+
+.tooltip-content {
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+.tooltip-content[data-state='delayed-open'],
+.tooltip-content[data-state='instant-open'] {
+  animation: tooltip-in 0.14s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.tooltip-content[data-state='closed'] {
+  animation: tooltip-out 0.1s ease both;
+}
+
+@keyframes tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes tooltip-out {
+  from {
+    opacity: 1;
     transform: translateY(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(6px) scale(0.985);
+    transform: translateY(1px) scale(0.99);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .modal-backdrop {
-    transition: none;
-  }
-  .modal-panel--open,
-  .modal-panel--closed {
+  .modal-backdrop[data-state='open'],
+  .modal-backdrop[data-state='closed'],
+  .modal-panel[data-state='open'],
+  .modal-panel[data-state='closed'],
+  .tooltip-content[data-state='delayed-open'],
+  .tooltip-content[data-state='instant-open'],
+  .tooltip-content[data-state='closed'] {
     animation-duration: 1ms;
   }
 }

@@ -130,7 +130,7 @@ function createWindow(): BrowserWindow {
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     // Windows / Linux: keep native min/max/close controls via the overlay.
     ...(!isMac ? { titleBarOverlay: { color: '#ffffff00', symbolColor: '#6e6e73', height: 40 } } : {}),
-    ...(isMac ? { trafficLightPosition: { x: 16, y: 23 } } : {}),
+    ...(isMac ? { trafficLightPosition: { x: 16, y: 8 } } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,

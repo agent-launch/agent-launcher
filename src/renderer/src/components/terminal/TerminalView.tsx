@@ -237,7 +237,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
   return (
     <div
       ref={hostRef}
-      className="h-full min-w-0 w-full overflow-hidden rounded-xl border border-border-base bg-[var(--terminal-background)] shadow-[var(--shadow-card)]"
+      className="h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)]"
     />
   )
 }

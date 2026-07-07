@@ -12,13 +12,10 @@ import type {
   CliId,
   CliProfile,
   InstalledMcpEntry,
-  InstalledSkillEntry
+  InstalledSkillEntry,
+  InstalledSkillFile,
+  NativeFiles
 } from '@shared/types'
-
-interface NativeFiles {
-  dir: string
-  files: { name: string; content: string }[]
-}
 
 type ConfigTab = 'profiles' | 'mcp' | 'skills'
 
@@ -50,6 +47,18 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
     refresh()
   }, [refresh])
 
+  const refreshNativeFiles = useCallback(async () => {
+    setNativeFiles(await window.api.config.nativeFiles(cliId))
+  }, [cliId])
+
+  const applyConfigMutation = useCallback(
+    async (nextCfg: AppConfig) => {
+      setCfg(nextCfg)
+      await refreshNativeFiles()
+    },
+    [refreshNativeFiles]
+  )
+
   useEffect(() => {
     setAdding(false)
     setEditId(null)
@@ -74,13 +83,12 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
   const activeId = cli.activeProfileId
 
   const setActive = async (pid: string) => {
-    await window.api.config.setActiveProfile(cliId, pid)
-    refresh()
+    await applyConfigMutation(await window.api.config.setActiveProfile(cliId, pid))
   }
   const remove = async (pid: string) => {
-    await window.api.config.deleteProfile(cliId, pid)
+    const nextCfg = await window.api.config.deleteProfile(cliId, pid)
     setDeleteId(null)
-    refresh()
+    await applyConfigMutation(nextCfg)
   }
 
   const deletingProfile = cli.profiles.find((p) => p.id === deleteId)
@@ -127,9 +135,9 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
                   cliId={cliId}
                   initial={p}
                   onCancel={() => setEditId(null)}
-                  onDone={() => {
+                  onDone={(nextCfg) => {
                     setEditId(null)
-                    refresh()
+                    void applyConfigMutation(nextCfg)
                   }}
                 />
               ) : (
@@ -205,9 +213,9 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
               <ProfileForm
                 cliId={cliId}
                 onCancel={() => setAdding(false)}
-                onDone={() => {
+                onDone={(nextCfg) => {
                   setAdding(false)
-                  refresh()
+                  void applyConfigMutation(nextCfg)
                 }}
               />
             </div>
@@ -258,7 +266,7 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
         <McpPanel entries={mcpEntries} />
       )}
       {tab === 'skills' && (
-        <SkillsPanel entries={skillEntries} />
+        <SkillsPanel cliId={cliId} entries={skillEntries} />
       )}
     </div>
   )
@@ -400,9 +408,13 @@ function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
   )
 }
 
-function SkillsPanel({ entries }: { entries: InstalledSkillEntry[] }) {
+function SkillsPanel({ cliId, entries }: { cliId: CliId; entries: InstalledSkillEntry[] }) {
   const t = useT()
   const [filter, setFilter] = useState('')
+  const [selected, setSelected] = useState<InstalledSkillEntry | null>(null)
+  const [skillFile, setSkillFile] = useState<InstalledSkillFile | null>(null)
+  const [loadingSource, setLoadingSource] = useState(false)
+  const [sourceError, setSourceError] = useState<string | null>(null)
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase()
     if (!q) return entries
@@ -412,6 +424,62 @@ function SkillsPanel({ entries }: { entries: InstalledSkillEntry[] }) {
       )
     )
   }, [entries, filter])
+
+  useEffect(() => {
+    setSelected(null)
+    setSkillFile(null)
+    setSourceError(null)
+    setLoadingSource(false)
+  }, [cliId])
+
+  const openSkill = async (entry: InstalledSkillEntry) => {
+    setSelected(entry)
+    setSkillFile(null)
+    setSourceError(null)
+    setLoadingSource(true)
+    try {
+      setSkillFile(await window.api.resources.readSkill(cliId, entry.id))
+    } catch (error) {
+      setSourceError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setLoadingSource(false)
+    }
+  }
+
+  if (selected) {
+    return (
+      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="-ml-2 mb-3"
+          onClick={() => {
+            setSelected(null)
+            setSkillFile(null)
+            setSourceError(null)
+          }}
+        >
+          <ArrowLeft size={13} />
+          {t('config.backToSkills')}
+        </Button>
+        <div className="mb-4">
+          <h3 className="text-[14px] font-medium text-text-strong">{selected.name}</h3>
+          <p className="mt-1 truncate font-mono text-[11px] text-text-weak">{skillFile?.path ?? selected.path}</p>
+        </div>
+        {loadingSource ? (
+          <div className="rounded-xl border border-border-weak bg-surface/72 px-4 py-8 text-center text-[13px] text-text-weak">
+            {t('common.loading')}
+          </div>
+        ) : sourceError ? (
+          <div className="rounded-xl border border-danger/30 bg-danger/10 px-4 py-3 text-[13px] text-danger">
+            {sourceError}
+          </div>
+        ) : skillFile ? (
+          <FileBlock name="SKILL.md" content={skillFile.content} />
+        ) : null}
+      </section>
+    )
+  }
 
   return (
     <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
@@ -436,6 +504,7 @@ function SkillsPanel({ entries }: { entries: InstalledSkillEntry[] }) {
               notes={entry.description || entry.path}
               statusLabel={entry.enabled ? t('config.enabled') : t('config.disabled')}
               statusTone={entry.enabled ? 'success' : 'muted'}
+              onClick={() => openSkill(entry)}
             />
           ))}
         </div>
@@ -451,7 +520,8 @@ function ResourceRow({
   meta,
   notes,
   statusLabel,
-  statusTone = 'muted'
+  statusTone = 'muted',
+  onClick
 }: {
   icon: React.ReactNode
   title: string
@@ -460,9 +530,22 @@ function ResourceRow({
   notes?: string
   statusLabel?: string
   statusTone?: 'success' | 'muted'
+  onClick?: () => void
 }) {
   return (
-    <div className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3">
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={(event) => {
+        if (!onClick || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        onClick()
+      }}
+      className={`rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3 ${
+        onClick ? 'cursor-pointer transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]' : ''
+      }`}
+    >
       <div className="flex items-start gap-3">
         <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
           {icon}
@@ -502,6 +585,7 @@ function FileBlock({ name, content }: { name: string; content: string }) {
 }
 
 function languageForFile(name: string): string {
+  if (name.endsWith('.md') || name.endsWith('.markdown')) return 'markdown'
   if (name.endsWith('.json')) return 'json'
   if (name.endsWith('.toml')) return 'ini'
   if (name.endsWith('.yaml') || name.endsWith('.yml')) return 'yaml'
@@ -524,7 +608,7 @@ function ProfileForm({
   cliId: CliId
   initial?: CliProfile
   onCancel: () => void
-  onDone: () => void
+  onDone: (cfg: AppConfig) => void
 }) {
   const t = useT()
   const providers = PROVIDERS_BY_CLI[cliId]
@@ -589,13 +673,14 @@ function ProfileForm({
       sonnetModel: isClaude ? nextSonnetModel : undefined,
       haikuModel: isClaude ? nextHaikuModel : undefined
     }
-    if (initial) await window.api.config.updateProfile(cliId, initial.id, patch)
+    let nextCfg: AppConfig
+    if (initial) nextCfg = await window.api.config.updateProfile(cliId, initial.id, patch)
     else {
-      const cfg = await window.api.config.addProfile(cliId, patch)
-      const active = cfg.clis[cliId].activeProfileId
-      if (active) await window.api.config.setActiveProfile(cliId, active)
+      nextCfg = await window.api.config.addProfile(cliId, patch)
+      const active = nextCfg.clis[cliId].activeProfileId
+      if (active) nextCfg = await window.api.config.setActiveProfile(cliId, active)
     }
-    onDone()
+    onDone(nextCfg)
   }
 
   return (

@@ -30,6 +30,7 @@ export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boo
   const t = useT()
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const shellView = useAppStore((s) => s.shellView)
   const [openMenu, setOpenMenu] = useState<MenuId | null>(null)
   const [menuLeft, setMenuLeft] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -154,7 +155,7 @@ export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boo
       )}
 
       <div ref={menuRef} className="no-drag relative z-[120] flex h-full items-center gap-1">
-        {showSidebarToggle && (
+        {showSidebarToggle && shellView !== 'settings' && (
           <button
             onClick={toggleSidebar}
             className="no-drag grid size-7 -translate-y-px place-items-center rounded-md text-text-weak transition-colors hover:bg-surface-hover hover:text-text-strong"

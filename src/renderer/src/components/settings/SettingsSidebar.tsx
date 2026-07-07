@@ -2,7 +2,7 @@ import { ArrowLeft } from 'lucide-react'
 import { useT } from '@/i18n'
 import { SETTINGS_TABS, type SettingsTab } from './settingsTabs'
 
-const SETTINGS_SIDEBAR_WIDTH = 220
+const SETTINGS_SIDEBAR_WIDTH = 180
 
 export function SettingsSidebar({
   activeTab,
@@ -22,23 +22,23 @@ export function SettingsSidebar({
       style={{ width: SETTINGS_SIDEBAR_WIDTH }}
     >
       {isMac && (
-        <div className="relative h-[56px] shrink-0" aria-hidden="true">
+        <div className="relative h-10 shrink-0" aria-hidden="true">
           <div className="drag-region absolute inset-y-0 left-[106px] right-0" />
         </div>
       )}
 
-      <div className={`${isMac ? '' : 'pt-3'} px-2.5`}>
+      <div className={`${isMac ? '' : 'pt-2'} px-2`}>
         <button
           type="button"
           onClick={onBack}
-          className="no-drag flex h-9 w-full min-w-0 items-center gap-2 rounded-md px-2.5 text-left text-[13px] font-medium text-text-weak transition-colors hover:bg-[var(--sidebar-selection)] hover:text-text-strong"
+          className="no-drag flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-[12px] font-medium text-text-weak transition-colors hover:bg-[var(--sidebar-selection)] hover:text-text-strong"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={14} />
           <span>{t('settings.backToWorkspace')}</span>
         </button>
       </div>
 
-      <nav className="mt-4 flex flex-col gap-1 px-2.5" aria-label={t('settings.title')}>
+      <nav className="mt-2 flex flex-col gap-0.5 px-2" aria-label={t('settings.title')}>
         {SETTINGS_TABS.map((item) => {
           const selected = activeTab === item.id
           const Icon = item.icon
@@ -48,14 +48,14 @@ export function SettingsSidebar({
               key={item.id}
               type="button"
               onClick={() => onSelectTab(item.id)}
-              className={`no-drag flex h-9 w-full min-w-0 items-center gap-2.5 rounded-md px-2.5 text-left text-[13px] font-medium transition-[background,color,box-shadow] ${
+              className={`no-drag flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2 text-left text-[12px] font-medium transition-[background,color,box-shadow] ${
                 selected
                   ? 'bg-[var(--sidebar-selection)] text-text-strong shadow-[var(--shadow-sm)]'
                   : 'text-text-weak hover:bg-[var(--sidebar-selection)] hover:text-text-strong'
               }`}
             >
-              <span className="grid size-6 shrink-0 place-items-center text-current">
-                <Icon size={16} />
+              <span className="grid size-5 shrink-0 place-items-center text-current">
+                <Icon size={14} />
               </span>
               <span className="min-w-0 truncate">{t(item.labelKey)}</span>
             </button>

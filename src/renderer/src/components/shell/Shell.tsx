@@ -18,7 +18,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useAppStore } from "@/store/app";
+import { useAppStore, type ShellView } from "@/store/app";
 import { CLIS } from "@/data/clis";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -37,8 +37,9 @@ import type { AppConfig, CliId, SessionInfo } from "@shared/types";
 
 /** In-UI chat is implemented for every supported CLI. */
 const CHAT_CLIS = new Set<CliId>(["claude-code", "codex", "opencode", "pi"]);
-const MAC_SIDEBAR_TOGGLE_LEFT = 74;
-const SHELL_FRAME_PADDING = 6;
+const MAC_SIDEBAR_TOGGLE_LEFT = 82;
+const MAC_COLLAPSED_TAB_INSET = MAC_SIDEBAR_TOGGLE_LEFT + 24;
+const SHELL_FRAME_PADDING = 0;
 const SESSION_LOADING_DELAY_MS = 180;
 
 type WorkspaceTabKind = "terminal" | "chat" | "transcript";
@@ -68,6 +69,7 @@ export function Shell() {
   const setActiveCli = useAppStore((s) => s.setActiveCli);
   const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
+  const setShellView = useAppStore((s) => s.setShellView);
   const transcriptRenderingPreferred = useAppStore((s) => s.renderTranscript);
   const renderTranscript =
     ENABLE_CHAT_HISTORY_RENDERING && transcriptRenderingPreferred;
@@ -76,7 +78,7 @@ export function Shell() {
   const isMac = window.api?.platform === "darwin";
 
   const [cfg, setCfg] = useState<AppConfig | null>(null);
-  const [view, setView] = useState<"run" | "config" | "settings">("run");
+  const [view, setLocalView] = useState<ShellView>("run");
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const [settingsCheckUpdatesKey, setSettingsCheckUpdatesKey] = useState(0);
   const [tabs, setTabs] = useState<WorkspaceTab[]>([]);
@@ -101,6 +103,19 @@ export function Shell() {
   const sessionLoadIdRef = useRef(0);
   const activeSessionRequestRef = useRef<string | null>(null);
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
+
+  const setView = useCallback(
+    (next: ShellView) => {
+      setLocalView(next);
+      setShellView(next);
+    },
+    [setShellView],
+  );
+
+  useEffect(() => {
+    setShellView("run");
+    return () => setShellView("run");
+  }, [setShellView]);
 
   // Reload config whenever we land on the run view (profiles may have changed).
   useEffect(() => {
@@ -456,16 +471,16 @@ export function Shell() {
   };
 
   return (
-    <div className="relative flex h-full overflow-hidden bg-base p-1.5">
+    <div className="relative flex h-full flex-col overflow-hidden bg-base">
       {isMac && view !== "settings" && (
         <button
           type="button"
-          onPointerDown={stopChromePointer}
+          onPointerDown={toggleSidebarFromChrome}
           onMouseDown={stopChromePointer}
-          onClick={toggleSidebarFromChrome}
-          className="no-drag absolute z-50 grid size-7 place-items-center rounded-md text-text-weak transition-colors hover:bg-[var(--selection-base)] hover:text-text-strong"
+          onClick={stopChromePointer}
+          className="no-drag absolute z-[120] grid size-6 place-items-center rounded-[5px] text-text-weak transition-colors hover:bg-[var(--selection-base)] hover:text-text-strong"
           style={{
-            top: SHELL_FRAME_PADDING + 10,
+            top: SHELL_FRAME_PADDING + 3,
             left: SHELL_FRAME_PADDING + MAC_SIDEBAR_TOGGLE_LEFT,
           }}
           title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
@@ -474,9 +489,9 @@ export function Shell() {
           }
         >
           {sidebarCollapsed ? (
-            <PanelLeftOpen size={16} />
+            <PanelLeftOpen size={13} />
           ) : (
-            <PanelLeftClose size={16} />
+            <PanelLeftClose size={13} />
           )}
         </button>
       )}
@@ -531,75 +546,28 @@ export function Shell() {
           </div>
         </div>
       </Modal>
-      {view === "settings" ? (
-        <SettingsSidebar
-          activeTab={settingsTab}
-          onSelectTab={setSettingsTab}
-          onBack={() => setView("run")}
-        />
-      ) : (
-        <Sidebar
-          cfg={cfg}
-          view={view}
-          onSelectCli={() => {
-            setActiveTabId(null);
-            setView("run");
-          }}
-          onOpenSettings={openSettings}
-        />
-      )}
-
-      {/* Main pane */}
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border-weak bg-stronger">
-        {view === "run" && (
-          <div
-            className={`relative flex shrink-0 items-center gap-3 bg-stronger px-5 ${
-              isMac ? "h-[46px] pr-4" : "h-11 border-b border-border-weak"
-            } ${isMac ? "transition-[padding-left] duration-180 ease-out" : ""}`}
-            style={{
-              paddingLeft: isMac
-                ? sidebarCollapsed
-                  ? MAC_SIDEBAR_TOGGLE_LEFT + 38
-                  : 20
-                : undefined,
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {view === "settings" ? (
+          <SettingsSidebar
+            activeTab={settingsTab}
+            onSelectTab={setSettingsTab}
+            onBack={() => setView("run")}
+          />
+        ) : (
+          <Sidebar
+            cfg={cfg}
+            view={view}
+            onSelectCli={() => {
+              setActiveTabId(null);
+              setView("run");
             }}
-          >
-            {isMac && (
-              <div
-                className="drag-region absolute inset-y-0 right-0"
-                style={{
-                  left: sidebarCollapsed ? MAC_SIDEBAR_TOGGLE_LEFT + 36 : 0,
-                }}
-              />
-            )}
-            <>
-              <h1 className="relative z-10 font-display text-[15px] font-semibold leading-none text-text-strong">
-                {active.name}
-              </h1>
-              <div className="relative z-10 ml-auto flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setView("config")}
-                  title={t("shell.openAgentSettings", { name: active.name })}
-                >
-                  <SlidersHorizontal size={13} />
-                  {t("shell.agentSettings")}
-                </Button>
-                <Chip label={active.name} color={active.accent} />
-                <Chip
-                  label={
-                    installed
-                      ? t("sidebar.installed")
-                      : t("sidebar.notInstalled")
-                  }
-                />
-              </div>
-            </>
-          </div>
+            onOpenSettings={openSettings}
+          />
         )}
 
-        <div className="relative min-h-0 flex-1 overflow-hidden bg-stronger">
+        {/* Main pane */}
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-l border-border-weak bg-stronger">
+          <div className="relative min-h-0 flex-1 overflow-hidden bg-stronger">
           {view === "settings" && (
             <div className="absolute inset-0 z-20 overflow-hidden">
               <SettingsPage
@@ -626,7 +594,7 @@ export function Shell() {
                 : "z-0 pointer-events-none opacity-0"
             }`}
           >
-            {tabs.length > 0 && (
+            {view === "run" && (
               <WorkspaceTabs
                 tabs={tabs}
                 activeTabId={activeTabId}
@@ -646,6 +614,9 @@ export function Shell() {
                 exitedLabel={t("shell.tabExited")}
                 backToHistoryLabel={t("shell.backToHistory")}
                 onBackToHistory={backToHistory}
+                leadingInset={
+                  isMac && sidebarCollapsed ? MAC_COLLAPSED_TAB_INSET : 0
+                }
               />
             )}
             <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -658,7 +629,7 @@ export function Shell() {
                       selected
                         ? "visible pointer-events-auto z-10"
                         : "invisible pointer-events-none z-0"
-                    } ${tab.kind === "terminal" ? "p-3" : ""}`}
+                    }`}
                     aria-hidden={!selected}
                   >
                     {tab.kind === "terminal" ? (
@@ -701,16 +672,16 @@ export function Shell() {
                 );
               })}
               {!activeTab && (
-                <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-4 px-7 py-6">
-                  <div className="shrink-0 flex flex-wrap items-center justify-between gap-3">
+                <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-3 px-5 py-4">
+                  <div className="shrink-0 flex flex-wrap items-center justify-between gap-2.5">
                     <div className="flex items-baseline gap-3">
-                      <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-text-weak">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-weak">
                         {t("shell.history")}
                       </span>
                       <button
                         onClick={refreshSessions}
                         disabled={loadingSessions}
-                        className="no-drag text-[12px] text-text-weak transition-colors hover:text-text-strong disabled:cursor-default disabled:text-text-muted"
+                        className="no-drag text-[11px] text-text-weak transition-colors hover:text-text-strong disabled:cursor-default disabled:text-text-muted"
                       >
                         {loadingSessions
                           ? t("shell.loadingSessions")
@@ -788,40 +759,40 @@ export function Shell() {
                         {t("shell.noHistory", { name: active.name })}
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {visibleSessions.map((s) => (
                           <div
                             key={s.id}
-                            className="group relative rounded-xl border border-border-weak bg-surface/92 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]"
+                            className="group relative rounded-lg border border-border-weak bg-surface/92 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]"
                           >
                             <button
                               onClick={() => resume(s)}
-                              className="flex w-full min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left"
+                              className="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left"
                               title={t("shell.resumeTitle")}
                             >
-                              <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak text-text-strong group-hover:bg-selection">
-                                <CliIcon cliId={activeCliId} size={15} />
+                              <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak text-text-strong group-hover:bg-selection">
+                                <CliIcon cliId={activeCliId} size={13} />
                               </span>
                               <div className="min-w-0 flex-1">
-                                <div className="truncate text-[13px] text-text-strong">
+                                <div className="truncate text-[12px] text-text-strong">
                                   {s.name}
                                 </div>
-                                <div className="truncate text-[11px] text-text-weak">
+                                <div className="truncate text-[10px] text-text-weak">
                                   {fmtTime(s.updatedAt)}
                                 </div>
                               </div>
                             </button>
-                            <div className="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 gap-1 rounded-md bg-surface/95 p-1 opacity-0 ring-1 ring-border-weak transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+                            <div className="pointer-events-none absolute right-1.5 top-1/2 flex -translate-y-1/2 gap-0.5 rounded-md bg-surface/95 p-0.5 opacity-0 ring-1 ring-border-weak transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
                               <button
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   resume(s);
                                 }}
-                                className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text-strong focus:bg-surface-hover focus:text-text-strong"
+                                className="grid size-6 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-text-strong focus:bg-surface-hover focus:text-text-strong"
                                 title={t("shell.resumeTitle")}
                                 aria-label={t("shell.resumeTitle")}
                               >
-                                <Play size={13} />
+                                <Play size={11} />
                               </button>
                               <button
                                 onClick={(event) => {
@@ -829,12 +800,12 @@ export function Shell() {
                                   setDeleteError(null);
                                   setDeleteTarget(s);
                                 }}
-                                className="grid size-7 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-danger focus:bg-surface-hover focus:text-danger"
+                                className="grid size-6 place-items-center rounded-[5px] text-text-muted transition-colors hover:bg-surface-hover hover:text-danger focus:bg-surface-hover focus:text-danger"
                                 title={t("shell.deleteSession")}
                                 aria-label={t("shell.deleteSession")}
                                 disabled={deletingSessionId === s.id}
                               >
-                                <Trash2 size={13} />
+                                <Trash2 size={11} />
                               </button>
                             </div>
                           </div>
@@ -846,17 +817,64 @@ export function Shell() {
               )}
             </div>
           </div>
+          </div>
+        </main>
+      </div>
+      {view === "run" && (
+        <div className="no-drag flex h-7 shrink-0 items-center gap-2 border-t border-border-weak bg-base px-2.5 text-[11px]">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="grid size-4 shrink-0 place-items-center rounded-[4px]"
+              style={{ color: active.accent }}
+            >
+              <CliIcon cliId={activeCliId} size={12} />
+            </span>
+            <span className="truncate font-medium text-text-strong">
+              {active.name}
+            </span>
+          </div>
+          <div className="ml-auto flex min-w-0 items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setView("config")}
+              className="inline-flex h-5 items-center gap-1 rounded-[4px] border border-border-weak bg-surface/70 px-1.5 font-medium text-text-base transition-[background,border-color,color] hover:border-border-base hover:bg-surface hover:text-text-strong"
+              title={t("shell.openAgentSettings", { name: active.name })}
+            >
+              <SlidersHorizontal size={11} />
+              {t("shell.agentSettings")}
+            </button>
+            <Chip label={active.name} color={active.accent} compact />
+            <Chip
+              label={installed ? t("sidebar.installed") : t("sidebar.notInstalled")}
+              compact
+            />
+          </div>
         </div>
-      </main>
+      )}
     </div>
   );
 }
 
-function Chip({ label, color }: { label: string; color?: string }) {
+function Chip({
+  label,
+  color,
+  compact = false,
+}: {
+  label: string;
+  color?: string;
+  compact?: boolean;
+}) {
   return (
-    <span className="flex h-7 items-center gap-1.5 rounded-md border border-border-weak bg-surface/80 px-2.5 text-[12px] leading-none text-text-base shadow-[0_1px_1px_rgba(0,0,0,0.03)]">
+    <span
+      className={`flex items-center gap-1 rounded-[4px] border border-border-weak bg-surface/70 leading-none text-text-base ${
+        compact ? "h-5 px-1.5 text-[11px]" : "h-7 px-2.5 text-[12px]"
+      }`}
+    >
       {color && (
-        <span className="size-2 rounded-full" style={{ background: color }} />
+        <span
+          className={`${compact ? "size-1.5" : "size-2"} rounded-full`}
+          style={{ background: color }}
+        />
       )}
       {label}
     </span>
@@ -931,6 +949,7 @@ function WorkspaceTabs({
   exitedLabel,
   backToHistoryLabel,
   onBackToHistory,
+  leadingInset,
 }: {
   tabs: WorkspaceTab[];
   activeTabId: string | null;
@@ -945,10 +964,21 @@ function WorkspaceTabs({
   exitedLabel: string;
   backToHistoryLabel: string;
   onBackToHistory: () => void;
+  leadingInset: number;
 }) {
   return (
-    <div className="no-drag flex h-11 shrink-0 items-center gap-1 border-b border-border-weak bg-stronger px-2">
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+    <div
+      className="drag-region relative flex h-8 shrink-0 items-end gap-0.5 border-b border-border-weak bg-base pr-1 transition-[padding-left] duration-180 ease-out"
+      style={{ paddingLeft: leadingInset }}
+    >
+      {leadingInset > 0 && (
+        <span
+          aria-hidden="true"
+          className="no-drag absolute inset-y-0 left-0 z-10"
+          style={{ width: leadingInset }}
+        />
+      )}
+      <div className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto">
         {tabs.map((tab) => {
           const selected = tab.id === activeTabId;
           const isRunning = tab.status === "running";
@@ -962,20 +992,20 @@ function WorkspaceTabs({
           return (
             <div
               key={tab.id}
-              className={`group flex h-8 min-w-[150px] max-w-[240px] shrink-0 items-center gap-2 rounded-md border px-2 text-[12px] shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-[background,border-color,color,box-shadow,filter] ${
+              className={`no-drag group flex h-8 min-w-[128px] max-w-[210px] shrink-0 items-center gap-1.5 rounded-t-[5px] border border-b-0 px-1.5 text-[11px] transition-[background,border-color,color,filter] ${
                 selected
-                  ? "border-border-base bg-surface text-text-strong shadow-[var(--shadow-sm)]"
-                  : "border-border-weak bg-surface/58 text-text-base hover:border-border-base hover:bg-surface hover:text-text-strong hover:shadow-[var(--shadow-sm)]"
+                  ? "border-border-weak bg-stronger text-text-strong"
+                  : "border-border-weak/70 bg-surface-weak/55 text-text-weak hover:border-border-base hover:bg-surface/78 hover:text-text-strong"
               }`}
             >
               <button
                 type="button"
                 onClick={() => onActivate(tab)}
-                className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left"
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left"
                 title={`${tab.title} · ${cliName(tab.cliId)}`}
               >
-                <span className="grid size-5 shrink-0 place-items-center rounded-[5px] border border-border-weak bg-surface-weak">
-                  <CliIcon cliId={tab.cliId} size={14} />
+                <span className="grid size-4 shrink-0 place-items-center rounded-[4px] border border-border-weak bg-surface-weak">
+                  <CliIcon cliId={tab.cliId} size={12} />
                 </span>
                 <span className="min-w-0 flex-1 truncate">{tab.title}</span>
                 <span
@@ -983,7 +1013,7 @@ function WorkspaceTabs({
                   title={statusTitle}
                 >
                   {isBusy ? (
-                    <Loader2 size={12} className="animate-spin text-success" />
+                    <Loader2 size={10} className="animate-spin text-success" />
                   ) : (
                     <span
                       className={`size-1.5 rounded-full ${
@@ -1003,11 +1033,11 @@ function WorkspaceTabs({
                   event.stopPropagation();
                   onClose(tab.id);
                 }}
-                className="grid size-5 shrink-0 place-items-center rounded-[5px] text-text-muted opacity-70 transition-[background,color,opacity] hover:bg-surface-hover hover:text-text-strong group-hover:opacity-100"
+                className="grid size-4.5 shrink-0 place-items-center rounded-[4px] text-text-muted opacity-65 transition-[background,color,opacity] hover:bg-surface-hover hover:text-text-strong group-hover:opacity-100"
                 title={closeTitle}
                 aria-label={closeTitle}
               >
-                <X size={12} />
+                <X size={10} />
               </button>
             </div>
           );
@@ -1017,11 +1047,11 @@ function WorkspaceTabs({
         <button
           type="button"
           onClick={onBackToHistory}
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border border-border-weak bg-surface/75 px-2.5 text-[12px] font-medium text-text-base shadow-[0_1px_1px_rgba(0,0,0,0.03)] transition-[background,border-color,color,box-shadow] hover:border-border-base hover:bg-surface hover:text-text-strong hover:shadow-[var(--shadow-sm)]"
+          className="no-drag mb-0.5 inline-flex h-6 shrink-0 items-center gap-1 rounded-[5px] px-2 text-[11px] font-medium text-text-base transition-[background,color] hover:bg-surface-hover hover:text-text-strong"
           title={backToHistoryLabel}
           aria-label={backToHistoryLabel}
         >
-          <History size={13} />
+          <History size={11} />
           {backToHistoryLabel}
         </button>
       )}
@@ -1029,11 +1059,11 @@ function WorkspaceTabs({
         type="button"
         onClick={onNew}
         disabled={newDisabled}
-        className="grid size-8 shrink-0 place-items-center rounded-md text-text-weak transition-[background,color] hover:bg-surface-hover hover:text-text-strong disabled:pointer-events-none disabled:opacity-45"
+        className="no-drag mb-0.5 grid size-6 shrink-0 place-items-center rounded-[5px] text-text-weak transition-[background,color] hover:bg-surface-hover hover:text-text-strong disabled:pointer-events-none disabled:opacity-45"
         title={newTitle}
         aria-label={newTitle}
       >
-        <Plus size={15} />
+        <Plus size={13} />
       </button>
     </div>
   );
@@ -1048,7 +1078,7 @@ function SessionListSkeleton({ label }: { label: string }) {
 
   return (
     <div
-      className="space-y-2"
+      className="space-y-1"
       role="status"
       aria-live="polite"
       aria-label={label}
@@ -1056,22 +1086,22 @@ function SessionListSkeleton({ label }: { label: string }) {
       {rows.map((row, index) => (
         <div
           key={`${row.title}-${row.meta}`}
-          className="rounded-xl border border-border-weak bg-surface/86 px-3 py-2.5 shadow-[var(--shadow-sm)]"
+          className="rounded-lg border border-border-weak bg-surface/86 px-2.5 py-1.5 shadow-[var(--shadow-sm)]"
         >
-          <div className="flex items-center gap-3">
-            <span className="grid size-8 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-6 shrink-0 place-items-center rounded-md border border-border-weak bg-surface-weak">
               <span
-                className="size-4 animate-pulse rounded bg-border-weak"
+                className="size-3 animate-pulse rounded bg-border-weak"
                 style={{ animationDelay: `${index * 120}ms` }}
               />
             </span>
-            <div className="min-w-0 flex-1 space-y-2">
+            <div className="min-w-0 flex-1 space-y-1.5">
               <span
-                className="block h-3 animate-pulse rounded-full bg-surface-weak"
+                className="block h-2.5 animate-pulse rounded-full bg-surface-weak"
                 style={{ width: row.title, animationDelay: `${index * 120}ms` }}
               />
               <span
-                className="block h-2.5 animate-pulse rounded-full bg-surface-weak/70"
+                className="block h-2 animate-pulse rounded-full bg-surface-weak/70"
                 style={{
                   width: row.meta,
                   animationDelay: `${index * 120 + 80}ms`,

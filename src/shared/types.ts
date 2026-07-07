@@ -198,6 +198,11 @@ export interface InstalledSkillEntry {
 
 export type InstalledSkillPatch = Partial<Pick<InstalledSkillEntry, 'name' | 'description'>>
 
+export interface InstalledSkillFile {
+  path: string
+  content: string
+}
+
 export interface SkillsShSkill {
   id: string
   slug: string

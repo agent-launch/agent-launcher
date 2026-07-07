@@ -57,8 +57,8 @@ export const SettingsPage = memo(function SettingsPage({
       {isMac && <div className="drag-region absolute inset-x-0 top-0 h-12" aria-hidden="true" />}
 
       <div className="relative h-full overflow-y-auto">
-        <div className={`mx-auto flex w-full max-w-[980px] flex-col gap-4 px-8 ${isMac ? 'pb-7 pt-14' : 'py-7'}`}>
-          <h2 className="font-display text-[34px] font-bold leading-tight text-text-strong">{t(activeTab.labelKey)}</h2>
+        <div className={`mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 ${isMac ? 'pb-5 pt-12' : 'py-5'}`}>
+          <h2 className="font-display text-[26px] font-bold leading-tight text-text-strong">{t(activeTab.labelKey)}</h2>
 
           {tab === 'general' ? <GeneralSettings /> : tab === 'usage' ? <UsageSettings /> : <AboutSettings checkUpdatesKey={checkUpdatesKey} />}
         </div>
@@ -98,8 +98,8 @@ function GeneralSettings() {
   ]
 
   return (
-    <div className="space-y-5">
-      <section className="overflow-visible rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)]">
+    <div className="space-y-3">
+      <section className="overflow-visible rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)]">
         <div className="divide-y divide-border-weak">
           <SettingControlRow title={t('settings.appearance')} desc={t('settings.appearanceDesc')}>
             <Select options={themeOptions} value={themeMode} onChange={setThemeMode} />
@@ -115,9 +115,9 @@ function GeneralSettings() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
+      <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
         <div className="flex items-center gap-2">
-          <h3 className="text-[14px] font-medium text-text-strong">{t('settings.yolo.title')}</h3>
+          <h3 className="text-[13px] font-medium text-text-strong">{t('settings.yolo.title')}</h3>
           <span
             className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
             style={{ background: 'color-mix(in srgb, var(--warning) 22%, transparent)', color: 'var(--text-strong)' }}
@@ -125,23 +125,23 @@ function GeneralSettings() {
             <TriangleAlert size={11} /> {t('settings.yolo.danger')}
           </span>
         </div>
-        <p className="mt-1.5 mb-3 text-[12px] leading-relaxed text-text-weak">{t('settings.yolo.desc')}</p>
+        <p className="mb-2 mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.yolo.desc')}</p>
 
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {CLIS.map((cli) => {
             const support = YOLO_SUPPORT[cli.id]
             const enabled = !!cfg?.prefs[cli.id as CliId]?.yolo
             return (
               <div
                 key={cli.id}
-                className="flex items-center gap-3 rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-2.5"
+                className="flex items-center gap-2.5 rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-2.5 py-1.5"
               >
-                <span className="grid size-7 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
-                  <CliIcon cliId={cli.id as CliId} size={15} />
+                <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                  <CliIcon cliId={cli.id as CliId} size={13} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[13px] text-text-strong">{cli.name}</div>
-                  <div className="truncate font-mono text-[11px] text-text-weak">
+                  <div className="text-[12px] text-text-strong">{cli.name}</div>
+                  <div className="truncate font-mono text-[10px] text-text-weak">
                     {support?.supported ? support.note : t('settings.yolo.unsupported')}
                   </div>
                 </div>
@@ -225,7 +225,7 @@ function UsageSettings() {
 
   if (loading && !usage) {
     return (
-      <section className="rounded-xl border border-border-weak bg-surface/92 p-5 shadow-[var(--shadow-sm)]">
+      <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
         <div className="text-[13px] text-text-weak">{t('settings.usage.loading')}</div>
       </section>
     )
@@ -233,8 +233,8 @@ function UsageSettings() {
 
   if (error && !usage) {
     return (
-      <section className="rounded-xl border border-border-weak bg-surface/92 p-5 shadow-[var(--shadow-sm)]">
-        <div className="flex items-center justify-between gap-3">
+      <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
+        <div className="flex items-center justify-between gap-2">
           <div className="text-[13px] text-[var(--danger)]">{t('settings.usage.failed', { error })}</div>
           <Button size="sm" variant="secondary" onClick={() => { cancelRef.current = load(true) }}>
             <RefreshCw size={13} />
@@ -249,11 +249,11 @@ function UsageSettings() {
   if (!summary) return null
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border-weak bg-surface/92 p-5 shadow-[var(--shadow-sm)]">
-        <div className="mb-4 flex items-start justify-between gap-3">
+    <div className="space-y-3">
+      <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
+        <div className="mb-3 flex items-start justify-between gap-2">
           <div>
-            <h3 className="text-[14px] font-medium text-text-strong">{t('settings.usage.title')}</h3>
+            <h3 className="text-[13px] font-medium text-text-strong">{t('settings.usage.title')}</h3>
             <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.usage.desc')}</p>
           </div>
           <Button size="sm" variant="secondary" onClick={() => { cancelRef.current = load(true) }} disabled={loading}>
@@ -269,8 +269,8 @@ function UsageSettings() {
           <MetricCard value={formatCompact(summary.today?.tokens.totalTokens ?? 0)} label={t('settings.usage.tokensToday')} />
         </div>
 
-        <div className="mt-5">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mt-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <h4 className="text-[13px] font-medium text-text-strong">{t('settings.usage.activity')}</h4>
             <span className="text-[12px] text-text-weak">
               {t('settings.usage.lastYear', {
@@ -281,9 +281,9 @@ function UsageSettings() {
           <ActivityHeatmap days={usage.daily} setTooltip={setTooltip} />
         </div>
 
-        <div className="mt-5 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="min-w-0">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <h4 className="text-[13px] font-medium text-text-strong">{t('settings.usage.modelDist')}</h4>
               <span className="text-[12px] text-text-weak">
                 {t('settings.usage.tokenValue', { count: formatCompact(usage.tokens.totalTokens) })}
@@ -292,10 +292,10 @@ function UsageSettings() {
             {summary.topModels.length === 0 ? (
               <EmptyPanel>{t('settings.usage.empty')}</EmptyPanel>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-2">
                 {summary.topModels.map((item) => (
                   <div key={item.model} className="space-y-1">
-                    <div className="flex items-center justify-between gap-3 text-[12px]">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
                       <span className="min-w-0 truncate text-text-strong">{item.model}</span>
                       <span className="shrink-0 text-text-weak">
                         {formatCompact(item.tokens.totalTokens)} · {percent(item.tokens.totalTokens, usage.tokens.totalTokens)}
@@ -314,7 +314,7 @@ function UsageSettings() {
           </div>
 
           <div className="min-w-0">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <h4 className="text-[13px] font-medium text-text-strong">{t('settings.usage.dailyCost')}</h4>
               <span className="text-[12px] text-text-weak">{t('settings.usage.last30')}</span>
             </div>
@@ -323,22 +323,22 @@ function UsageSettings() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-border-weak bg-surface/92 p-5 shadow-[var(--shadow-sm)]">
-        <div className="mb-4">
-          <h3 className="text-[14px] font-medium text-text-strong">{t('settings.usage.byAgent')}</h3>
+      <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
+        <div className="mb-3">
+          <h3 className="text-[13px] font-medium text-text-strong">{t('settings.usage.byAgent')}</h3>
           <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.usage.byAgentDesc')}</p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           {usage.byCli.map((item) => {
             const cli = CLIS.find((entry) => entry.id === item.cliId)
             return (
-              <div key={item.cliId} className="rounded-xl border border-border-weak bg-surface/86 px-3 py-3">
-                <div className="flex items-center gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
-                    <CliIcon cliId={item.cliId} size={16} />
+              <div key={item.cliId} className="rounded-lg border border-border-weak bg-surface/86 px-2.5 py-2">
+                <div className="flex items-center gap-2.5">
+                  <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+                    <CliIcon cliId={item.cliId} size={13} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] font-medium text-text-strong">{cli?.name ?? item.cliId}</div>
+                    <div className="truncate text-[12px] font-medium text-text-strong">{cli?.name ?? item.cliId}</div>
                     <div className="mt-0.5 text-[11px] text-text-weak">
                       {t('settings.usage.agentMeta', {
                         requests: item.requestCount,
@@ -347,7 +347,7 @@ function UsageSettings() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[13px] font-semibold text-text-strong">{formatCompact(item.tokens.totalTokens)}</div>
+                    <div className="text-[12px] font-semibold text-text-strong">{formatCompact(item.tokens.totalTokens)}</div>
                     <div className="text-[11px] text-text-weak">{t('settings.usage.tokenUnit')}</div>
                   </div>
                 </div>
@@ -368,16 +368,16 @@ function UsageSettings() {
 
 function MetricCard({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-xl border border-border-weak bg-surface-weak px-3 py-3">
-      <div className="truncate text-[18px] font-semibold text-text-strong">{value}</div>
-      <div className="mt-0.5 truncate text-[12px] text-text-weak">{label}</div>
+    <div className="rounded-lg border border-border-weak bg-surface-weak px-2.5 py-2">
+      <div className="truncate text-[15px] font-semibold text-text-strong">{value}</div>
+      <div className="mt-0.5 truncate text-[11px] text-text-weak">{label}</div>
     </div>
   )
 }
 
 function EmptyPanel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 px-4 py-8 text-center text-[13px] text-text-weak shadow-[var(--shadow-sm)]">
+    <div className="rounded-lg border border-dashed border-border-weak bg-surface/72 px-3 py-6 text-center text-[12px] text-text-weak shadow-[var(--shadow-sm)]">
       {children}
     </div>
   )
@@ -471,7 +471,7 @@ const DailyBars = memo(function DailyBars({
   }
   return (
     <div
-      className="flex h-[180px] items-end gap-1 rounded-xl border border-border-weak bg-surface/72 px-3 py-3"
+      className="flex h-[160px] items-end gap-1 rounded-lg border border-border-weak bg-surface/72 px-2.5 py-2.5"
       onPointerLeave={() => setTooltip(null)}
     >
       {days.map((day) => {
@@ -541,7 +541,7 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
 
   return (
     <div
-      className="overflow-hidden rounded-xl border border-border-weak bg-surface/72 px-3 py-3"
+      className="overflow-hidden rounded-lg border border-border-weak bg-surface/72 px-2.5 py-2.5"
       style={{ contain: 'layout paint' }}
     >
       <svg
@@ -799,12 +799,12 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
   const statusById = new Map((statuses ?? []).map((status) => [status.cliId, status]))
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-5">
+    <div className="space-y-3">
+      <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
         <div className="min-w-0">
-          <h3 className="font-display text-[18px] font-semibold text-text-strong">AgentLauncher</h3>
-          <p className="mt-1 text-[13px] leading-relaxed text-text-weak">{t('settings.aboutDesc')}</p>
-          <div className="mt-5 grid gap-2 text-[13px]">
+          <h3 className="font-display text-[16px] font-semibold text-text-strong">AgentLauncher</h3>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.aboutDesc')}</p>
+          <div className="mt-3 grid gap-1.5 text-[12px]">
             <InfoRow label={t('settings.aboutVersion')} value={info?.version ?? '-'} />
             <InfoRow label={t('settings.aboutPlatform')} value={info?.platform ?? '-'} />
             <InfoRow label={t('settings.aboutConfigPath')} value={info?.configPath ?? '-'} mono />
@@ -819,10 +819,10 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
         onInstall={installAppUpdate}
       />
 
-      <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
+      <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h3 className="text-[14px] font-medium text-text-strong">{t('settings.cliStatus.title')}</h3>
+            <h3 className="text-[13px] font-medium text-text-strong">{t('settings.cliStatus.title')}</h3>
             <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.cliStatus.desc')}</p>
           </div>
           <Button
@@ -837,7 +837,7 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
           </Button>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           {CLIS.map((cli) => {
             const id = cli.id as CliId
             const status = statusById.get(id)
@@ -916,10 +916,10 @@ function AppUpdateSection({
   }
 
   return (
-    <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-5">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-[14px] font-medium text-text-strong">{t('settings.appUpdate.title')}</h3>
+          <h3 className="text-[13px] font-medium text-text-strong">{t('settings.appUpdate.title')}</h3>
           <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.appUpdate.desc')}</p>
         </div>
         <Button size="sm" variant={hasUpdate ? 'primary' : 'secondary'} onClick={runPrimary} disabled={busy}>
@@ -928,8 +928,8 @@ function AppUpdateSection({
         </Button>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-        <div className="min-w-0 rounded-xl border border-border-weak bg-surface/72 px-3 py-3">
+      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+        <div className="min-w-0 rounded-lg border border-border-weak bg-surface/72 px-2.5 py-2">
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
             <StatusPill tone={hasUpdate ? 'warning' : status?.status === 'error' ? 'muted' : 'success'}>
               {appUpdateStateText(status, t)}
@@ -1056,13 +1056,13 @@ function CliStatusRow({
         : t('settings.cliStatus.current')
 
   return (
-    <div className="grid gap-3 rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3 md:grid-cols-[minmax(180px,1fr)_minmax(0,1.2fr)_auto] md:items-center">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
-          <CliIcon cliId={cliId} size={16} />
+    <div className="grid gap-2 rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-2.5 py-2 md:grid-cols-[minmax(160px,1fr)_minmax(0,1.2fr)_auto] md:items-center">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+          <CliIcon cliId={cliId} size={13} />
         </span>
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium text-text-strong">{name}</div>
+          <div className="truncate text-[12px] font-medium text-text-strong">{name}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-text-weak">
             <StatusPill tone={status?.updateAvailable ? 'warning' : installed ? 'success' : 'muted'}>
               {stateLabel}
@@ -1072,8 +1072,8 @@ function CliStatusRow({
         </div>
       </div>
 
-      <div className="min-w-0 text-[12px]">
-        <div className="grid grid-cols-[64px_1fr] gap-x-2 gap-y-1">
+      <div className="min-w-0 text-[11px]">
+        <div className="grid grid-cols-[56px_1fr] gap-x-2 gap-y-0.5">
           <span className="text-text-weak">{t('settings.cliStatus.currentVersion')}</span>
           <span className="truncate font-mono text-text-strong" title={versionText}>
             {versionText}
@@ -1115,7 +1115,7 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: 'succ
         ? { background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--text-strong)' }
         : { background: 'var(--surface-weak)', color: 'var(--text-weak)' }
   return (
-    <span className="inline-flex h-5 items-center rounded-full px-2 text-[11px]" style={styles}>
+    <span className="inline-flex h-4 items-center rounded-full px-1.5 text-[10px]" style={styles}>
       {children}
     </span>
   )
@@ -1123,9 +1123,9 @@ function StatusPill({ children, tone }: { children: React.ReactNode; tone: 'succ
 
 function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="grid grid-cols-[120px_1fr] gap-3">
+    <div className="grid grid-cols-[104px_1fr] gap-2">
       <span className="text-text-weak">{label}</span>
-      <span className={`min-w-0 truncate text-text-strong ${mono ? 'font-mono text-[12px]' : ''}`} title={value}>
+      <span className={`min-w-0 truncate text-text-strong ${mono ? 'font-mono text-[11px]' : ''}`} title={value}>
         {value}
       </span>
     </div>
@@ -1142,10 +1142,10 @@ function SettingControlRow({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-center justify-between gap-5 px-4 py-4">
+    <div className="flex items-center justify-between gap-4 px-3 py-3">
       <div className="min-w-0">
-        <div className="text-[13px] font-semibold text-text-strong">{title}</div>
-        <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{desc}</p>
+        <div className="text-[12px] font-semibold text-text-strong">{title}</div>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-text-weak">{desc}</p>
       </div>
       <div className="shrink-0">{children}</div>
     </div>
