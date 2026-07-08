@@ -114,6 +114,37 @@ function patchImeCompositionStart(term: Terminal): () => void {
   }
 }
 
+function installImeTextareaAnchorSync(term: Terminal): () => void {
+  const element = term.element
+  const textarea = term.textarea
+  const screen = element?.querySelector<HTMLElement>('.xterm-screen')
+  if (!element || !textarea || !screen) return () => {}
+
+  const sync = () => {
+    const rect = screen.getBoundingClientRect()
+    const cellWidth = rect.width / term.cols
+    const cellHeight = rect.height / term.rows
+    if (!(cellWidth > 0) || !(cellHeight > 0)) return
+
+    const buffer = term.buffer.active
+    const row = Math.min(Math.max(buffer.cursorY, 0), Math.max(term.rows - 1, 0))
+    const column = Math.min(Math.max(buffer.cursorX, 0), Math.max(term.cols - 1, 0))
+
+    textarea.style.left = `${column * cellWidth}px`
+    textarea.style.top = `${row * cellHeight}px`
+    textarea.style.width = `${Math.max(cellWidth, 1)}px`
+    textarea.style.height = `${Math.max(cellHeight, 1)}px`
+    textarea.style.lineHeight = `${Math.max(cellHeight, 1)}px`
+  }
+
+  element.addEventListener('compositionstart', sync)
+  element.addEventListener('compositionupdate', sync)
+  return () => {
+    element.removeEventListener('compositionstart', sync)
+    element.removeEventListener('compositionupdate', sync)
+  }
+}
+
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -147,6 +178,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     term.loadAddon(fit)
     term.open(host)
     const removeImeCompositionPatch = patchImeCompositionStart(term)
+    const removeImeTextareaAnchorSync = installImeTextareaAnchorSync(term)
     fit.fit()
 
     let ptyId: string | null = null
@@ -241,6 +273,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       ro.disconnect()
       offs.forEach((off) => off())
       removeImeCompositionPatch()
+      removeImeTextareaAnchorSync()
       if (ptyId) window.api.pty.kill(ptyId)
       term.dispose()
       termRef.current = null

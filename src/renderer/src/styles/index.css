@@ -387,6 +387,14 @@
   }
 }
 
+.xterm .xterm-helpers {
+  left: 0;
+}
+
+.xterm .xterm-helper-textarea {
+  caret-color: transparent;
+}
+
 .xterm .xterm-viewport {
   border-radius: inherit;
 }
