@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Terminal, type IWindowsPty } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import '@xterm/xterm/css/xterm.css'
 import { useT } from '@/i18n'
 import type { CliId } from '@shared/types'
@@ -76,6 +77,41 @@ function windowsPtyInfo(): IWindowsPty | undefined {
   return window.api.getWindowsPtyInfo?.() ?? undefined
 }
 
+type XtermCompositionCore = {
+  _core?: {
+    _syncTextArea?: () => void
+    _compositionHelper?: {
+      updateCompositionElements?: (dontRecurse?: boolean) => void
+    }
+  }
+}
+
+function syncImeAnchor(term: Terminal): void {
+  const core = (term as unknown as XtermCompositionCore)._core
+  try {
+    core?._syncTextArea?.()
+    core?._compositionHelper?.updateCompositionElements?.(true)
+  } catch {
+    /* xterm internals can change between minor versions */
+  }
+}
+
+function installImeAnchorSync(term: Terminal): () => void {
+  const textarea = term.textarea
+  if (!textarea) return () => {}
+
+  const sync = () => {
+    syncImeAnchor(term)
+    window.setTimeout(() => syncImeAnchor(term), 0)
+  }
+  textarea.addEventListener('compositionstart', sync, true)
+  textarea.addEventListener('compositionupdate', sync, true)
+  return () => {
+    textarea.removeEventListener('compositionstart', sync, true)
+    textarea.removeEventListener('compositionupdate', sync, true)
+  }
+}
+
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -96,6 +132,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       fontSize: 13,
       lineHeight: 1.25,
       letterSpacing: 0,
+      allowProposedApi: true,
       cursorBlink: true,
       cursorStyle: 'bar',
       rescaleOverlappingGlyphs: true,
@@ -107,7 +144,11 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
+    const unicodeGraphemes = new UnicodeGraphemesAddon()
+    term.loadAddon(unicodeGraphemes)
+    term.unicode.activeVersion = '15-graphemes'
     term.open(host)
+    const removeImeAnchorSync = installImeAnchorSync(term)
     fit.fit()
 
     let ptyId: string | null = null
@@ -201,6 +242,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       window.clearTimeout(startTimer)
       ro.disconnect()
       offs.forEach((off) => off())
+      removeImeAnchorSync()
       if (ptyId) window.api.pty.kill(ptyId)
       term.dispose()
       termRef.current = null
