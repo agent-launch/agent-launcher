@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { Terminal, type IWindowsPty } from '@xterm/xterm'
+import {
+  Terminal,
+  type IBuffer,
+  type IBufferCell,
+  type IBufferLine,
+  type IDisposable,
+  type IWindowsPty
+} from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useT } from '@/i18n'
@@ -114,34 +121,172 @@ function patchImeCompositionStart(term: Terminal): () => void {
   }
 }
 
-function installImeTextareaAnchorSync(term: Terminal): () => void {
+type TerminalImeAnchor = {
+  row: number
+  column: number
+}
+
+const PAINTED_CURSOR_CLIS = new Set<CliId>(['claude-code', 'pi'])
+const PROMPT_MARKER_CHARS = new Set(['>', '\u276f', '\u203a', '\u2192'])
+
+function clampCell(value: number, max: number): number {
+  return Math.min(Math.max(value, 0), Math.max(max - 1, 0))
+}
+
+function visibleLine(buffer: IBuffer, row: number): IBufferLine | undefined {
+  return buffer.getLine(buffer.baseY + row)
+}
+
+function cellChars(cell: IBufferCell): string {
+  return cell.getChars() || ' '
+}
+
+function isSpaceCell(cell: IBufferCell | undefined): boolean {
+  if (!cell || cell.getWidth() === 0) return false
+  const chars = cellChars(cell)
+  return chars === ' ' || chars === '\u00a0'
+}
+
+function findLineContentEndColumn(line: IBufferLine, startColumn: number, cols: number): number | null {
+  const maxColumn = Math.min(line.length, cols)
+  for (let column = maxColumn - 1; column >= startColumn; column--) {
+    const cell = line.getCell(column)
+    if (!cell || cell.getWidth() === 0 || isSpaceCell(cell)) continue
+    return column + Math.max(cell.getWidth(), 1)
+  }
+  return null
+}
+
+function findPaintedCursorColumn(line: IBufferLine, cols: number): number | null {
+  const maxColumn = Math.min(line.length, cols)
+  for (let column = 0; column < maxColumn; column++) {
+    const cell = line.getCell(column)
+    if (!cell || cell.getWidth() === 0 || !cell.isInverse()) continue
+    return column
+  }
+  return null
+}
+
+function resolvePromptMarkerColumn(line: IBufferLine, cols: number): number | null {
+  const maxColumn = Math.min(line.length, cols)
+  for (let column = 0; column < maxColumn - 1; column++) {
+    const marker = line.getCell(column)
+    if (!marker || marker.getWidth() === 0 || !PROMPT_MARKER_CHARS.has(cellChars(marker))) continue
+
+    const nextColumn = column + Math.max(marker.getWidth(), 1)
+    if (nextColumn >= maxColumn || !isSpaceCell(line.getCell(nextColumn))) continue
+
+    const inputColumn = nextColumn + 1
+    return findLineContentEndColumn(line, inputColumn, cols) ?? inputColumn
+  }
+  return null
+}
+
+function nearbyRows(row: number, rows: number): number[] {
+  const out: number[] = []
+  for (const offset of [0, -1, 1, -2, 2, -3, 3]) {
+    const candidate = row + offset
+    if (candidate >= 0 && candidate < rows && !out.includes(candidate)) out.push(candidate)
+  }
+  return out
+}
+
+function resolvePaintedCursorImeAnchor(args: {
+  buffer: IBuffer
+  rows: number
+  cols: number
+  cursorX: number
+  cursorY: number
+}): TerminalImeAnchor | null {
+  const cursorLooksParked = args.cursorX >= Math.max(args.cols - 8, Math.floor(args.cols * 0.8))
+  if (!cursorLooksParked) return null
+
+  for (const row of nearbyRows(args.cursorY, args.rows)) {
+    const line = visibleLine(args.buffer, row)
+    if (!line) continue
+
+    const paintedColumn = findPaintedCursorColumn(line, args.cols)
+    if (paintedColumn !== null && paintedColumn < args.cursorX) {
+      return { row, column: paintedColumn }
+    }
+
+    const promptColumn = resolvePromptMarkerColumn(line, args.cols)
+    if (promptColumn !== null && promptColumn < args.cursorX) {
+      return { row, column: clampCell(promptColumn, args.cols) }
+    }
+  }
+
+  return null
+}
+
+function resolveImeAnchor(term: Terminal, cliId: CliId): TerminalImeAnchor {
+  const buffer = term.buffer.active
+  const cursorX = clampCell(buffer.cursorX, term.cols)
+  const cursorY = clampCell(buffer.cursorY, term.rows)
+
+  if (PAINTED_CURSOR_CLIS.has(cliId)) {
+    const paintedAnchor = resolvePaintedCursorImeAnchor({
+      buffer,
+      rows: term.rows,
+      cols: term.cols,
+      cursorX,
+      cursorY
+    })
+    if (paintedAnchor) return paintedAnchor
+  }
+
+  return { row: cursorY, column: cursorX }
+}
+
+function installImeTextareaAnchorSync(term: Terminal, cliId: CliId): () => void {
   const element = term.element
   const textarea = term.textarea
+  const compositionView = element?.querySelector<HTMLElement>('.composition-view')
   const screen = element?.querySelector<HTMLElement>('.xterm-screen')
   if (!element || !textarea || !screen) return () => {}
 
   const sync = () => {
+    if (term.cols <= 0 || term.rows <= 0) return
     const rect = screen.getBoundingClientRect()
     const cellWidth = rect.width / term.cols
     const cellHeight = rect.height / term.rows
-    if (!(cellWidth > 0) || !(cellHeight > 0)) return
+    if (!Number.isFinite(cellWidth) || !Number.isFinite(cellHeight) || !(cellWidth > 0) || !(cellHeight > 0)) return
 
-    const buffer = term.buffer.active
-    const row = Math.min(Math.max(buffer.cursorY, 0), Math.max(term.rows - 1, 0))
-    const column = Math.min(Math.max(buffer.cursorX, 0), Math.max(term.cols - 1, 0))
+    const { row, column } = resolveImeAnchor(term, cliId)
+    const left = `${column * cellWidth}px`
+    const top = `${row * cellHeight}px`
+    const height = `${Math.max(cellHeight, 1)}px`
 
-    textarea.style.left = `${column * cellWidth}px`
-    textarea.style.top = `${row * cellHeight}px`
+    textarea.style.left = left
+    textarea.style.top = top
     textarea.style.width = `${Math.max(cellWidth, 1)}px`
-    textarea.style.height = `${Math.max(cellHeight, 1)}px`
-    textarea.style.lineHeight = `${Math.max(cellHeight, 1)}px`
+    textarea.style.height = height
+    textarea.style.lineHeight = height
+
+    if (compositionView) {
+      compositionView.style.left = left
+      compositionView.style.top = top
+      compositionView.style.height = height
+      compositionView.style.lineHeight = height
+    }
   }
 
-  element.addEventListener('compositionstart', sync)
-  element.addEventListener('compositionupdate', sync)
+  const syncSoon = () => {
+    sync()
+    window.setTimeout(() => {
+      if (textarea.isConnected) sync()
+    }, 0)
+  }
+
+  const disposables: IDisposable[] = [term.onCursorMove(sync), term.onRender(sync), term.onResize(sync)]
+  element.addEventListener('keydown', sync, true)
+  element.addEventListener('compositionstart', syncSoon)
+  element.addEventListener('compositionupdate', syncSoon)
   return () => {
-    element.removeEventListener('compositionstart', sync)
-    element.removeEventListener('compositionupdate', sync)
+    disposables.forEach((disposable) => disposable.dispose())
+    element.removeEventListener('keydown', sync, true)
+    element.removeEventListener('compositionstart', syncSoon)
+    element.removeEventListener('compositionupdate', syncSoon)
   }
 }
 
@@ -178,7 +323,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     term.loadAddon(fit)
     term.open(host)
     const removeImeCompositionPatch = patchImeCompositionStart(term)
-    const removeImeTextareaAnchorSync = installImeTextareaAnchorSync(term)
+    const removeImeTextareaAnchorSync = installImeTextareaAnchorSync(term, cliId)
     fit.fit()
 
     let ptyId: string | null = null
