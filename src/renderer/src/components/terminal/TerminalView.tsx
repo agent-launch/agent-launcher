@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Terminal, type IWindowsPty } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import '@xterm/xterm/css/xterm.css'
 import { useT } from '@/i18n'
 import type { CliId } from '@shared/types'
@@ -81,34 +80,37 @@ type XtermCompositionCore = {
   _core?: {
     _syncTextArea?: () => void
     _compositionHelper?: {
+      compositionstart?: () => void
       updateCompositionElements?: (dontRecurse?: boolean) => void
     }
   }
 }
 
-function syncImeAnchor(term: Terminal): void {
+function patchImeCompositionStart(term: Terminal): () => void {
   const core = (term as unknown as XtermCompositionCore)._core
-  try {
-    core?._syncTextArea?.()
-    core?._compositionHelper?.updateCompositionElements?.(true)
-  } catch {
-    /* xterm internals can change between minor versions */
-  }
-}
+  const helper = core?._compositionHelper
+  const original = helper?.compositionstart
+  if (!core?._syncTextArea || !helper || typeof original !== 'function') return () => {}
 
-function installImeAnchorSync(term: Terminal): () => void {
-  const textarea = term.textarea
-  if (!textarea) return () => {}
-
-  const sync = () => {
-    syncImeAnchor(term)
-    window.setTimeout(() => syncImeAnchor(term), 0)
+  const patched = () => {
+    // Match xterm.js #5759: sync the helper textarea before composition starts,
+    // then immediately refresh composition elements so IME anchoring uses the
+    // latest cursor instead of placeholder/hint text position.
+    try {
+      core._syncTextArea?.()
+    } catch {
+      /* xterm internals can change between minor versions */
+    }
+    original.call(helper)
+    try {
+      helper.updateCompositionElements?.()
+    } catch {
+      /* xterm internals can change between minor versions */
+    }
   }
-  textarea.addEventListener('compositionstart', sync, true)
-  textarea.addEventListener('compositionupdate', sync, true)
+  helper.compositionstart = patched
   return () => {
-    textarea.removeEventListener('compositionstart', sync, true)
-    textarea.removeEventListener('compositionupdate', sync, true)
+    if (helper.compositionstart === patched) helper.compositionstart = original
   }
 }
 
@@ -132,7 +134,6 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       fontSize: 13,
       lineHeight: 1.25,
       letterSpacing: 0,
-      allowProposedApi: true,
       cursorBlink: true,
       cursorStyle: 'bar',
       rescaleOverlappingGlyphs: true,
@@ -144,11 +145,8 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
-    const unicodeGraphemes = new UnicodeGraphemesAddon()
-    term.loadAddon(unicodeGraphemes)
-    term.unicode.activeVersion = '15-graphemes'
     term.open(host)
-    const removeImeAnchorSync = installImeAnchorSync(term)
+    const removeImeCompositionPatch = patchImeCompositionStart(term)
     fit.fit()
 
     let ptyId: string | null = null
@@ -242,7 +240,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       window.clearTimeout(startTimer)
       ro.disconnect()
       offs.forEach((off) => off())
-      removeImeAnchorSync()
+      removeImeCompositionPatch()
       if (ptyId) window.api.pty.kill(ptyId)
       term.dispose()
       termRef.current = null
