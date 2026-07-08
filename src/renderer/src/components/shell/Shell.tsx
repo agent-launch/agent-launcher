@@ -9,7 +9,6 @@ import {
 import {
   Gauge,
   History,
-  Loader2,
   PanelLeftClose,
   PanelLeftOpen,
   Play,
@@ -54,7 +53,6 @@ interface WorkspaceTab {
   session?: SessionInfo;
   mode?: "cli" | "shell";
   status: "running" | "idle" | "exited";
-  busy?: boolean;
 }
 
 interface SessionState {
@@ -188,6 +186,7 @@ export function Shell() {
     ENABLE_CHAT_HISTORY_RENDERING && CHAT_CLIS.has(activeCliId);
 
   const installed = cfg?.install[activeCliId]?.installed ?? false;
+  const showWorkspaceTabs = view === "run" && (tabs.length > 0 || !!activeTab);
   const visibleSessions =
     sessionState.cliId === activeCliId ? sessionState.items : [];
   const sessionsLoaded =
@@ -222,7 +221,7 @@ export function Shell() {
     activateTab(next);
   };
 
-  const closeTab = (id: string) => {
+  const closeTab = useCallback((id: string) => {
     const index = tabs.findIndex((tab) => tab.id === id);
     if (index < 0) return;
     const next = tabs.filter((tab) => tab.id !== id);
@@ -232,23 +231,13 @@ export function Shell() {
       setActiveTabId(fallback?.id ?? null);
       if (fallback) setActiveCli(fallback.cliId);
     }
-  };
+  }, [activeTabId, setActiveCli, tabs]);
 
   const markTabExited = useCallback((id: string) => {
     setTabs((current) =>
       current.map((tab) =>
-        tab.id === id ? { ...tab, status: "exited", busy: false } : tab,
+        tab.id === id ? { ...tab, status: "exited" } : tab,
       ),
-    );
-  }, []);
-
-  const setTabBusy = useCallback((id: string, busy: boolean) => {
-    setTabs((current) =>
-      current.map((tab) => {
-        if (tab.id !== id || tab.status === "exited" || tab.busy === busy)
-          return tab;
-        return { ...tab, busy };
-      }),
     );
   }, []);
 
@@ -272,17 +261,23 @@ export function Shell() {
       if (event.defaultPrevented || event.isComposing || event.repeat) return;
       const usesPrimaryModifier = isMac ? event.metaKey : event.ctrlKey;
       if (!usesPrimaryModifier || event.altKey || event.shiftKey) return;
-      if (!/^[1-9]$/.test(event.key)) return;
 
+      if (activeTabId && event.key.toLowerCase() === "w") {
+        event.preventDefault();
+        closeTab(activeTabId);
+        return;
+      }
+
+      if (!/^[1-9]$/.test(event.key)) return;
       const tab = tabs[Number(event.key) - 1];
       if (!tab) return;
       event.preventDefault();
       activateTab(tab);
     };
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activateTab, isMac, tabs]);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [activateTab, activeTabId, closeTab, isMac, tabs]);
 
   const start = (mode: "cli" | "shell") =>
     openTab({
@@ -594,7 +589,7 @@ export function Shell() {
                 : "z-0 pointer-events-none opacity-0"
             }`}
           >
-            {view === "run" && (
+            {showWorkspaceTabs && (
               <WorkspaceTabs
                 tabs={tabs}
                 activeTabId={activeTabId}
@@ -639,7 +634,6 @@ export function Shell() {
                         cwd={tab.cwd}
                         resumeId={tab.resumeId}
                         sessionKey={tab.id}
-                        onActivityChange={(busy) => setTabBusy(tab.id, busy)}
                         onExit={(code) => handleTerminalExit(tab.id, code)}
                       />
                     ) : tab.kind === "chat" ? (
@@ -647,9 +641,6 @@ export function Shell() {
                         cliId={tab.cliId}
                         cwd={tab.cwd}
                         resumeId={tab.resumeId}
-                        onStreamingChange={(streaming) =>
-                          setTabBusy(tab.id, streaming)
-                        }
                         onBack={() => closeTab(tab.id)}
                       />
                     ) : tab.session ? (
@@ -702,6 +693,16 @@ export function Shell() {
                             : t("shell.openDashboard")}
                         </Button>
                       )}
+                      <Button
+                        variant="secondary"
+                        onClick={() => setView("config")}
+                        title={t("shell.openAgentSettings", {
+                          name: active.name,
+                        })}
+                      >
+                        <SlidersHorizontal size={13} />
+                        {t("shell.agentSettings")}
+                      </Button>
                       <Button
                         variant="secondary"
                         onClick={openExternalTerminal}
@@ -834,15 +835,6 @@ export function Shell() {
             </span>
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setView("config")}
-              className="inline-flex h-5 items-center gap-1 rounded-[4px] border border-border-weak bg-surface/70 px-1.5 font-medium text-text-base transition-[background,border-color,color] hover:border-border-base hover:bg-surface hover:text-text-strong"
-              title={t("shell.openAgentSettings", { name: active.name })}
-            >
-              <SlidersHorizontal size={11} />
-              {t("shell.agentSettings")}
-            </button>
             <Chip label={active.name} color={active.accent} compact />
             <Chip
               label={installed ? t("sidebar.installed") : t("sidebar.notInstalled")}
@@ -966,6 +958,18 @@ function WorkspaceTabs({
   onBackToHistory: () => void;
   leadingInset: number;
 }) {
+  const tabRefs = useRef(new Map<string, HTMLDivElement>());
+
+  useLayoutEffect(() => {
+    if (!activeTabId) return;
+    const tabEl = tabRefs.current.get(activeTabId);
+    tabEl?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [activeTabId]);
+
   return (
     <div
       className="drag-region relative flex h-8 shrink-0 items-end gap-0.5 border-b border-border-weak bg-base pr-1 transition-[padding-left] duration-180 ease-out"
@@ -978,11 +982,10 @@ function WorkspaceTabs({
           style={{ width: leadingInset }}
         />
       )}
-      <div className="flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto">
+      <div className="scrollbar-hidden flex min-w-0 flex-1 items-end gap-0.5 overflow-x-auto">
         {tabs.map((tab) => {
           const selected = tab.id === activeTabId;
           const isRunning = tab.status === "running";
-          const isBusy = tab.status !== "exited" && tab.busy;
           const statusTitle =
             tab.status === "exited"
               ? exitedLabel
@@ -992,6 +995,13 @@ function WorkspaceTabs({
           return (
             <div
               key={tab.id}
+              ref={(node) => {
+                if (node) {
+                  tabRefs.current.set(tab.id, node);
+                } else {
+                  tabRefs.current.delete(tab.id);
+                }
+              }}
               className={`no-drag group flex h-8 min-w-[128px] max-w-[210px] shrink-0 items-center gap-1.5 rounded-t-[5px] border border-b-0 px-1.5 text-[11px] transition-[background,border-color,color,filter] ${
                 selected
                   ? "border-border-weak bg-stronger text-text-strong"
@@ -1012,19 +1022,15 @@ function WorkspaceTabs({
                   className="grid size-3.5 shrink-0 place-items-center"
                   title={statusTitle}
                 >
-                  {isBusy ? (
-                    <Loader2 size={10} className="animate-spin text-success" />
-                  ) : (
-                    <span
-                      className={`size-1.5 rounded-full ${
-                        tab.status === "exited"
-                          ? "bg-text-muted"
-                          : isRunning
-                            ? "bg-success"
-                            : "bg-border-base"
-                      }`}
-                    />
-                  )}
+                  <span
+                    className={`size-1.5 rounded-full ${
+                      tab.status === "exited"
+                        ? "bg-text-muted"
+                        : isRunning
+                          ? "bg-success"
+                          : "bg-border-base"
+                    }`}
+                  />
                 </span>
               </button>
               <button

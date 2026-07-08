@@ -64,7 +64,6 @@ const CLAUDE: Provider[] = [
 const CODEX: Provider[] = [
   { id: 'routerlink', name: 'RouterLink', category: 'aggregator', baseUrl: 'https://router-link.world3.ai/api', websiteUrl: 'https://router-link-beta.world3.ai', note: 'OpenAI 兼容端点' },
   { id: 'official', name: 'OpenAI 官方', category: 'official', baseUrl: '', websiteUrl: 'https://chatgpt.com/codex', note: '官方登录（需海外卡）' },
-  { id: 'shengsuanyun', name: 'Shengsuanyun 胜算云', category: 'aggregator', baseUrl: 'https://router.shengsuanyun.com/api/v1', websiteUrl: 'https://shengsuanyun.com' },
   { id: 'deepseek', name: 'DeepSeek', category: 'cn_official', baseUrl: 'https://api.deepseek.com', websiteUrl: 'https://platform.deepseek.com' },
   { id: 'zhipu', name: '智谱 GLM', category: 'cn_official', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', websiteUrl: 'https://open.bigmodel.cn' },
   { id: 'qianfan', name: '百度千帆 Coding', category: 'cn_official', baseUrl: 'https://qianfan.baidubce.com/v2/coding', websiteUrl: 'https://cloud.baidu.com' },
@@ -76,24 +75,24 @@ const CODEX: Provider[] = [
   { id: 'minimax', name: 'MiniMax', category: 'cn_official', baseUrl: 'https://api.minimaxi.com/v1', websiteUrl: 'https://platform.minimaxi.com' },
   { id: 'xiaomi', name: '小米 MiMo', category: 'cn_official', baseUrl: 'https://api.xiaomimimo.com/v1', websiteUrl: 'https://platform.xiaomimimo.com' },
   { id: 'siliconflow', name: 'SiliconFlow 硅基流动', category: 'aggregator', baseUrl: 'https://api.siliconflow.cn/v1', websiteUrl: 'https://siliconflow.cn' },
-  { id: 'novita', name: 'Novita AI', category: 'aggregator', baseUrl: 'https://api.novita.ai/openai/v1', websiteUrl: 'https://novita.ai' },
-  { id: 'aihubmix', name: 'AiHubMix', category: 'aggregator', baseUrl: 'https://aihubmix.com/v1', websiteUrl: 'https://aihubmix.com' },
-  { id: 'dmxapi', name: 'DMXAPI', category: 'aggregator', baseUrl: 'https://www.dmxapi.cn/v1', websiteUrl: 'https://dmxapi.cn' },
-  { id: 'atlascloud', name: 'AtlasCloud', category: 'aggregator', baseUrl: 'https://api.atlascloud.ai/v1', websiteUrl: 'https://atlascloud.ai' },
-  { id: 'runapi', name: 'RunAPI', category: 'aggregator', baseUrl: 'https://runapi.co/v1', websiteUrl: 'https://runapi.co' },
-  { id: 'compshare', name: 'Compshare 优刻得', category: 'aggregator', baseUrl: 'https://api.modelverse.cn/v1', websiteUrl: 'https://compshare.cn' },
-  { id: 'pipellm', name: 'PIPELLM', category: 'aggregator', baseUrl: 'https://cc-api.pipellm.ai/v1', websiteUrl: 'https://code.pipellm.ai' },
   { id: 'openrouter', name: 'OpenRouter', category: 'aggregator', baseUrl: 'https://openrouter.ai/api/v1', websiteUrl: 'https://openrouter.ai' },
   { id: 'therouter', name: 'TheRouter', category: 'aggregator', baseUrl: 'https://api.therouter.ai/v1', websiteUrl: 'https://therouter.ai' },
   CUSTOM
 ]
 
+const OPENCODE: Provider[] = [
+  { id: 'opencode-go', name: 'OpenCode Go', category: 'third_party', baseUrl: 'https://opencode.ai/zen/go/v1', websiteUrl: 'https://opencode.ai/go', note: 'OpenAI 兼容端点' },
+  ...CODEX.filter((provider) => provider.id !== 'official')
+]
+
 export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   'claude-code': CLAUDE,
   codex: CODEX,
-  // opencode & pi consume OpenAI-compatible relays (the /v1 endpoints), so the
-  // Codex relay list applies to them too.
-  opencode: CODEX,
+  // opencode has no official-login concept. It uses OpenAI-compatible relays,
+  // plus OpenCode Go as a normal third-party provider.
+  opencode: OPENCODE,
+  // pi and Hermes consume OpenAI-compatible relays, so the Codex relay list
+  // applies to them too.
   pi: CODEX,
   hermes: CODEX
 }

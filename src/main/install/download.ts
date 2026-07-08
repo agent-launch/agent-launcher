@@ -74,6 +74,25 @@ export function sha256(file: string): Promise<string> {
   })
 }
 
+function fileHash(file: string, algorithm: string, encoding: 'hex' | 'base64'): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash(algorithm)
+    createReadStream(file)
+      .on('error', reject)
+      .on('data', (d) => hash.update(d))
+      .on('end', () => resolve(hash.digest(encoding)))
+  })
+}
+
+/** Verify an npm-style Subresource Integrity string such as `sha512-...`. */
+export async function verifyIntegrity(file: string, integrity?: string): Promise<void> {
+  if (!integrity) return
+  const match = integrity.match(/^(sha256|sha384|sha512)-(.+)$/)
+  if (!match) throw new Error(`Unsupported integrity format: ${integrity}`)
+  const actual = await fileHash(file, match[1], 'base64')
+  if (actual !== match[2]) throw new Error('Downloaded package integrity check failed')
+}
+
 /**
  * Extract an archive into destDir using the system `tar`.
  * bsdtar (mac/win10+) handles .zip too, and GNU tar handles .tar.gz everywhere.

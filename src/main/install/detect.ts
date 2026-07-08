@@ -18,6 +18,11 @@ function which(cmd: string): Promise<string | null> {
   })
 }
 
+function displayDetectionDetail(d: Awaited<ReturnType<typeof detectSystemCli>>): string {
+  if (d.status === 'linked' && d.selectedPath) return d.selectedPath
+  return d.detail
+}
+
 export async function detectEnvironment(): Promise<DetectResult> {
   const platform = detectPlatform()
   const cfg = loadConfig()
@@ -75,7 +80,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
                 ? 'Pi'
                 : 'Hermes Agent',
       present: d.installed || sandboxInstalled,
-      detail: d.installed ? d.detail : sandboxInstalled ? '已安装，可切换为系统版本' : d.detail
+      detail: d.installed ? displayDetectionDetail(d) : sandboxInstalled ? '已安装到 AgentLauncher 沙盒' : d.detail
     })
   }
 

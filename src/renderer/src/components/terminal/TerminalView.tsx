@@ -5,8 +5,6 @@ import '@xterm/xterm/css/xterm.css'
 import { useT } from '@/i18n'
 import type { CliId } from '@shared/types'
 
-const FOCUS_ACTIVITY_SUPPRESS_MS = 1200
-
 interface Props {
   cliId: CliId
   mode: 'cli' | 'shell'
@@ -15,7 +13,6 @@ interface Props {
   resumeId?: string
   /** Bump to force a fresh session (e.g. restart / switch CLI). */
   sessionKey: string | number
-  onActivityChange?: (busy: boolean) => void
   onExit?: (code: number) => boolean | void
 }
 
@@ -24,7 +21,32 @@ function readVar(name: string, fallback: string): string {
   return v || fallback
 }
 
-function terminalTheme() {
+const CODEX_TERMINAL_THEME = {
+  background: '#151821',
+  foreground: '#f7f8ff',
+  cursor: '#f7f8ff',
+  cursorAccent: '#151821',
+  selectionBackground: 'rgba(187, 201, 237, 0.24)',
+  black: '#252a35',
+  red: '#ff8a8a',
+  green: '#a8d46f',
+  yellow: '#e8c778',
+  blue: '#8db7ff',
+  magenta: '#d1a3ff',
+  cyan: '#7fd6c2',
+  white: '#e3e6f0',
+  brightBlack: '#747b8e',
+  brightRed: '#ffb0a8',
+  brightGreen: '#c8ea90',
+  brightYellow: '#f2da9a',
+  brightBlue: '#b2ccff',
+  brightMagenta: '#e0c2ff',
+  brightCyan: '#a3e6d8',
+  brightWhite: '#ffffff'
+}
+
+function terminalTheme(cliId: CliId) {
+  if (cliId === 'codex') return CODEX_TERMINAL_THEME
   return {
     background: readVar('--terminal-background', '#1e1e1e'),
     foreground: readVar('--terminal-foreground', '#cccccc'),
@@ -50,11 +72,9 @@ function terminalTheme() {
   }
 }
 
-export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivityChange, onExit }: Props) {
+export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
-  const onActivityChangeRef = useRef(onActivityChange)
-  onActivityChangeRef.current = onActivityChange
   // Keep the latest translator in a ref so the once-per-session effect (which
   // intentionally excludes deps) always reads the current locale.
   const t = useT()
@@ -75,7 +95,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
       scrollback: 10000,
       scrollOnUserInput: true,
       smoothScrollDuration: 0,
-      theme: terminalTheme()
+      theme: terminalTheme(cliId)
     })
     termRef.current = term
     const fit = new FitAddon()
@@ -85,36 +105,11 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
 
     let ptyId: string | null = null
     let disposed = false
-    let active = false
-    let idleTimer: number | null = null
-    let suppressActivityUntil = 0
     const offs: Array<() => void> = []
-
-    const setActive = (next: boolean) => {
-      if (active === next) return
-      active = next
-      onActivityChangeRef.current?.(next)
-    }
-    const clearIdleTimer = () => {
-      if (idleTimer == null) return
-      window.clearTimeout(idleTimer)
-      idleTimer = null
-    }
-    const markActivity = () => {
-      if (disposed) return
-      if (Date.now() < suppressActivityUntil) return
-      setActive(true)
-      clearIdleTimer()
-      idleTimer = window.setTimeout(() => {
-        idleTimer = null
-        setActive(false)
-      }, 900)
-    }
 
     offs.push(
       window.api.pty.onData((id, data) => {
         if (id === ptyId) {
-          markActivity()
           term.write(data)
         }
       })
@@ -122,8 +117,6 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
     offs.push(
       window.api.pty.onExit((id, code) => {
         if (id === ptyId) {
-          clearIdleTimer()
-          setActive(false)
           const shouldWriteExit = onExit?.(code) !== false
           if (shouldWriteExit) term.write(`\r\n\x1b[90m${tRef.current('terminal.exited', { code })}\x1b[0m\r\n`)
         }
@@ -172,17 +165,6 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
       return true
     })
 
-    const suppressFocusActivity = () => {
-      suppressActivityUntil = Date.now() + FOCUS_ACTIVITY_SUPPRESS_MS
-      clearIdleTimer()
-      setActive(false)
-    }
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') suppressFocusActivity()
-    }
-    window.addEventListener('focus', suppressFocusActivity)
-    document.addEventListener('visibilitychange', onVisibilityChange)
-
     const startTimer = window.setTimeout(() => {
       if (disposed) return
       window.api.pty
@@ -210,10 +192,6 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
     return () => {
       disposed = true
       window.clearTimeout(startTimer)
-      clearIdleTimer()
-      setActive(false)
-      window.removeEventListener('focus', suppressFocusActivity)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
       ro.disconnect()
       offs.forEach((off) => off())
       if (ptyId) window.api.pty.kill(ptyId)
@@ -226,18 +204,19 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onActivit
   useEffect(() => {
     const applyTheme = () => {
       const term = termRef.current
-      if (term) term.options.theme = terminalTheme()
+      if (term) term.options.theme = terminalTheme(cliId)
     }
     const observer = new MutationObserver(applyTheme)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
     applyTheme()
     return () => observer.disconnect()
-  }, [])
+  }, [cliId])
 
   return (
     <div
       ref={hostRef}
-      className="h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)]"
+      className="h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3"
+      style={cliId === 'codex' ? { background: CODEX_TERMINAL_THEME.background } : undefined}
     />
   )
 }

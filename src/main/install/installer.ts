@@ -19,14 +19,14 @@ import type {
   SystemCliDetection
 } from '@shared/types'
 import { detectPlatform, codexTargetTriple, opencodePlatformKey } from './platform'
-import { fetchJson, downloadFile, extractArchive } from './download'
+import { fetchJson, downloadFile, extractArchive, verifyIntegrity } from './download'
 import { ensureNode } from './node-runtime'
 
 type Progress = (phase: string, message: string, fraction?: number) => void
 
 interface NpmDist {
   version: string
-  dist: { tarball: string }
+  dist: { tarball: string; integrity?: string }
 }
 
 const SYSTEM_COMMANDS: Record<CliId, string> = {
@@ -58,7 +58,6 @@ const NODE_NPM_ENTRY_ROOT: Partial<Record<CliId, string[]>> = {
 
 const OFFICIAL_UPDATE_ARGS: Partial<Record<CliId, string[]>> = {
   'claude-code': ['update'],
-  codex: ['update'],
   opencode: ['upgrade']
 }
 
@@ -102,6 +101,25 @@ function siblingBin(binPath: string, name: string): string | null {
   const base = join(dir, name)
   const candidates = hasExt ? [base] : ['.cmd', '.exe', '.bat', ''].map((ext) => `${base}${ext}`)
   return candidates.find((candidate) => existsSync(candidate)) ?? null
+}
+
+function commonCliPathDirs(): string[] {
+  if (process.platform === 'win32') return []
+  return [join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+}
+
+function envForCommand(commandPath: string): NodeJS.ProcessEnv {
+  const env = { ...process.env }
+  const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
+  const commandDir = isAbsolute(commandPath) || commandPath.includes('/') || commandPath.includes('\\')
+    ? dirname(commandPath)
+    : undefined
+  env.PATH = uniquePaths([commandDir, ...commonCliPathDirs(), ...existing].filter((path): path is string => !!path)).join(delimiter)
+  return env
+}
+
+function spawnInstallerProcess(cmd: string, args: string[], options: Parameters<typeof spawnProcess>[2]) {
+  return spawnProcess(cmd, args, { ...options, env: { ...envForCommand(cmd), ...options?.env } })
 }
 
 function packageManagerUpdateCommand(
@@ -160,22 +178,34 @@ function npmMeta(spec: string): Promise<NpmDist> {
 async function downloadAndExtract(
   tarball: string,
   destDir: string,
-  onProgress: Progress
+  onProgress: Progress,
+  integrity?: string
 ): Promise<void> {
   if (existsSync(destDir)) rmSync(destDir, { recursive: true, force: true })
   mkdirSync(paths.downloads, { recursive: true })
   const archive = join(paths.downloads, `${Date.now()}-pkg.tgz`)
   onProgress('download', '下载二进制…', 0)
   await downloadFile(tarball, archive, (r, t) => t && onProgress('download', '下载二进制…', r / t))
+  await verifyIntegrity(archive, integrity)
   onProgress('extract', '解压…')
   // npm tarballs nest everything under package/ — strip it.
   await extractArchive(archive, destDir, 1)
   rmSync(archive, { force: true })
+  await clearMacQuarantine(destDir)
+}
+
+function clearMacQuarantine(target: string): Promise<void> {
+  if (process.platform !== 'darwin') return Promise.resolve()
+  return new Promise((resolve) => {
+    const p = spawn('xattr', ['-dr', 'com.apple.quarantine', target], { stdio: 'ignore' })
+    p.on('error', () => resolve())
+    p.on('close', () => resolve())
+  })
 }
 
 function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const p = spawnProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const p = spawnInstallerProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let out = ''
     let err = ''
     p.stdout!.on('data', (d) => (out += decodeProcessOutput(d)))
@@ -189,7 +219,7 @@ function run(cmd: string, args: string[]): Promise<string> {
 
 function runStreaming(cmd: string, args: string[], onProgress: Progress, label: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const p = spawnProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const p = spawnInstallerProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
     let tail = ''
     const append = (chunk: Buffer) => {
       tail = `${tail}${decodeProcessOutput(chunk)}`.slice(-3000)
@@ -580,7 +610,7 @@ async function installClaude(onProgress: Progress): Promise<InstallResult> {
   const sub = `@anthropic-ai/claude-code-${p.platformKey}`
   const subMeta = await npmMeta(`${sub}/${main.version}`)
   const dir = paths.cliInstall('claude-code')
-  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress)
+  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress, subMeta.dist.integrity)
   const binPath = join(dir, p.os === 'win32' ? 'claude.exe' : 'claude')
   if (!existsSync(binPath)) throw new Error('claude binary missing after extract')
   if (p.os !== 'win32') chmodSync(binPath, 0o755)
@@ -602,7 +632,7 @@ async function installCodex(onProgress: Progress): Promise<InstallResult> {
   const main = await npmMeta('@openai/codex/latest')
   const subMeta = await npmMeta(`@openai/codex/${main.version}-${p.platformKey}`)
   const dir = paths.cliInstall('codex')
-  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress)
+  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress, subMeta.dist.integrity)
   const triple = codexTargetTriple(p)
   const binPath = join(dir, 'vendor', triple, 'bin', p.os === 'win32' ? 'codex.exe' : 'codex')
   if (!existsSync(binPath)) throw new Error(`codex binary missing: ${binPath}`)
@@ -626,7 +656,7 @@ async function installOpencode(onProgress: Progress): Promise<InstallResult> {
   const sub = `opencode-${opencodePlatformKey(p)}`
   const subMeta = await npmMeta(`${sub}/${main.version}`)
   const dir = paths.cliInstall('opencode')
-  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress)
+  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress, subMeta.dist.integrity)
   const binPath = join(dir, 'bin', p.os === 'win32' ? 'opencode.exe' : 'opencode')
   if (!existsSync(binPath)) throw new Error('opencode binary missing after extract')
   if (p.os !== 'win32') chmodSync(binPath, 0o755)

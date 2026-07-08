@@ -622,6 +622,14 @@ function ProfileForm({
   const [sonnetModel, setSonnetModel] = useState(initial?.sonnetModel ?? initial?.model ?? '')
   const [haikuModel, setHaikuModel] = useState(initial?.haikuModel ?? initial?.model ?? '')
   const isClaude = cliId === 'claude-code'
+  const selectedProvider = useMemo(
+    () => providers.find((p) => p.id === providerId),
+    [providerId, providers]
+  )
+  const isOfficialProvider = selectedProvider?.category === 'official'
+  const officialApiKeyPlaceholder = cliId === 'codex'
+    ? t('config.codexOfficialNoApiKey')
+    : t('config.officialNoApiKey')
   const providerOptions = useMemo(
     () => [
       { value: '', label: t('config.selectPlaceholder') },
@@ -635,6 +643,7 @@ function ProfileForm({
     const p = providers.find((x) => x.id === id)
     if (p) {
       setBaseUrl(p.baseUrl)
+      if (p.category === 'official') setApiKey('')
       if (!name || !initial) setName(p.name)
     }
   }
@@ -643,7 +652,7 @@ function ProfileForm({
     const nextName = name.trim()
     const nextProviderId = providerId.trim()
     const nextBaseUrl = baseUrl.trim()
-    const nextApiKey = apiKey.trim()
+    const nextApiKey = isOfficialProvider ? '' : apiKey.trim()
     const nextModel = isClaude ? defaultModel.trim() : model.trim()
     const nextDefaultModel = defaultModel.trim()
     const nextOpusModel = opusModel.trim()
@@ -737,23 +746,35 @@ function ProfileForm({
             placeholder={t('config.modelPlaceholder')}
           />
         )}
-        <label className="col-span-2 block">
-          <span className="text-[12px] text-text-weak">Base URL</span>
-          <input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://..."
-            className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
-          />
-        </label>
+        {isOfficialProvider && selectedProvider?.websiteUrl ? (
+          <label className="col-span-2 block">
+            <span className="text-[12px] text-text-weak">{t('config.websiteUrl')}</span>
+            <input
+              value={selectedProvider.websiteUrl}
+              readOnly
+              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface-muted px-3 py-2 text-[13px] text-text-strong outline-none"
+            />
+          </label>
+        ) : (
+          <label className="col-span-2 block">
+            <span className="text-[12px] text-text-weak">Base URL</span>
+            <input
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://..."
+              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
+            />
+          </label>
+        )}
         <label className="col-span-2 block">
           <span className="text-[12px] text-text-weak">API Key</span>
           <input
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             type="password"
-            placeholder="sk-..."
-            className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected"
+            disabled={isOfficialProvider}
+            placeholder={isOfficialProvider ? officialApiKeyPlaceholder : t('config.apiKeyPlaceholder')}
+            className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected disabled:bg-surface-muted disabled:text-text-muted"
           />
         </label>
       </div>

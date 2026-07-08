@@ -1,7 +1,7 @@
 {
   "name": "agent-launcher",
   "version": "0.1.0",
-  "description": "一键装好 + 配好 + 直接用 Claude Code / Codex / Gemini CLI —— 给不会命令行的人",
+  "description": "一键装好 + 配好 + 直接用 Claude Code / Codex / OpenCode —— 给不会命令行的人",
   "author": "matrixlabs",
   "license": "MIT",
   "main": "./out/main/index.js",

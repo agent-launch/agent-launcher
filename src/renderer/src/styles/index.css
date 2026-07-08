@@ -349,15 +349,22 @@
   background-clip: content-box;
 }
 
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
 .xterm {
   width: 100%;
   max-width: 100%;
-  padding: 12px;
 }
 
 .xterm .xterm-viewport,
 .xterm .xterm-screen,
-.xterm .xterm-helpers,
 .xterm .xterm-accessibility,
 .xterm canvas {
   max-width: 100%;

@@ -10,7 +10,6 @@ interface Props {
   cliId: CliId
   cwd?: string
   resumeId?: string
-  onStreamingChange?: (streaming: boolean) => void
   onBack: () => void
 }
 
@@ -18,7 +17,7 @@ interface Props {
  * Live in-UI chat with a CLI running in programmatic mode (MVP: Claude Code).
  * Reuses the shared MessageList renderer; appends streamed parts as they arrive.
  */
-export function ChatView({ cliId, cwd, resumeId, onStreamingChange, onBack }: Props) {
+export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
   const t = useT()
   const active = useMemo(() => CLIS.find((c) => c.id === cliId), [cliId])
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
@@ -29,17 +28,6 @@ export function ChatView({ cliId, cwd, resumeId, onStreamingChange, onBack }: Pr
   const handleRef = useRef<string | null>(null)
   const pendingRef = useRef<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const onStreamingChangeRef = useRef(onStreamingChange)
-  onStreamingChangeRef.current = onStreamingChange
-
-  useEffect(() => {
-    onStreamingChangeRef.current?.(streaming)
-  }, [streaming])
-
-  useEffect(() => {
-    return () => onStreamingChangeRef.current?.(false)
-  }, [])
-
   // Start the chat process once; subscribe before starting so no early event is missed.
   useEffect(() => {
     let live = true
