@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Terminal } from '@xterm/xterm'
+import { Terminal, type IWindowsPty } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { useT } from '@/i18n'
@@ -72,6 +72,10 @@ function terminalTheme(cliId: CliId) {
   }
 }
 
+function windowsPtyInfo(): IWindowsPty | undefined {
+  return window.api.getWindowsPtyInfo?.() ?? undefined
+}
+
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -85,13 +89,16 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     const host = hostRef.current
     if (!host) return
 
+    const windowsPty = windowsPtyInfo()
     const term = new Terminal({
+      ...(windowsPty ? { windowsPty } : {}),
       fontFamily: readVar('--font-family-mono', 'monospace'),
       fontSize: 13,
       lineHeight: 1.25,
       letterSpacing: 0,
       cursorBlink: true,
       cursorStyle: 'bar',
+      rescaleOverlappingGlyphs: true,
       scrollback: 10000,
       scrollOnUserInput: true,
       smoothScrollDuration: 0,

@@ -1,4 +1,5 @@
 import { clipboard, contextBridge, ipcRenderer } from 'electron'
+import { release } from 'node:os'
 import type {
   AppConfig,
   AppInfo,
@@ -47,8 +48,23 @@ interface SpawnOptions {
   rows?: number
 }
 
+interface WindowsPtyInfo {
+  backend: 'conpty' | 'winpty'
+  buildNumber?: number
+}
+
+function getWindowsPtyInfo(): WindowsPtyInfo | null {
+  if (process.platform !== 'win32') return null
+
+  const buildNumber = Number.parseInt(release().split('.')[2] || '', 10)
+  const hasBuildNumber = Number.isFinite(buildNumber)
+  const backend = hasBuildNumber && buildNumber < 18309 ? 'winpty' : 'conpty'
+  return hasBuildNumber ? { backend, buildNumber } : { backend }
+}
+
 const api = {
   platform: process.platform as NodeJS.Platform,
+  getWindowsPtyInfo,
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     toggleMaximize: () => ipcRenderer.send('window:toggle-maximize'),

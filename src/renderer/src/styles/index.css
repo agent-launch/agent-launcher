@@ -370,6 +370,23 @@
   max-width: 100%;
 }
 
+/* Keep xterm's IME helper textarea from widening the terminal on Windows. */
+.xterm,
+.xterm .xterm-screen,
+.xterm .xterm-viewport,
+.xterm .xterm-scrollable-element {
+  overflow-x: hidden !important;
+}
+
+@supports (overflow: clip) {
+  .xterm,
+  .xterm .xterm-screen,
+  .xterm .xterm-viewport,
+  .xterm .xterm-scrollable-element {
+    overflow-x: clip !important;
+  }
+}
+
 .xterm .xterm-viewport {
   border-radius: inherit;
 }
