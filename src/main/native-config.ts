@@ -98,18 +98,14 @@ function codexProviderBlock(): string {
   if (!p) return ''
   const baseUrl = p.baseUrl?.trim()
   if (!baseUrl) return ''
-  const apiKey = p.apiKey?.trim()
   return [
     `[model_providers.${PROVIDER_ID}]`,
     `name = ${tomlString(p.name || 'Custom')}`,
     `base_url = ${tomlString(baseUrl)}`,
     // Codex's native API; most relays support it now.
     'wire_api = "responses"',
-    'requires_openai_auth = true',
-    apiKey ? `experimental_bearer_token = ${tomlString(apiKey)}` : null
-  ]
-    .filter((line) => line !== null)
-    .join('\n')
+    'requires_openai_auth = true'
+  ].join('\n')
 }
 
 function hasMeaningfulJsonValue(value: unknown): boolean {

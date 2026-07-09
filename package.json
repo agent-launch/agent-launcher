@@ -12,6 +12,9 @@
     "prepreview": "pnpm ensure:electron",
     "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
     "preview": "electron-vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:typecheck": "tsc --noEmit -p tsconfig.test.json",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
@@ -50,6 +53,7 @@
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.3.1",
     "typescript": "~6.0.3",
-    "vite": "^7.3.6"
+    "vite": "^7.3.6",
+    "vitest": "^3.2.4"
   }
 }

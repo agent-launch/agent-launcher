@@ -20,7 +20,10 @@ import type {
 const SCHEMA = 4
 const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes']
 const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex'])
+const OPENAI_COMPATIBLE_CLIS = new Set<CliId>(['codex', 'opencode', 'pi', 'hermes'])
 const OFFICIAL_PROFILE_ID = 'official'
+const ROUTERLINK_OPENAI_BASE_URL = 'https://router-link.world3.ai/api/v1'
+const LEGACY_ROUTERLINK_OPENAI_BASE_URL = 'https://router-link.world3.ai/api'
 
 function defaultAuthMode(id: CliId): AuthMode {
   return OFFICIAL_AUTH_CLIS.has(id) ? 'official' : 'api'
@@ -70,6 +73,21 @@ function existingOfficialProfile(id: CliId, cli: CliProfiles): CliProfile | unde
 
 function activeProfile(cli: CliProfiles): CliProfile | undefined {
   return cli.profiles.find((x) => x.id === cli.activeProfileId)
+}
+
+function normalizeProfile(id: CliId, profile: CliProfile): void {
+  const baseUrl = profile.baseUrl?.trim().replace(/\/+$/, '')
+  if (
+    OPENAI_COMPATIBLE_CLIS.has(id) &&
+    profile.providerId === 'routerlink' &&
+    baseUrl === LEGACY_ROUTERLINK_OPENAI_BASE_URL
+  ) {
+    profile.baseUrl = ROUTERLINK_OPENAI_BASE_URL
+  }
+}
+
+function normalizeProfiles(id: CliId, cli: CliProfiles): void {
+  for (const profile of cli.profiles) normalizeProfile(id, profile)
 }
 
 function syncProfileState(id: CliId, cli: CliProfiles): void {
@@ -156,6 +174,7 @@ function normalize(raw: unknown): AppConfig {
         base.clis[id] = { activeProfileId: p.id, profiles: [p], authMode: 'api' }
       }
     }
+    normalizeProfiles(id, base.clis[id])
     dropUnpinnedOfficialProfile(base.clis[id], base.prefs[id])
     syncProfileState(id, base.clis[id])
   }
@@ -212,6 +231,7 @@ export function addProfile(id: CliId, patch: CliProfilePatch): AppConfig {
     }
   }
   const profile: CliProfile = { id: newId(), name: patch.name || '未命名', ...patch }
+  normalizeProfile(id, profile)
   cli.profiles.push(profile)
   if (!cli.activeProfileId || authModeForProfile(id, profile) === 'api') cli.activeProfileId = profile.id
   syncProfileState(id, cli)
@@ -224,6 +244,7 @@ export function updateProfile(id: CliId, profileId: string, patch: CliProfilePat
   const p = cli.profiles.find((x) => x.id === profileId)
   if (p) {
     Object.assign(p, patch)
+    normalizeProfile(id, p)
     syncProfileState(id, cli)
   }
   return saveConfig(cfg)

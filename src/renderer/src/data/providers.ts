@@ -62,7 +62,7 @@ const CLAUDE: Provider[] = [
 
 // Codex uses an OpenAI-style base_url (usually ending in /v1).
 const CODEX: Provider[] = [
-  { id: 'routerlink', name: 'RouterLink', category: 'aggregator', baseUrl: 'https://router-link.world3.ai/api', websiteUrl: 'https://router-link-beta.world3.ai', note: 'OpenAI 兼容端点' },
+  { id: 'routerlink', name: 'RouterLink', category: 'aggregator', baseUrl: 'https://router-link.world3.ai/api/v1', websiteUrl: 'https://router-link-beta.world3.ai', note: 'OpenAI 兼容端点' },
   { id: 'official', name: 'OpenAI 官方', category: 'official', baseUrl: '', websiteUrl: 'https://chatgpt.com/codex', note: '官方登录（需海外卡）' },
   { id: 'deepseek', name: 'DeepSeek', category: 'cn_official', baseUrl: 'https://api.deepseek.com', websiteUrl: 'https://platform.deepseek.com' },
   { id: 'zhipu', name: '智谱 GLM', category: 'cn_official', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', websiteUrl: 'https://open.bigmodel.cn' },
