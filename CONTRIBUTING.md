@@ -1,37 +1,111 @@
-# Contributing
+# Contributing to Agent Launcher
 
-Thanks for helping improve Agent Launcher. The app is built for users who may not be comfortable with command-line tools, so changes should protect their local environment, API keys, and existing CLI configuration first.
+Thanks for helping improve Agent Launcher. The app is designed for people who may not be comfortable with command-line tools, so changes must protect their local environment, credentials, and existing CLI configuration.
 
-## Development Workflow
+## Prerequisites
 
-1. Install dependencies: `pnpm install`
-2. Start the app locally: `pnpm dev`
-3. Run the pre-PR gate: `pnpm verify`
-4. If you changed installation, updates, real CLI execution, or history readers, run the relevant `scripts/smoke-*.ts` check manually.
+- Node.js 22 or newer
+- pnpm 11.7.0
+- macOS, Windows, or Linux
 
-`pnpm verify` runs main/preload typecheck, renderer typecheck, test typecheck, and Vitest. Regular PRs do not need to build packages for every platform; the release workflow handles that.
+Use pnpm for all dependency and script operations. The expected version is declared in `package.json`.
+
+## Local Setup
+
+Fork and clone the repository, then install dependencies:
+
+```bash
+git clone https://github.com/<your-account>/agent-launcher.git
+cd agent-launcher
+pnpm install
+```
+
+Start the development app with renderer hot module replacement:
+
+```bash
+pnpm dev
+```
+
+Agent Launcher keeps its runtime data under `~/.agent-launcher/`. Development builds use the same root, so do not point manual tests at credentials or configuration you are not prepared to change.
+
+## Development Commands
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Run the Electron app in development mode |
+| `pnpm verify` | Run both typecheck projects, test typechecking, and all Vitest tests |
+| `pnpm typecheck` | Typecheck the main/preload and renderer projects |
+| `pnpm test:run` | Run the Vitest suite once |
+| `pnpm build` | Typecheck and build the app into `out/` |
+| `pnpm package` | Build and package for the current operating system |
+| `pnpm package:mac` | Build macOS DMG and ZIP packages |
+| `pnpm package:win` | Build the Windows NSIS package |
+| `pnpm package:linux` | Build the Linux AppImage |
+
+Linux packaging may require additional system dependencies:
+
+```bash
+sudo apt-get install -y libarchive-tools libfuse2
+```
+
+## Architecture
+
+Agent Launcher has three TypeScript projects across Electron's main, preload, and renderer contexts:
+
+- `src/main/` contains installation, sandbox, configuration, PTY, session-history, update, and IPC logic.
+- `src/preload/index.ts` is the typed bridge exposed to the renderer as `window.api`.
+- `src/shared/types.ts` defines the IPC contract shared across process boundaries.
+- `src/renderer/src/` contains the React 19, Zustand, Tailwind CSS, and xterm.js interface.
+- `tests/` contains Vitest unit tests.
+- `scripts/smoke-*.ts` contains manual checks that may use the network, real CLIs, or the local sandbox.
+
+Path aliases map `@/*` to `src/renderer/src/*` and `@shared/*` to `src/shared/*`. Main and preload code compile with `tsconfig.node.json`; renderer code compiles with `tsconfig.web.json`.
+
+For a detailed map of installation strategies, native config formats, runtime behavior, and session readers, see [AGENTS.md](./AGENTS.md).
 
 ## Code Rules
 
-- All renderer-to-main communication must go through `window.api` in `src/preload/index.ts`, with a matching handler in `src/main/ipc.ts`.
+- Route all renderer-to-main communication through `window.api` in `src/preload/index.ts`, with a matching handler in `src/main/ipc.ts`.
 - When changing `src/shared/types.ts`, update the preload bridge, IPC handlers, and relevant tests together.
-- Sandbox paths must come from `src/main/sandbox.ts` `paths.*`. Do not read or write the user's existing CLI config directories unless the user selected a system CLI.
-- After changing provider profiles, auth mode, or active profile, CLIs with native config must still go through the `synced()` path that calls `writeNativeConfig`.
-- Do not log or print real API keys. Any config or env data shown in the UI must be masked.
-- Download and install logic must verify integrity. npm tarballs use registry integrity; portable Node builds use the official `SHASUMS256.txt`.
-- UI copy is localized. If you change an existing i18n key, keep the Chinese and English messages in sync.
+- Resolve sandbox paths through `paths.*` in `src/main/sandbox.ts`. Do not read or write a user's existing CLI config unless they selected a system installation.
+- Keep native config synchronization in the `synced()` path after profile, auth-mode, or active-profile changes.
+- Never log or display real API keys. Mask config and environment data before sending it to the renderer.
+- Verify downloaded artifacts. npm packages use registry integrity; portable Node.js builds use the official `SHASUMS256.txt`.
+- Keep Chinese and English UI messages in sync when adding or changing localized copy.
+- Preserve the established installation, configuration, and history formats of each supported CLI.
 
-## Testing Guidance
+## Testing
 
-- Add Vitest coverage for pure logic and file parsing behavior.
-- Cover main-layer changes for CLI installation, platform mapping, config writing, and session history readers.
-- Cover renderer changes for static catalogs, Zustand persistence, and i18n.
-- For real network, system install, or PTY changes, document the manual smoke command and result in the PR.
+Run the full correctness gate before opening a pull request:
 
-## Pull Request Checklist
+```bash
+pnpm verify
+```
+
+Add focused Vitest coverage for pure logic and file parsing. Main-process changes should cover affected installation, platform mapping, config writing, or session-history behavior. Renderer changes should cover static catalogs, persisted state, and localization where applicable.
+
+Changes involving real downloads, system installers, PTY behavior, app updates, or native CLI history should also run the relevant standalone smoke check in `scripts/`. These checks are intentionally excluded from the normal test suite because they can access the network and the real sandbox. Include the command and result in the pull request description.
+
+## Packaging
+
+Packages are generated in `release/`. The build includes unpacking rules for the native PTY module and the `sql.js` WASM asset, so packaging changes should be verified with an installed artifact on the affected operating system.
+
+Regular pull requests do not need to package all three platforms. CI runs the correctness checks and the release workflow provides cross-platform package coverage.
+
+## Pull Requests
+
+Keep changes focused and explain user-visible behavior. Before submitting, confirm that:
 
 - `pnpm verify` passes.
-- No `release/`, `out/`, `node_modules/`, real config files, logs, or secrets are committed.
-- Relevant README, AGENTS, CLAUDE, user copy, or shared types are updated.
-- The PR description explains any impact on user data paths, plaintext secrets, or system CLI config.
-- Dependency or release-flow changes include the `pnpm audit:ci` result.
+- Relevant tests and manual smoke checks have been added or run.
+- Chinese and English UI copy remain aligned.
+- Documentation and shared types reflect behavior changes.
+- `release/`, `out/`, `node_modules/`, config files, logs, and secrets are not committed.
+- The description calls out changes to user data paths, plaintext secrets, system CLI config, or downloaded artifacts.
+- Dependency or release-workflow changes include the result of `pnpm audit:ci`.
+
+## Releases
+
+The release workflow builds macOS, Windows, and Linux packages. Pushing a `v<major>.<minor>.<patch>` tag, including a valid prerelease suffix, publishes a GitHub Release after all platform builds succeed. The workflow also generates the update metadata consumed by `electron-updater`.
+
+Release mechanics are maintained in `.github/workflows/release.yml` and `electron-builder.yml`.

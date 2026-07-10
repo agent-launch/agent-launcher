@@ -1,72 +1,84 @@
-# Agent Launcher
+<div align="center">
+  <img src="src/renderer/src/assets/app-icon.png" width="112" alt="Agent Launcher icon">
+  <h1>Agent Launcher</h1>
+  <p>Install, configure, and run coding agents from one desktop app.</p>
+  <p>
+    <a href="https://github.com/matrixlabs/agent-launcher/actions/workflows/ci.yml"><img src="https://github.com/matrixlabs/agent-launcher/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+    <a href="https://github.com/matrixlabs/agent-launcher/releases"><img src="https://img.shields.io/github/v/release/matrixlabs/agent-launcher?display_name=tag" alt="Latest release"></a>
+    <a href="./LICENSE"><img src="https://img.shields.io/github/license/matrixlabs/agent-launcher" alt="MIT license"></a>
+  </p>
+</div>
 
-Agent Launcher is an Electron desktop app for people who do not want to use the command line. It installs, configures, and runs Claude Code, Codex CLI, OpenCode, Pi, and Hermes Agent from a desktop UI.
+Agent Launcher is a local desktop workspace for coding-agent CLIs. It handles installation, account and provider configuration, sessions, and updates through a graphical interface, so using an agent does not require managing Node.js, environment variables, or CLI config files by hand.
+
+## Supported Agents
+
+| Agent | Installation | Configuration and runtime |
+| --- | --- | --- |
+| [Claude Code](https://www.anthropic.com/claude-code) | Sandboxed native binary or an existing system install | Official account or Anthropic-compatible API |
+| [Codex CLI](https://github.com/openai/codex) | Sandboxed native binary or an existing system install | ChatGPT account or OpenAI-compatible API |
+| [OpenCode](https://opencode.ai/) | Sandboxed native binary or an existing system install | OpenAI-compatible providers |
+| [Pi](https://github.com/badlogic/pi-mono) | Sandboxed portable Node.js runtime or an existing system install | OpenAI-compatible providers |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Official system-managed install | Existing account or OpenAI-compatible providers |
 
 ## Features
 
-- Sandboxed installs: portable Node, npm cache, CLI binaries, and redirected CLI config live under `~/.agent-launcher/` by default.
-- Multi-agent support: Claude Code, Codex CLI, and OpenCode use platform binaries; Pi runs through bundled Node; Hermes Agent uses its official system installer.
-- Provider profiles: configure base URL, API key, and model once, then materialize the required env vars and native config files for each CLI.
-- Terminal workflow: embedded xterm.js terminal, external terminal launch, official account login, session listing, and session resume.
-- Local usage insights: read each CLI's local history to summarize token usage, models, request counts, and sessions.
-- Resource management: manage MCP servers, Skills, local model pricing records, and install Skills from skills.sh.
-- App updates: check GitHub Releases and auto-update metadata through `electron-updater`.
+### Guided setup
 
-## Privacy And Security
+Agent Launcher detects existing installations, installs missing agents, and walks through account or API configuration. Each agent can use an official account, a provider preset, or a custom compatible endpoint where supported.
 
-Agent Launcher is local-first, but it is not offline-only. Installing or updating CLIs may contact npm registry, official Node.js downloads, GitHub Releases, and skills.sh. When you run a CLI, that CLI contacts the model provider or relay endpoint you configured.
+### Isolated agent environments
 
-API keys are intentionally stored in plaintext on the local machine in `~/.agent-launcher/config.json` and in some CLI-native config files. The UI masks secrets before display. Do not attach real config directories, full logs, or screenshots containing secrets to public issues.
+Sandbox-managed binaries, portable Node.js, npm cache, credentials, and native CLI configuration stay under `~/.agent-launcher/`. Agent Launcher does not modify global npm settings or replace existing CLI installations. A system-installed agent is used only when you select it.
 
-## Development
+### Profiles and relay configuration
 
-Requirements:
+Keep multiple profiles per agent and switch between official services, relay presets, and custom endpoints. Agent Launcher writes the environment variables and native config files expected by each CLI, while preserving unrelated native settings.
 
-- Node.js 22 or newer
-- pnpm 11.7.0
-- macOS, Windows, or Linux
+### Terminal and chat workflows
 
-Install dependencies and start the dev app:
+Run agents in the embedded terminal, open them in an external terminal, or use the in-app chat view for supported conversations. Permission bypass modes are exposed per agent only when the underlying CLI supports them.
 
-```bash
-pnpm install
-pnpm dev
-```
+### Local session history
 
-Common commands:
+Browse, resume, and delete conversations from the history already maintained by each CLI. Agent Launcher understands their different JSONL and SQLite storage formats without uploading the history to another service.
 
-```bash
-pnpm verify           # typecheck + test typecheck + Vitest
-pnpm typecheck        # main/preload + renderer typecheck
-pnpm test:run         # Vitest unit tests
-pnpm build            # typecheck, then build into out/
-pnpm package          # build and package for the current OS
-pnpm package:mac      # package for macOS
-pnpm package:win      # package for Windows
-pnpm package:linux    # package for Linux
-```
+### Usage insights
 
-Linux packaging may need system dependencies:
+See local token usage, request counts, active days, session totals, and model distribution across agents. Optional model-pricing records can be used to organize cost information locally.
 
-```bash
-sudo apt-get install -y libarchive-tools libfuse2
-```
+### MCP servers and Skills
 
-## Architecture
+Inspect and manage MCP server entries and installed Skills from the same workspace. Skills can also be discovered and installed from [skills.sh](https://skills.sh/).
 
-- `src/main/`: Electron main process, installer, PTY runtime, config writers, and session history readers.
-- `src/preload/index.ts`: the only renderer bridge; exposes `window.api`.
-- `src/shared/types.ts`: IPC contract shared by main, preload, and renderer.
-- `src/renderer/src/`: React 19, Zustand, and Tailwind v4 UI.
-- `tests/`: Vitest unit tests.
-- `scripts/smoke-*.ts`: manual smoke checks that may use real network access or the real sandbox.
+### Cross-platform updates
 
-For deeper engineering notes, see [AGENTS.md](./AGENTS.md). For contribution workflow, see [CONTRIBUTING.md](./CONTRIBUTING.md). For security reporting, see [SECURITY.md](./SECURITY.md).
+Check installed CLI versions and update individual agents without changing their selected installation source. Agent Launcher can also check GitHub Releases and install supported app updates.
 
-## Releases
+## Platforms
 
-Pushing a `v<major>.<minor>.<patch>` tag, including prerelease tags, triggers `.github/workflows/release.yml`. The workflow builds macOS, Windows, and Linux packages and publishes GitHub Releases for tagged builds. Pull requests run CI with typechecks, tests, and dependency audit.
+Release builds are available for:
+
+- macOS: DMG and ZIP
+- Windows: NSIS installer
+- Linux: AppImage
+
+Download the appropriate package from [GitHub Releases](https://github.com/matrixlabs/agent-launcher/releases).
+
+## Privacy and Security
+
+Agent Launcher is local-first, but not offline-only. Installations and updates may contact npm, official Node.js downloads, GitHub Releases, and skills.sh. Running an agent sends requests to the official provider or relay endpoint selected in that agent's profile.
+
+API keys are deliberately stored as plaintext in `~/.agent-launcher/config.json` and, when required, in sandboxed CLI-native config files. Secrets are masked in the interface, but the files remain readable by your local user account. Never attach real config directories, unredacted logs, or screenshots containing credentials to a public issue.
+
+Please report vulnerabilities according to the [security policy](./SECURITY.md).
+
+## Project
+
+- [Contributing guide](./CONTRIBUTING.md) - local setup, development commands, architecture, testing, and release details
+- [Security policy](./SECURITY.md) - supported versions and private vulnerability reporting
+- [Issue tracker](https://github.com/matrixlabs/agent-launcher/issues) - bug reports and feature requests
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+Agent Launcher is released under the [MIT License](./LICENSE).
