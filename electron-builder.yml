@@ -10,6 +10,9 @@ files:
 asarUnpack:
   # sql.js ships a .wasm that must be a real file on disk (not inside asar).
   - "**/node_modules/sql.js/dist/sql-wasm.wasm"
+  # @lydell/node-pty loads a platform-specific .node binary from a sibling
+  # package; it must live outside the asar to be dlopen-able at runtime.
+  - "**/node_modules/@lydell/node-pty-*/**"
 mac:
   icon: build/icon.icns
   category: public.app-category.developer-tools
