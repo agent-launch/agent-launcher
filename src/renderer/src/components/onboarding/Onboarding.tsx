@@ -127,9 +127,7 @@ function Welcome() {
   const t = useT();
   return (
     <div className="mx-auto max-w-xl pt-16 text-center">
-      <div className="mx-auto mb-6 grid size-14 place-items-center rounded-xl bg-text-strong text-2xl font-bold text-(--background-base) shadow-[var(--shadow-card)]">
-        A
-      </div>
+      <img src={appIcon} alt="" className="mx-auto mb-6 size-14" />
       <h1 className="font-display text-[28px] font-semibold text-text-strong">
         {t("onboarding.welcomeTitle")}
       </h1>

@@ -15,6 +15,8 @@ describe('renderer static data and persisted app store', () => {
       id: 'routerlink',
       baseUrl: 'https://router-link.world3.ai/api/v1'
     })
+    expect(PROVIDERS_BY_CLI['claude-code'].slice(-3).map((provider) => provider.id)).toEqual(['siliconflow', 'openrouter', 'custom'])
+    expect(PROVIDERS_BY_CLI.codex.slice(-3).map((provider) => provider.id)).toEqual(['siliconflow', 'openrouter', 'custom'])
     expect(PROVIDERS_BY_CLI.pi).toBe(PROVIDERS_BY_CLI.codex)
     expect(PROVIDERS_BY_CLI.hermes).toBe(PROVIDERS_BY_CLI.codex)
     expect(YOLO_SUPPORT.pi.supported).toBe(false)

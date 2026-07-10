@@ -48,15 +48,7 @@ const CLAUDE: Provider[] = [
   { id: 'xiaomi', name: '小米 MiMo', category: 'cn_official', baseUrl: 'https://api.xiaomimimo.com/anthropic', websiteUrl: 'https://platform.xiaomimimo.com' },
   { id: 'aihubmix', name: 'AiHubMix', category: 'aggregator', baseUrl: 'https://aihubmix.com', websiteUrl: 'https://aihubmix.com' },
   { id: 'siliconflow', name: 'SiliconFlow 硅基流动', category: 'aggregator', baseUrl: 'https://api.siliconflow.cn', websiteUrl: 'https://siliconflow.cn' },
-  { id: 'dmxapi', name: 'DMXAPI', category: 'aggregator', baseUrl: 'https://www.dmxapi.cn', websiteUrl: 'https://dmxapi.cn' },
-  { id: 'atlascloud', name: 'AtlasCloud', category: 'aggregator', baseUrl: 'https://api.atlascloud.ai', websiteUrl: 'https://atlascloud.ai' },
-  { id: 'claudeapi', name: 'ClaudeAPI', category: 'aggregator', baseUrl: 'https://gw.claudeapi.com', websiteUrl: 'https://claudeapi.com' },
-  { id: 'runapi', name: 'RunAPI', category: 'aggregator', baseUrl: 'https://runapi.co', websiteUrl: 'https://runapi.co' },
-  { id: 'compshare', name: 'Compshare 优刻得', category: 'aggregator', baseUrl: 'https://api.modelverse.cn', websiteUrl: 'https://compshare.cn' },
   { id: 'openrouter', name: 'OpenRouter', category: 'aggregator', baseUrl: 'https://openrouter.ai/api', websiteUrl: 'https://openrouter.ai' },
-  { id: 'therouter', name: 'TheRouter', category: 'aggregator', baseUrl: 'https://api.therouter.ai', websiteUrl: 'https://therouter.ai' },
-  { id: 'novita', name: 'Novita AI', category: 'aggregator', baseUrl: 'https://api.novita.ai/anthropic', websiteUrl: 'https://novita.ai' },
-  { id: 'pipellm', name: 'PIPELLM', category: 'aggregator', baseUrl: 'https://cc-api.pipellm.ai', websiteUrl: 'https://code.pipellm.ai' },
   CUSTOM
 ]
 
@@ -76,7 +68,6 @@ const CODEX: Provider[] = [
   { id: 'xiaomi', name: '小米 MiMo', category: 'cn_official', baseUrl: 'https://api.xiaomimimo.com/v1', websiteUrl: 'https://platform.xiaomimimo.com' },
   { id: 'siliconflow', name: 'SiliconFlow 硅基流动', category: 'aggregator', baseUrl: 'https://api.siliconflow.cn/v1', websiteUrl: 'https://siliconflow.cn' },
   { id: 'openrouter', name: 'OpenRouter', category: 'aggregator', baseUrl: 'https://openrouter.ai/api/v1', websiteUrl: 'https://openrouter.ai' },
-  { id: 'therouter', name: 'TheRouter', category: 'aggregator', baseUrl: 'https://api.therouter.ai/v1', websiteUrl: 'https://therouter.ai' },
   CUSTOM
 ]
 
