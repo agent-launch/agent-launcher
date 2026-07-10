@@ -41,7 +41,7 @@ async function runOpenCommand(url: string): Promise<string | null> {
       if (code === 0) {
         done(null)
       } else {
-        done(`${command}: ${code !== null ? `退出码 ${code}` : `信号 ${signal ?? 'unknown'}`}`)
+        done(`${command}: ${code !== null ? `exit code ${code}` : `signal ${signal ?? 'unknown'}`}`)
       }
     })
   })
@@ -79,7 +79,7 @@ async function openDashboardUrl(cliId: CliId): Promise<DashboardLaunchResult> {
       return {
         ok: false,
         cliId,
-        error: `Hermes Dashboard 已启动，但打开浏览器失败：Electron: ${electronOpenError}；系统打开失败：${systemOpenError}。可手动访问 ${HERMES_DASHBOARD_URL}`
+        error: `Hermes Dashboard started, but the browser could not be opened. Electron: ${electronOpenError}; system opener: ${systemOpenError}. Open ${HERMES_DASHBOARD_URL} manually.`
       }
     }
     return { ok: true, cliId, url: HERMES_DASHBOARD_URL }
@@ -99,10 +99,10 @@ export function launchDashboard(cliId: CliId): Promise<DashboardLaunchResult> {
 async function launchHermesDashboard(cliId: CliId): Promise<DashboardLaunchResult> {
   const install = loadConfig().install.hermes
   if (!install.installed || !install.binPath) {
-    return { ok: false, cliId, error: 'Hermes 尚未安装' }
+    return { ok: false, cliId, error: 'Hermes is not installed' }
   }
   if (!existsSync(install.binPath)) {
-    return { ok: false, cliId, error: `Hermes 命令不存在：${install.binPath}` }
+    return { ok: false, cliId, error: `Hermes command does not exist: ${install.binPath}` }
   }
 
   try {
@@ -121,7 +121,7 @@ async function launchHermesDashboard(cliId: CliId): Promise<DashboardLaunchResul
     })
     child.once('exit', (code, signal) => {
       earlyExitAt = Date.now()
-      earlyExitMessage = code !== null ? `退出码 ${code}` : `信号 ${signal ?? 'unknown'}`
+      earlyExitMessage = code !== null ? `exit code ${code}` : `signal ${signal ?? 'unknown'}`
     })
     child.unref()
 
@@ -129,15 +129,15 @@ async function launchHermesDashboard(cliId: CliId): Promise<DashboardLaunchResul
     while (Date.now() < deadline) {
       if (await isDashboardReady()) return await openDashboardUrl(cliId)
       if (spawnError) {
-        return { ok: false, cliId, error: `Hermes Dashboard 启动失败：${spawnError}` }
+        return { ok: false, cliId, error: `Hermes Dashboard failed to start: ${spawnError}` }
       }
       if (earlyExitMessage && Date.now() - earlyExitAt > DASHBOARD_EARLY_EXIT_GRACE_MS) {
-        return { ok: false, cliId, error: `Hermes Dashboard 启动后已退出（${earlyExitMessage}）` }
+        return { ok: false, cliId, error: `Hermes Dashboard exited after startup (${earlyExitMessage})` }
       }
       await sleep(Math.min(DASHBOARD_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now())))
     }
 
-    return { ok: false, cliId, error: 'Hermes Dashboard 启动超时，请稍后重试或在终端查看 hermes dashboard 输出' }
+    return { ok: false, cliId, error: 'Hermes Dashboard startup timed out. Try again later or inspect the hermes dashboard output in a terminal.' }
   } catch (error) {
     return { ok: false, cliId, error: error instanceof Error ? error.message : String(error) }
   }

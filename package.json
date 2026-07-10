@@ -1,9 +1,21 @@
 {
   "name": "agent-launcher",
   "version": "0.1.0",
-  "description": "一键装好 + 配好 + 直接用 Claude Code / Codex / OpenCode —— 给不会命令行的人",
+  "description": "Install, configure, and run coding-agent CLIs from a desktop app.",
   "author": "matrixlabs",
   "license": "MIT",
+  "homepage": "https://github.com/matrixlabs/agent-launcher#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matrixlabs/agent-launcher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matrixlabs/agent-launcher/issues"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "ensure:electron": "node scripts/ensure-electron.cjs",
@@ -15,6 +27,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "verify": "pnpm typecheck && pnpm test:typecheck && pnpm test:run",
+    "audit:ci": "pnpm audit --audit-level high",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",

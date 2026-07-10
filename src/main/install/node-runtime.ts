@@ -44,7 +44,7 @@ export async function ensureNode(
     return { nodeBin: bundledNodeBin(), npmCli: bundledNpmCli(), version: 'bundled' }
   }
   const p = detectPlatform()
-  onProgress?.('确定 Node 版本…')
+  onProgress?.('Resolving Node version…')
   const version = await latestLtsVersion()
   const { file } = nodeDistName(p, version)
   const url = `${DIST}/v${version}/${file}`
@@ -52,12 +52,12 @@ export async function ensureNode(
   mkdirSync(paths.downloads, { recursive: true })
   const archive = join(paths.downloads, file)
 
-  onProgress?.(`下载便携 Node v${version}…`, 0)
+  onProgress?.(`Downloading portable Node v${version}…`, 0)
   await downloadFile(url, archive, (recv, total) => {
-    if (total) onProgress?.(`下载便携 Node v${version}…`, recv / total)
+    if (total) onProgress?.(`Downloading portable Node v${version}…`, recv / total)
   })
 
-  onProgress?.('校验完整性…')
+  onProgress?.('Verifying integrity…')
   const shasums = await fetchText(`${DIST}/v${version}/SHASUMS256.txt`)
   const expected = shasums
     .split('\n')
@@ -67,7 +67,7 @@ export async function ensureNode(
   const actual = await sha256(archive)
   if (actual !== expected) throw new Error(`Node checksum mismatch for ${file}`)
 
-  onProgress?.('解压 Node…')
+  onProgress?.('Extracting Node…')
   if (existsSync(paths.node)) rmSync(paths.node, { recursive: true, force: true })
   // Node archives nest under node-v.../ — strip that one level.
   await extractArchive(archive, paths.node, 1)

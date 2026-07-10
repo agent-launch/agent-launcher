@@ -82,7 +82,7 @@ describe('installed MCP and Skill resources', () => {
         command: 'node',
         args: 'server.js'
       })
-      expect(() => updateInstalledMcp('codex', pluginEntries[0].id, { name: 'nope' })).toThrow('由插件管理')
+      expect(() => updateInstalledMcp('codex', pluginEntries[0].id, { name: 'nope' })).toThrow('managed by a plugin')
     })
   })
 
@@ -127,6 +127,25 @@ describe('installed MCP and Skill resources', () => {
       skills = deleteInstalledSkill('codex', skills[0].id)
       expect(skills).toEqual([])
       expect(existsSync(skillPath)).toBe(false)
+    })
+  })
+
+  it('keeps sandbox and system Skill roots separate', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { paths } = await import('../../src/main/sandbox')
+      const { setInstallState } = await import('../../src/main/store')
+      const { listInstalledSkills } = await import('../../src/main/installed-resources')
+
+      const sandboxSkill = join(paths.cliConfig('codex'), 'skills', 'sandbox-writer', 'SKILL.md')
+      const systemSkill = join(home, '.codex', 'skills', 'system-writer', 'SKILL.md')
+      writeText(sandboxSkill, '---\nname: Sandbox Writer\n---\n')
+      writeText(systemSkill, '---\nname: System Writer\n---\n')
+
+      setInstallState('codex', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('codex'), 'codex') })
+      expect(listInstalledSkills('codex').map((skill) => skill.name)).toEqual(['Sandbox Writer'])
+
+      setInstallState('codex', { installed: true, source: 'system', binPath: '/usr/local/bin/codex' })
+      expect(listInstalledSkills('codex').map((skill) => skill.name)).toEqual(['System Writer'])
     })
   })
 })

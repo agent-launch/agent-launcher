@@ -91,7 +91,7 @@ async function parseError(response: Response): Promise<string> {
   } catch {
     /* fall through */
   }
-  return `skills.sh API 返回 ${response.status}`
+  return `skills.sh API returned ${response.status}`
 }
 
 export async function searchSkillsSh(query: string, limit = 8): Promise<SkillsShSearchResult> {
@@ -238,7 +238,7 @@ export async function installSkillFromSkillsSh(
   skill: SkillsShSkill
 ): Promise<SkillsShInstallResult> {
   const installUrl = skill.installUrl?.trim()
-  if (!installUrl) return { ok: false, error: '这个 skills.sh 结果没有 installUrl，无法安装。' }
+  if (!installUrl) return { ok: false, error: 'This skills.sh result has no installUrl and cannot be installed.' }
 
   try {
     const output = await runSkillsCli(cliId, installUrl)

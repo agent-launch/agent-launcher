@@ -430,7 +430,7 @@ export function Shell() {
       const deleteSession =
         window.api.sessions.remove ?? window.api.sessions.delete;
       if (!deleteSession) {
-        throw new Error("会话删除 API 尚未加载，请重启应用窗口后重试");
+        throw new Error(t("shell.deleteSessionApiUnavailable"));
       }
       const result = await deleteSession(deleteTarget.cliId, deleteTarget.id);
       if (!result.ok) {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-AgentLauncher is an Electron desktop app that **installs, configures, and runs** four coding-agent CLIs — Claude Code, Codex, opencode, and Pi — for users who don't use the command line. It bundles each CLI into an isolated sandbox, materializes its provider/relay config from the UI, and spawns it in an embedded terminal. The product brief (package.json `description`) and all UI copy are in Chinese.
+AgentLauncher is an Electron desktop app that **installs, configures, and runs** five coding-agent CLIs — Claude Code, Codex, opencode, Pi, and Hermes Agent — for users who don't use the command line. It bundles each sandbox-managed CLI into an isolated home, materializes its provider/relay config from the UI, and spawns it in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
 
 ## Commands
 
@@ -12,12 +12,14 @@ AgentLauncher is an Electron desktop app that **installs, configures, and runs**
 pnpm dev              # run the app in dev (electron-vite, HMR for renderer)
 pnpm build            # typecheck (node + web) then electron-vite build → out/
 pnpm typecheck        # both projects; or typecheck:node / typecheck:web individually
+pnpm test:run         # Vitest unit tests
+pnpm verify           # typecheck + test typecheck + Vitest
 pnpm package          # build + electron-builder (current OS); also package:mac/win/linux
 ```
 
-There is **no test runner**. `scripts/smoke-*.ts` are standalone manual smoke checks (config, install, sessions, native config, codex) that import directly from `src/main/*`; they have no npm script wired up and are run ad hoc against a real network/sandbox. Use `pnpm typecheck` as the fast correctness gate after edits.
+`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, install, sessions, native config, codex) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
 
-Package manager is **pnpm** (note `onlyBuiltDependencies` for electron/esbuild). The native module `@lydell/node-pty` and `sql.js` (ships a `.wasm`) drive the asar/build config in `electron-builder.yml`.
+Package manager is **pnpm** (see `packageManager` in `package.json` and dependency settings in `pnpm-workspace.yaml`). The native module `@lydell/node-pty` and `sql.js` (ships a `.wasm`) drive the asar/build config in `electron-builder.yml`.
 
 ## Architecture
 
@@ -41,8 +43,9 @@ A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI confi
 ### Install layer (`src/main/install/`)
 
 Two strategies, per `CliMeta.install`:
-- **native-binary** (Claude, Codex, opencode): download the platform-specific npm tarball from the registry, extract with system `tar`, run the binary directly. Codex binaries live under `vendor/<rust-triple>/bin/`.
+- **native-binary** (Claude Code, Codex, opencode): download the platform-specific npm tarball from the registry, extract with system `tar`, run the binary directly. Codex binaries live under `vendor/<rust-triple>/bin/`.
 - **node-npm** (Pi): a real Node app, so `node-runtime.ts` first fetches a **portable Node LTS** (SHA256-verified against `SHASUMS256.txt`), then `npm install`s the package into the sandbox with an empty `--userconfig` so the user's npmrc is never read. Spawned later via `binPath`(=node) + `nodeEntry`(=the JS entry).
+- **system** (Hermes Agent, or user-selected system installs): link or install a system-managed binary, then use that CLI's normal config home.
 
 `platform.ts` holds all the OS/arch → package-key/triple mapping quirks (win32→"windows"/"win", musl on linux, etc.). `detect.ts` reports environment facts to the wizard and cross-checks recorded `binPath`s still exist on disk.
 

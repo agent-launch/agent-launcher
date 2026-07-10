@@ -13,7 +13,7 @@ export interface PlatformInfo {
   platformKey: string
 }
 
-/** A single detected environment fact shown in the wizard's "检测环境" step. */
+/** A single detected environment fact shown in the wizard's environment detection step. */
 export interface DetectItem {
   key: string
   label: string

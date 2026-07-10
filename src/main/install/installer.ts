@@ -184,10 +184,10 @@ async function downloadAndExtract(
   if (existsSync(destDir)) rmSync(destDir, { recursive: true, force: true })
   mkdirSync(paths.downloads, { recursive: true })
   const archive = join(paths.downloads, `${Date.now()}-pkg.tgz`)
-  onProgress('download', '下载二进制…', 0)
-  await downloadFile(tarball, archive, (r, t) => t && onProgress('download', '下载二进制…', r / t))
+  onProgress('download', 'Downloading binary…', 0)
+  await downloadFile(tarball, archive, (r, t) => t && onProgress('download', 'Downloading binary…', r / t))
   await verifyIntegrity(archive, integrity)
-  onProgress('extract', '解压…')
+  onProgress('extract', 'Extracting…')
   // npm tarballs nest everything under package/ — strip it.
   await extractArchive(archive, destDir, 1)
   rmSync(archive, { force: true })
@@ -228,7 +228,7 @@ function runStreaming(cmd: string, args: string[], onProgress: Progress, label: 
         .map((s) => s.trim())
         .filter(Boolean)
         .at(-1)
-      if (line) onProgress('system', `${label}：${line}`)
+      if (line) onProgress('system', `${label}: ${line}`)
     }
     p.stdout!.on('data', append)
     p.stderr!.on('data', append)
@@ -389,15 +389,15 @@ export async function detectSystemCli(
   const detail =
     status === 'linked'
       ? duplicate
-        ? `已固定使用 ${selectedPath}，仍检测到 ${candidates.length} 个 ${command}`
-        : `已链接 ${selectedPath}`
+        ? `Pinned ${selectedPath}; ${candidates.length} ${command} commands are still detected`
+        : `Linked ${selectedPath}`
       : status === 'available'
-        ? `检测到 ${selectedPath}`
+        ? `Detected ${selectedPath}`
         : status === 'duplicate'
-          ? `检测到 ${candidates.length} 个 ${command}`
+          ? `Detected ${candidates.length} ${command} commands`
           : status === 'stale'
-            ? '记录存在但命令已丢失'
-            : `未检测到 ${command}`
+            ? 'The recorded command is missing'
+            : `${command} was not detected`
 
   return {
     cliId: id,
@@ -413,7 +413,7 @@ export async function detectSystemCli(
 }
 
 async function installHermesAgent(onProgress: Progress): Promise<void> {
-  onProgress('system', '运行 Hermes 官方安装器…')
+  onProgress('system', 'Running the official Hermes installer…')
   if (process.platform === 'win32') {
     const ps = process.env.SystemRoot
       ? join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
@@ -443,9 +443,9 @@ async function installSystemCli(id: CliId, onProgress: Progress, reinstall: bool
   }
   const npm = await which('npm')
   if (npm) {
-    if (!isNpmCliId(id)) throw new Error(`${SYSTEM_COMMANDS[id]} 暂不支持自动安装`)
+    if (!isNpmCliId(id)) throw new Error(`${SYSTEM_COMMANDS[id]} does not support automatic installation`)
     const pkg = NPM_PACKAGES[id]
-    onProgress('system', `${reinstall ? '重新安装' : '安装'} ${pkg}…`)
+    onProgress('system', `${reinstall ? 'Reinstalling' : 'Installing'} ${pkg}…`)
     const args = ['install', '-g', pkg]
     if (reinstall) {
       await runStreaming(npm, ['uninstall', '-g', pkg], onProgress, 'npm')
@@ -455,27 +455,27 @@ async function installSystemCli(id: CliId, onProgress: Progress, reinstall: bool
   }
 
   const command = SYSTEM_COMMANDS[id]
-  throw new Error(`无法自动安装 ${command}：未检测到 npm，请先安装 Node/npm 后重试`)
+  throw new Error(`Cannot install ${command} automatically: npm was not detected. Install Node/npm and try again.`)
 }
 
 async function updateSystemCli(id: CliId, onProgress: Progress, binPath?: string): Promise<string> {
   const selected = binPath ?? loadConfig().install[id].binPath
   if (!selected) {
-    throw new Error('当前没有记录系统 CLI 路径，请先重新链接系统版本')
+    throw new Error('No system CLI path is recorded. Relink the system CLI first.')
   }
   if (!existsSync(selected)) {
-    throw new Error(`系统命令不存在：${selected}`)
+    throw new Error(`System command does not exist: ${selected}`)
   }
   const realSelected = await normalizePath(selected)
   const commands = systemUpdateCommands(id, selected, realSelected)
   if (!commands.length) {
-    throw new Error('无法判断这个 CLI 的安装管理器，请用原安装方式更新后再回到这里检查')
+    throw new Error('The CLI install manager could not be determined. Update it with the original install method, then check again here.')
   }
 
   let lastError: unknown
   for (const command of commands) {
     try {
-      onProgress('system', `运行 ${command.label}…`)
+      onProgress('system', `Running ${command.label}…`)
       await runStreaming(command.file, command.args, onProgress, command.label)
       return selected
     } catch (e) {
@@ -487,7 +487,7 @@ async function updateSystemCli(id: CliId, onProgress: Progress, binPath?: string
 
 async function repairSystemCli(id: CliId, onProgress: Progress): Promise<void> {
   const command = SYSTEM_COMMANDS[id]
-  onProgress('repair', `固定使用 PATH 中优先级最高的 ${command}…`)
+  onProgress('repair', `Pinning the highest-priority ${command} command on PATH…`)
 }
 
 function backupPathForCli(id: CliId, binPath: string): string {
@@ -497,7 +497,7 @@ function backupPathForCli(id: CliId, binPath: string): string {
 
 export async function cleanupSystemCli(id: CliId, binPath: string): Promise<CleanupCliResult> {
   try {
-    if (!binPath || !existsSync(binPath)) throw new Error('路径不存在')
+    if (!binPath || !existsSync(binPath)) throw new Error('Path does not exist')
     const detection = await detectSystemCli(id)
     const targetRealPath = await normalizePath(binPath)
     const matched = detection.candidates.some((candidate) => {
@@ -506,7 +506,7 @@ export async function cleanupSystemCli(id: CliId, binPath: string): Promise<Clea
       const b = process.platform === 'win32' ? targetRealPath.toLowerCase() : targetRealPath
       return a === b || candidate.path === binPath
     })
-    if (!matched) throw new Error('该路径不是当前检测到的 CLI 候选，已取消清理')
+    if (!matched) throw new Error('This path is not a detected CLI candidate; cleanup was cancelled')
 
     const backupPath = backupPathForCli(id, binPath)
     mkdirSync(dirname(backupPath), { recursive: true })
@@ -518,20 +518,20 @@ export async function cleanupSystemCli(id: CliId, binPath: string): Promise<Clea
 }
 
 async function linkSystemCli(id: CliId, onProgress: Progress, binPath?: string): Promise<InstallResult> {
-  onProgress('link', '查找系统 CLI…')
+  onProgress('link', 'Finding system CLI…')
   const target = SYSTEM_COMMANDS[id]
   const detection = await detectSystemCli(id)
   const selected = binPath ?? detection.selectedPath
-  if (!selected) throw new Error(`未找到系统命令 ${target}，可以点击安装让 Agent Launcher 帮你安装`)
+  if (!selected) throw new Error(`System command ${target} was not found. Use Install to let Agent Launcher install it.`)
   if (!existsSync(selected)) {
-    throw new Error(`系统命令不存在：${selected}`)
+    throw new Error(`System command does not exist: ${selected}`)
   }
-  onProgress('verify', `验证 ${basename(selected)}…`)
+  onProgress('verify', `Verifying ${basename(selected)}…`)
   const version = await systemVersion(selected)
   setInstallState(id, { installed: true, source: 'system', version, binPath: selected })
   const warning =
     detection.duplicate && !binPath
-      ? `检测到 ${detection.candidates.length} 个 ${target}，已临时使用 PATH 中优先级最高的版本`
+      ? `Detected ${detection.candidates.length} ${target} commands; temporarily using the highest-priority version on PATH`
       : undefined
   return { ok: true, cliId: id, version, binPath: selected, source: 'system', warning, candidates: detection.candidates }
 }
@@ -605,7 +605,7 @@ async function systemVersion(binPath: string): Promise<string> {
 /** Claude Code: native binary from the platform optional-dep package. */
 async function installClaude(onProgress: Progress): Promise<InstallResult> {
   const p = detectPlatform()
-  onProgress('resolve', '查询版本…')
+  onProgress('resolve', 'Resolving version…')
   const main = await npmMeta('@anthropic-ai/claude-code/latest')
   const sub = `@anthropic-ai/claude-code-${p.platformKey}`
   const subMeta = await npmMeta(`${sub}/${main.version}`)
@@ -614,7 +614,7 @@ async function installClaude(onProgress: Progress): Promise<InstallResult> {
   const binPath = join(dir, p.os === 'win32' ? 'claude.exe' : 'claude')
   if (!existsSync(binPath)) throw new Error('claude binary missing after extract')
   if (p.os !== 'win32') chmodSync(binPath, 0o755)
-  onProgress('verify', '验证…')
+  onProgress('verify', 'Verifying…')
   let version = main.version
   try {
     version = (await run(binPath, ['--version'])).split(/\s+/)[0] || main.version
@@ -628,7 +628,7 @@ async function installClaude(onProgress: Progress): Promise<InstallResult> {
 /** Codex: native Rust binary from @openai/codex@<ver>-<platform> (keeps vendor/). */
 async function installCodex(onProgress: Progress): Promise<InstallResult> {
   const p = detectPlatform()
-  onProgress('resolve', '查询版本…')
+  onProgress('resolve', 'Resolving version…')
   const main = await npmMeta('@openai/codex/latest')
   const subMeta = await npmMeta(`@openai/codex/${main.version}-${p.platformKey}`)
   const dir = paths.cliInstall('codex')
@@ -637,7 +637,7 @@ async function installCodex(onProgress: Progress): Promise<InstallResult> {
   const binPath = join(dir, 'vendor', triple, 'bin', p.os === 'win32' ? 'codex.exe' : 'codex')
   if (!existsSync(binPath)) throw new Error(`codex binary missing: ${binPath}`)
   if (p.os !== 'win32') chmodSync(binPath, 0o755)
-  onProgress('verify', '验证…')
+  onProgress('verify', 'Verifying…')
   let version = main.version
   try {
     version = (await run(binPath, ['--version'])).split(/\s+/).pop() || main.version
@@ -651,7 +651,7 @@ async function installCodex(onProgress: Progress): Promise<InstallResult> {
 /** opencode: native binary from the platform optional-dep package (no Node). */
 async function installOpencode(onProgress: Progress): Promise<InstallResult> {
   const p = detectPlatform()
-  onProgress('resolve', '查询版本…')
+  onProgress('resolve', 'Resolving version…')
   const main = await npmMeta('opencode-ai/latest')
   const sub = `opencode-${opencodePlatformKey(p)}`
   const subMeta = await npmMeta(`${sub}/${main.version}`)
@@ -660,7 +660,7 @@ async function installOpencode(onProgress: Progress): Promise<InstallResult> {
   const binPath = join(dir, 'bin', p.os === 'win32' ? 'opencode.exe' : 'opencode')
   if (!existsSync(binPath)) throw new Error('opencode binary missing after extract')
   if (p.os !== 'win32') chmodSync(binPath, 0o755)
-  onProgress('verify', '验证…')
+  onProgress('verify', 'Verifying…')
   let version = main.version
   try {
     version = (await run(binPath, ['--version'])).trim().split(/\s+/).pop() || main.version
@@ -673,7 +673,7 @@ async function installOpencode(onProgress: Progress): Promise<InstallResult> {
 
 /** Pi: Node app — bundled portable Node + npm install into sandbox. */
 async function installPi(onProgress: Progress): Promise<InstallResult> {
-  onProgress('node', '准备便携 Node…')
+  onProgress('node', 'Preparing portable Node…')
   const { nodeBin, npmCli } = await ensureNode((msg, f) => onProgress('node', msg, f))
   const dir = paths.cliInstall('pi')
   mkdirSync(dir, { recursive: true })
@@ -681,7 +681,7 @@ async function installPi(onProgress: Progress): Promise<InstallResult> {
   const emptyNpmrc = join(paths.root, '.npmrc-empty')
   writeFileSync(emptyNpmrc, '')
 
-  onProgress('npm', 'npm 安装 Pi…')
+  onProgress('npm', 'Installing Pi with npm…')
   await run(nodeBin, [
     npmCli,
     'install',
@@ -698,7 +698,7 @@ async function installPi(onProgress: Progress): Promise<InstallResult> {
   const pkgRoot = join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent')
   const entry = join(pkgRoot, 'dist', 'cli.js')
   if (!existsSync(entry)) throw new Error('pi entry missing after npm install')
-  onProgress('verify', '验证…')
+  onProgress('verify', 'Verifying…')
   // pi prints --version to stderr; read the installed package.json instead.
   let version = ''
   try {
@@ -754,7 +754,7 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
         }
       }
       try {
-        if (!isNpmCliId(cliId)) throw new Error(`${SYSTEM_COMMANDS[cliId]} 暂不支持 registry 更新检查`)
+        if (!isNpmCliId(cliId)) throw new Error(`${SYSTEM_COMMANDS[cliId]} does not support registry update checks`)
         const latestVersion = (await npmMeta(`${NPM_PACKAGES[cliId]}/latest`)).version
         return {
           cliId,

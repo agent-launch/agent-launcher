@@ -63,7 +63,7 @@ describe('main store', () => {
 
       setAuthMode('codex', 'official')
       expect(getAuthMode('codex')).toBe('official')
-      expect(getActiveProfile('codex')).toMatchObject({ id: 'official', name: 'OpenAI 官方' })
+      expect(getActiveProfile('codex')).toMatchObject({ id: 'official', name: 'OpenAI Official' })
       expect(loadConfig().prefs.codex.officialProfilePinned).toBe(true)
 
       addProfile('codex', {
@@ -101,7 +101,7 @@ describe('main store', () => {
       let cfg = store.addPriceEntry('opencode', { provider: 'OpenRouter', model: 'gpt', inputPerMillion: 1 })
       const priceId = cfg.resources.opencode.prices[0].id
       cfg = store.updatePriceEntry('opencode', priceId, { outputPerMillion: 2 })
-      expect(cfg.resources.opencode.prices[0]).toMatchObject({ name: '未命名价格', currency: 'USD', outputPerMillion: 2 })
+      expect(cfg.resources.opencode.prices[0]).toMatchObject({ name: 'Untitled price', currency: 'USD', outputPerMillion: 2 })
       cfg = store.deletePriceEntry('opencode', priceId)
       expect(cfg.resources.opencode.prices).toEqual([])
 
@@ -115,7 +115,7 @@ describe('main store', () => {
       cfg = store.addSkillEntry('opencode', { source: 'local' })
       const skillId = cfg.resources.opencode.skills[0].id
       cfg = store.updateSkillEntry('opencode', skillId, { description: 'Useful' })
-      expect(cfg.resources.opencode.skills[0]).toMatchObject({ name: '未命名 Skill', enabled: true, description: 'Useful' })
+      expect(cfg.resources.opencode.skills[0]).toMatchObject({ name: 'Untitled Skill', enabled: true, description: 'Useful' })
       cfg = store.deleteSkillEntry('opencode', skillId)
       expect(cfg.resources.opencode.skills).toEqual([])
 

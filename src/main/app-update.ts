@@ -326,14 +326,14 @@ async function checkForAppUpdate(opts: { silent?: boolean } = {}): Promise<AppUp
 
 async function downloadAppUpdate(): Promise<AppUpdateDownloadResult> {
   if (!isAutoUpdateSupported()) {
-    const error = '当前安装包格式不支持应用内自动更新，请前往 GitHub Releases 下载。'
+    const error = 'This package format does not support in-app updates. Download the update from GitHub Releases.'
     const next = snapshot({ status: 'error', error })
     return { ok: false, status: next, error }
   }
 
   const updater = getAutoUpdater()
   if (!updater) {
-    const error = '更新模块不可用。'
+    const error = 'The update module is unavailable.'
     const next = snapshot({ status: 'error', error })
     return { ok: false, status: next, error }
   }
@@ -342,7 +342,7 @@ async function downloadAppUpdate(): Promise<AppUpdateDownloadResult> {
     if (!status.canAutoDownload) {
       const result = await updater.checkForUpdates().catch(() => null)
       if (!result?.updateInfo) {
-        const error = '未找到当前平台的自动更新元数据，请前往 GitHub Releases 下载。'
+        const error = 'No update metadata was found for this platform. Download the update from GitHub Releases.'
         const next = snapshot({ status: 'error', error, canAutoDownload: false })
         return { ok: false, status: next, error }
       }

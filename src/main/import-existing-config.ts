@@ -115,7 +115,7 @@ function importClaudeProfile(): CliProfilePatch | null {
   const settings = readJsonObject(join(systemCliConfigDir('claude-code'), 'settings.json'))
   const env = objectValue(settings?.env)
   const profile = importedProfile(
-    '本机默认配置',
+    'Local default config',
     firstString(env?.ANTHROPIC_BASE_URL),
     firstString(env?.ANTHROPIC_AUTH_TOKEN, env?.ANTHROPIC_API_KEY),
     firstString(env?.ANTHROPIC_MODEL, env?.ANTHROPIC_DEFAULT_SONNET_MODEL)
@@ -178,7 +178,7 @@ function importCodexProfile(): CliProfilePatch | null {
   )
   const baseUrl = configuredBaseUrl || (apiKey ? 'https://api.openai.com/v1' : undefined)
   const model = topLevelTomlValue(config, 'model')
-  return importedProfile('本机默认配置', baseUrl, apiKey, model)
+  return importedProfile('Local default config', baseUrl, apiKey, model)
 }
 
 function importOpencodeProfile(): CliProfilePatch | null {
@@ -199,7 +199,7 @@ function importOpencodeProfile(): CliProfilePatch | null {
   const selectedModel = stringValue(config?.model)?.startsWith(`${id}/`) ? stringValue(config?.model)?.slice(id.length + 1) : undefined
   const model = selectedModel || Object.keys(models ?? {})[0]
   return importedProfile(
-    stringValue(providerObject.name) || '本机默认配置',
+    stringValue(providerObject.name) || 'Local default config',
     firstString(options?.baseURL, options?.baseUrl, options?.base_url),
     firstString(options?.apiKey, options?.api_key),
     model
@@ -220,7 +220,7 @@ function importPiProfile(): CliProfilePatch | null {
   const modelList = Array.isArray(providerObject.models) ? providerObject.models : []
   const firstModel = objectValue(modelList[0])
   return importedProfile(
-    '本机默认配置',
+    'Local default config',
     firstString(providerObject.baseUrl, providerObject.baseURL, providerObject.base_url),
     firstString(providerObject.apiKey, providerObject.api_key),
     firstString(settings?.defaultModel, firstModel?.id)
@@ -280,7 +280,7 @@ function importHermesProfile(): CliProfilePatch | null {
   const provider = yamlBlockValue(modelBlock, 'provider')
   if (!baseUrl && !apiKey && !model && !provider) return null
   return {
-    name: '本机 Hermes 配置',
+    name: 'Local Hermes config',
     providerId: baseUrl ? inferProviderId(baseUrl) : provider || 'custom',
     baseUrl,
     apiKey,

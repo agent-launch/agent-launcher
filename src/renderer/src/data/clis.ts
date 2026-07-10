@@ -65,7 +65,7 @@ export const CLIS: CliMeta[] = [
 export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> = {
   'claude-code': { supported: true, note: '--dangerously-skip-permissions' },
   codex: { supported: true, note: '--dangerously-bypass-approvals-and-sandbox' },
-  opencode: { supported: true, note: '--dangerously-skip-permissions' },
-  pi: { supported: false, note: '该 CLI 无自动批准开关（仅工具白/黑名单）' },
+  opencode: { supported: false, note: 'Interactive TUI does not expose an auto-approve flag' },
+  pi: { supported: false, note: 'No auto-approve flag; only tool allowlists and denylists' },
   hermes: { supported: true, note: '--yolo' }
 }

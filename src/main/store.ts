@@ -30,7 +30,7 @@ function defaultAuthMode(id: CliId): AuthMode {
 }
 
 function officialProfileName(id: CliId): string {
-  return id === 'codex' ? 'OpenAI 官方' : 'Claude 官方'
+  return id === 'codex' ? 'OpenAI Official' : 'Claude Official'
 }
 
 function createOfficialProfile(id: CliId): CliProfile {
@@ -170,7 +170,7 @@ function normalize(raw: unknown): AppConfig {
       // Legacy schema 1: a single {providerId,baseUrl,apiKey,model} object.
       const legacy = entry as CliProfilePatch
       if (legacy.baseUrl || legacy.apiKey || legacy.providerId || legacy.model) {
-        const p: CliProfile = { id: newId(), name: legacy.providerId ?? '默认配置', ...legacy }
+        const p: CliProfile = { id: newId(), name: legacy.providerId ?? 'Default config', ...legacy }
         base.clis[id] = { activeProfileId: p.id, profiles: [p], authMode: 'api' }
       }
     }
@@ -230,7 +230,7 @@ export function addProfile(id: CliId, patch: CliProfilePatch): AppConfig {
       return saveConfig(cfg)
     }
   }
-  const profile: CliProfile = { id: newId(), name: patch.name || '未命名', ...patch }
+  const profile: CliProfile = { id: newId(), name: patch.name || 'Untitled', ...patch }
   normalizeProfile(id, profile)
   cli.profiles.push(profile)
   if (!cli.activeProfileId || authModeForProfile(id, profile) === 'api') cli.activeProfileId = profile.id
@@ -306,7 +306,7 @@ export function addPriceEntry(id: CliId, patch: CliPricePatch): AppConfig {
   const cfg = loadConfig()
   cfg.resources[id].prices.push({
     id: newId(),
-    name: patch.name || '未命名价格',
+    name: patch.name || 'Untitled price',
     currency: patch.currency || 'USD',
     ...patch
   })
@@ -330,7 +330,7 @@ export function addMcpEntry(id: CliId, patch: CliMcpPatch): AppConfig {
   const cfg = loadConfig()
   cfg.resources[id].mcpServers.push({
     id: newId(),
-    name: patch.name || '未命名 MCP',
+    name: patch.name || 'Untitled MCP',
     enabled: patch.enabled ?? true,
     transport: patch.transport ?? 'stdio',
     ...patch
@@ -355,7 +355,7 @@ export function addSkillEntry(id: CliId, patch: CliSkillPatch): AppConfig {
   const cfg = loadConfig()
   cfg.resources[id].skills.push({
     id: newId(),
-    name: patch.name || '未命名 Skill',
+    name: patch.name || 'Untitled Skill',
     enabled: patch.enabled ?? true,
     ...patch
   })

@@ -85,9 +85,9 @@ export function authStatus(cliId: CliId): Promise<AuthStatus> {
 
 export async function startAuthLogin(wc: WebContents, cliId: CliId, method: AuthLoginMethod): Promise<string> {
   const args = authTarget(cliId, method)
-  if (!args) throw new Error(`${cliId} 不支持官方订阅登录`)
+  if (!args) throw new Error(`${cliId} does not support official account login`)
   const bin = await installedBin(cliId)
-  if (!bin) throw new Error(`${cliId} 尚未安装`)
+  if (!bin) throw new Error(`${cliId} is not installed`)
 
   setAuthMode(cliId, 'official')
   if (hasNativeConfig(cliId)) {

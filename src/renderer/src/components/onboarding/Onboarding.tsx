@@ -287,7 +287,7 @@ function useCliPathManager(onChanged: () => Promise<void> | void) {
         ? {
             busy: false,
             phase: "done",
-            message: "完成",
+            message: t("onboarding.installDone"),
             version: r.version,
             source: r.source,
             binPath: r.binPath,
@@ -522,7 +522,7 @@ function InstallStep() {
             ) {
               next[c.id] = {
                 phase: "done",
-                message: "已安装",
+                message: t("settings.cliStatus.installed"),
                 version: inst.version,
                 source: inst.source ?? "system",
                 binPath: inst.binPath,
@@ -595,7 +595,7 @@ function InstallStep() {
         ? {
             busy: false,
             phase: "done",
-            message: r.warning ?? "完成",
+            message: r.warning ?? t("onboarding.installDone"),
             version: r.version,
             source: r.source,
             binPath: r.binPath,

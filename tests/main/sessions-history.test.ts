@@ -144,7 +144,7 @@ describe('sessions history and transcripts', () => {
       await expect(deleteSession('pi', outside)).resolves.toMatchObject({
         ok: false,
         cliId: 'pi',
-        error: '非法会话路径'
+        error: 'Invalid session path'
       })
     })
   })

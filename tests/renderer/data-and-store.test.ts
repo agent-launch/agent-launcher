@@ -19,6 +19,7 @@ describe('renderer static data and persisted app store', () => {
     expect(PROVIDERS_BY_CLI.codex.slice(-3).map((provider) => provider.id)).toEqual(['siliconflow', 'openrouter', 'custom'])
     expect(PROVIDERS_BY_CLI.pi).toBe(PROVIDERS_BY_CLI.codex)
     expect(PROVIDERS_BY_CLI.hermes).toBe(PROVIDERS_BY_CLI.codex)
+    expect(YOLO_SUPPORT.opencode.supported).toBe(false)
     expect(YOLO_SUPPORT.pi.supported).toBe(false)
     expect(YOLO_SUPPORT.hermes.note).toBe('--yolo')
   })

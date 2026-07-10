@@ -59,7 +59,7 @@ function pathId(path: string, name: string): string {
 
 function parsePathId(id: string): { path: string; name: string } {
   const index = id.lastIndexOf('#')
-  if (index < 0) throw new Error('资源 id 无效')
+  if (index < 0) throw new Error('Invalid resource id')
   return { path: id.slice(0, index), name: id.slice(index + 1) }
 }
 
@@ -158,7 +158,7 @@ function updateJsonMcp(path: string, key: 'mcp' | 'mcpServers', entryId: string,
   const servers = isObject(config[key]) ? { ...config[key] } : {}
   const existing = isObject(servers[name]) ? { ...servers[name] } : {}
   const nextName = patch.name?.trim() || name
-  if (!nextName) throw new Error('MCP 名称不能为空')
+  if (!nextName) throw new Error('MCP name is required')
   if (nextName !== name) delete servers[name]
 
   const next: JsonObject = { ...existing }
@@ -343,7 +343,7 @@ function codexMcpBlock(name: string, patch: InstalledMcpPatch): string {
 function updateCodexMcp(configPath: string, entryId: string | undefined, patch: InstalledMcpPatch): void {
   const name = entryId ? parsePathId(entryId).name : patch.name?.trim()
   const nextName = patch.name?.trim() || name
-  if (!nextName) throw new Error('MCP 名称不能为空')
+  if (!nextName) throw new Error('MCP name is required')
   const existing = entryId ? listCodexMcp('codex', configPath).find((entry) => entry.id === entryId) : undefined
   const merged: InstalledMcpPatch = { ...existing, ...patch, name: nextName }
   const current = safeRead(configPath)
@@ -454,7 +454,7 @@ function writeHermesMcpServers(configPath: string, servers: Record<string, JsonO
 function updateHermesMcp(configPath: string, entryId: string | undefined, patch: InstalledMcpPatch): void {
   const oldName = entryId ? parsePathId(entryId).name : patch.name?.trim()
   const nextName = patch.name?.trim() || oldName
-  if (!nextName) throw new Error('MCP 名称不能为空')
+  if (!nextName) throw new Error('MCP name is required')
   const servers = parseHermesMcpServers(configPath)
   const existing = oldName && isObject(servers[oldName]) ? { ...servers[oldName] } : {}
   if (oldName && oldName !== nextName) delete servers[oldName]
@@ -523,7 +523,7 @@ export function listInstalledMcp(cliId: CliId): InstalledMcpEntry[] {
 
 export function addInstalledMcp(cliId: CliId, patch: InstalledMcpPatch): InstalledMcpEntry[] {
   const config = mcpConfigPaths(cliId)[0]
-  if (!config) throw new Error('暂不支持这个 agent 的 MCP 配置')
+  if (!config) throw new Error('MCP configuration is not supported for this agent')
   if (config.kind === 'codex') updateCodexMcp(config.path, undefined, patch)
   else if (config.kind === 'hermes') updateHermesMcp(config.path, undefined, patch)
   else updateJsonMcp(config.path, config.key ?? 'mcpServers', pathId(config.path, patch.name?.trim() || ''), patch)
@@ -532,8 +532,8 @@ export function addInstalledMcp(cliId: CliId, patch: InstalledMcpPatch): Install
 
 export function updateInstalledMcp(cliId: CliId, entryId: string, patch: InstalledMcpPatch): InstalledMcpEntry[] {
   const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
-  if (!entry) throw new Error('找不到这个 MCP')
-  if (entry.readOnly) throw new Error('这个 MCP 由插件管理，不能在应用内修改')
+  if (!entry) throw new Error('MCP server not found')
+  if (entry.readOnly) throw new Error('This MCP server is managed by a plugin and cannot be edited in the app')
   if (entry.configKind === 'codex-toml') updateCodexMcp(entry.configPath, entryId, patch)
   else if (entry.configKind === 'hermes-yaml') updateHermesMcp(entry.configPath, entryId, patch)
   else updateJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId, patch)
@@ -542,28 +542,36 @@ export function updateInstalledMcp(cliId: CliId, entryId: string, patch: Install
 
 export function deleteInstalledMcp(cliId: CliId, entryId: string): InstalledMcpEntry[] {
   const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
-  if (!entry) throw new Error('找不到这个 MCP')
-  if (entry.readOnly) throw new Error('这个 MCP 由插件管理，不能在应用内删除')
+  if (!entry) throw new Error('MCP server not found')
+  if (entry.readOnly) throw new Error('This MCP server is managed by a plugin and cannot be deleted in the app')
   if (entry.configKind === 'codex-toml') deleteCodexMcp(entry.configPath, entryId)
   else if (entry.configKind === 'hermes-yaml') deleteHermesMcp(entry.configPath, entryId)
   else deleteJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId)
   return listInstalledMcp(cliId)
 }
 
+function sandboxSkillRoots(cliId: CliId, dir: string): string[] {
+  if (cliId === 'opencode') return [join(dir, 'xdg-config', 'opencode', 'skills'), join(dir, 'skills')]
+  return [join(dir, 'skills')]
+}
+
+function systemSkillRoots(cliId: CliId, dir: string): string[] {
+  if (cliId === 'opencode') {
+    return [
+      join(dir, 'skills'),
+      join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'opencode', 'skills')
+    ]
+  }
+  if (cliId === 'hermes') return [join(hermesHomeDir(), 'skills'), join(systemCliConfigDir('hermes'), 'skills')]
+  return [join(systemCliConfigDir(cliId), 'skills')]
+}
+
 function skillRoots(cliId: CliId): string[] {
   const dir = cliConfigDir(cliId)
-  const roots: string[] =
-    cliId === 'opencode'
-      ? [join(dir, 'xdg-config', 'opencode', 'skills'), join(dir, 'skills')]
-      : cliId === 'hermes'
-        ? [join(hermesHomeDir(), 'skills'), join(dir, 'skills')]
-        : [join(dir, 'skills')]
-
-  if (cliId === 'opencode') roots.push(join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'opencode', 'skills'))
-  else if (cliId === 'pi') roots.push(join(homedir(), '.pi', 'agent', 'skills'))
-  else if (cliId === 'codex') roots.push(join(homedir(), '.codex', 'skills'))
-  else if (cliId === 'claude-code') roots.push(join(homedir(), '.claude', 'skills'))
-  else if (cliId === 'hermes') roots.push(join(systemCliConfigDir('hermes'), 'skills'))
+  const roots =
+    getInstallSource(cliId) === 'system'
+      ? systemSkillRoots(cliId, dir)
+      : sandboxSkillRoots(cliId, dir)
 
   return [...new Set(roots.map((root) => resolve(root)))]
 }
@@ -640,9 +648,9 @@ export function listInstalledSkills(cliId: CliId): InstalledSkillEntry[] {
 
 export function readInstalledSkill(cliId: CliId, entryId: string): InstalledSkillFile {
   const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
-  if (!entry) throw new Error('找不到这个 Skill')
-  if (!isInside(entry.path, entry.root)) throw new Error('Skill 路径不在可管理目录内')
-  if (basename(entry.path) !== 'SKILL.md') throw new Error('这个文件不是 SKILL.md')
+  if (!entry) throw new Error('Skill not found')
+  if (!isInside(entry.path, entry.root)) throw new Error('Skill path is outside the managed directory')
+  if (basename(entry.path) !== 'SKILL.md') throw new Error('This file is not SKILL.md')
   return {
     path: entry.path,
     content: safeRead(entry.path)
@@ -666,17 +674,17 @@ function updateSkillFrontmatter(content: string, patch: InstalledSkillPatch): st
 
 export function updateInstalledSkill(cliId: CliId, entryId: string, patch: InstalledSkillPatch): InstalledSkillEntry[] {
   const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
-  if (!entry) throw new Error('找不到这个 Skill')
-  if (!isInside(entry.path, entry.root)) throw new Error('Skill 路径不在可管理目录内')
+  if (!entry) throw new Error('Skill not found')
+  if (!isInside(entry.path, entry.root)) throw new Error('Skill path is outside the managed directory')
   writeFileSync(entry.path, updateSkillFrontmatter(safeRead(entry.path), patch), { mode: 0o600 })
   return listInstalledSkills(cliId)
 }
 
 export function deleteInstalledSkill(cliId: CliId, entryId: string): InstalledSkillEntry[] {
   const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
-  if (!entry) throw new Error('找不到这个 Skill')
-  if (!isInside(entry.dir, entry.root)) throw new Error('Skill 路径不在可管理目录内')
-  if (!existsSync(join(entry.dir, 'SKILL.md'))) throw new Error('这个目录不是 Skill')
+  if (!entry) throw new Error('Skill not found')
+  if (!isInside(entry.dir, entry.root)) throw new Error('Skill path is outside the managed directory')
+  if (!existsSync(join(entry.dir, 'SKILL.md'))) throw new Error('This directory does not contain a Skill')
   rmSync(entry.dir, { recursive: true, force: true })
   return listInstalledSkills(cliId)
 }

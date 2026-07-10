@@ -36,13 +36,13 @@ export async function detectEnvironment(): Promise<DetectResult> {
   const items: DetectItem[] = [
     {
       key: 'os',
-      label: '操作系统',
+      label: 'Operating system',
       present: true,
       detail: `${platform.os} · ${platform.arch}`
     },
     {
       key: 'installer',
-      label: '系统安装能力',
+      label: 'System install support',
       present: !!pkg || !!npm,
       detail:
         platform.os === 'darwin'
@@ -50,16 +50,16 @@ export async function detectEnvironment(): Promise<DetectResult> {
             ? `Homebrew · ${pkg}`
             : npm
               ? `npm · ${npm}`
-              : '未检测到 Homebrew 或 npm'
+              : 'Homebrew and npm were not detected'
           : npm
             ? `npm · ${npm}`
-            : '未检测到 npm'
+            : 'npm was not detected'
     },
     {
       key: 'npm',
       label: 'npm',
       present: !!npm,
-      detail: npm ?? '未检测到 npm，部分 CLI 可能需要手动安装 Node/npm'
+      detail: npm ?? 'npm was not detected; some CLIs may require a manual Node/npm installation'
     }
   ]
 
@@ -80,7 +80,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
                 ? 'Pi'
                 : 'Hermes Agent',
       present: d.installed || sandboxInstalled,
-      detail: d.installed ? displayDetectionDetail(d) : sandboxInstalled ? '已安装到 Agent Launcher 沙盒' : d.detail
+      detail: d.installed ? displayDetectionDetail(d) : sandboxInstalled ? 'Installed in the Agent Launcher sandbox' : d.detail
     })
   }
 

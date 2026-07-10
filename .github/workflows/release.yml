@@ -62,6 +62,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Typecheck and test
+        run: pnpm verify
+
       - name: Set package version
         shell: bash
         run: |

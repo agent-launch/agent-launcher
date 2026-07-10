@@ -63,7 +63,7 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
   const cfg = loadConfig()
   const install = cfg.install[opts.cliId]
   if (!install.installed || !install.binPath) {
-    throw new Error(`${opts.cliId} 尚未安装`)
+    throw new Error(`${opts.cliId} is not installed`)
   }
   const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
   const yolo = getPrefs(opts.cliId).yolo ? (yoloArgs(opts.cliId) ?? []) : []

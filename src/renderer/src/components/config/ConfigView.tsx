@@ -672,7 +672,7 @@ function ProfileForm({
     }
 
     const patch = {
-      name: nextName || '未命名',
+      name: nextName || t('common.unnamed'),
       providerId: nextProviderId || undefined,
       baseUrl: nextBaseUrl,
       apiKey: nextApiKey,

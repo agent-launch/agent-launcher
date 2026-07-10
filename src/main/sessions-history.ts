@@ -560,7 +560,7 @@ function codexSessionRoots(): string[] {
 
 function createCodexAppServerClient(): CodexAppServerClient {
   const install = loadConfig().install.codex
-  if (!install.installed || !install.binPath) throw new Error('Codex 尚未安装')
+  if (!install.installed || !install.binPath) throw new Error('Codex is not installed')
 
   const proc = spawnProcess(install.binPath, ['app-server', '--stdio'], {
     cwd: homedir(),
@@ -677,7 +677,7 @@ function codexThreadEntryToSessionInfo(entry: Record<string, any> | undefined): 
   return {
     id,
     cliId: 'codex',
-    name: displayTitle(title, 'Codex 会话'),
+    name: displayTitle(title, 'Codex session'),
     updatedAt: ts ?? Date.now(),
     cwd: typeof entry.cwd === 'string' && entry.cwd.trim() ? entry.cwd : undefined
   }
@@ -760,7 +760,7 @@ function listClaude(): SessionInfo[] {
     out.push({
       id: ref.id,
       cliId: 'claude-code' as CliId,
-      name: displayTitle(customTitle || aiTitle || lastPrompt || summary || firstUser, 'Claude 会话'),
+      name: displayTitle(customTitle || aiTitle || lastPrompt || summary || firstUser, 'Claude session'),
       updatedAt: latestTs ?? ref.mtimeMs,
       cwd
     })
@@ -831,7 +831,7 @@ function listCodex(): SessionInfo[] {
     out.push({
       id: sessionId,
       cliId: 'codex' as CliId,
-      name: displayTitle(title, 'Codex 会话'),
+      name: displayTitle(title, 'Codex session'),
       updatedAt: latestTs ?? ref.mtimeMs,
       cwd
     })
@@ -887,7 +887,7 @@ function listPi(): SessionInfo[] {
     out.push({
       id: ref.full,
       cliId: 'pi',
-      name: (name || firstUser || 'Pi 会话').trim().slice(0, 80),
+      name: (name || firstUser || 'Pi session').trim().slice(0, 80),
       updatedAt: ref.mtimeMs,
       cwd
     })
@@ -996,7 +996,7 @@ function listOpencodeJson(): SessionInfo[] {
       out.push({
         id,
         cliId: 'opencode',
-        name: displayTitle(title || (directory ? basename(directory) : undefined), 'OpenCode 会话'),
+        name: displayTitle(title || (directory ? basename(directory) : undefined), 'OpenCode session'),
         updatedAt,
         cwd: directory
       })
@@ -1023,7 +1023,7 @@ async function listOpencodeSqlite(): Promise<SessionInfo[]> {
       return {
         id: String(id),
         cliId: 'opencode' as CliId,
-        name: (title || '未命名会话').toString().slice(0, 80),
+        name: (title || 'Untitled session').toString().slice(0, 80),
         updatedAt: ms > 0 && ms < 1e12 ? ms * 1000 : ms, // tolerate seconds vs ms
         cwd: typeof directory === 'string' ? directory : undefined
       }
@@ -1087,7 +1087,7 @@ function listHermesJson(): SessionInfo[] {
       out.push({
         id,
         cliId: 'hermes',
-        name: displayTitle(title || firstUser, 'Hermes 会话'),
+        name: displayTitle(title || firstUser, 'Hermes session'),
         updatedAt: latestTs ?? statSync(file).mtimeMs,
         cwd
       })
@@ -1132,7 +1132,7 @@ async function listHermesSqlite(): Promise<SessionInfo[]> {
       return {
         id: String(id),
         cliId: 'hermes' as CliId,
-        name: (String(title || '') || 'Hermes 会话').slice(0, 80),
+        name: (String(title || '') || 'Hermes session').slice(0, 80),
         updatedAt: ts,
         cwd: typeof cwd === 'string' && cwd ? cwd : undefined
       }
@@ -1169,7 +1169,7 @@ function deleteClaudeSession(id: string): SessionDeleteResult {
   }
   if (!file) return { ok: true, cliId: 'claude-code', id, deletedCount: 0, missing: true }
   if (!isSafeSessionPath(file, root)) {
-    return { ok: false, cliId: 'claude-code', id, deletedCount: 0, error: '非法会话路径' }
+    return { ok: false, cliId: 'claude-code', id, deletedCount: 0, error: 'Invalid session path' }
   }
 
   try {
@@ -1202,7 +1202,7 @@ function deleteCodexSession(id: string): SessionDeleteResult {
   const file = findCodexSessionFile(id)
   if (!file) return { ok: true, cliId: 'codex', id, deletedCount: 0, missing: true }
   if (!codexSessionRoots().some((root) => isSafeSessionPath(file, root))) {
-    return { ok: false, cliId: 'codex', id, deletedCount: 0, error: '非法会话路径' }
+    return { ok: false, cliId: 'codex', id, deletedCount: 0, error: 'Invalid session path' }
   }
 
   try {
@@ -1220,7 +1220,7 @@ function deletePiSession(id: string): SessionDeleteResult {
   const root = join(cliStateRoot('pi'), 'sessions')
   if (!existsSync(id)) return { ok: true, cliId: 'pi', id, deletedCount: 0, missing: true }
   if (!isSafeSessionPath(id, root)) {
-    return { ok: false, cliId: 'pi', id, deletedCount: 0, error: '非法会话路径' }
+    return { ok: false, cliId: 'pi', id, deletedCount: 0, error: 'Invalid session path' }
   }
 
   try {
@@ -1255,7 +1255,7 @@ function tableColumns(db: initSqlJs.Database, table: string): string[] {
 }
 
 function compactProcessError(result: { code: number | null; stdout: string; stderr: string }): string {
-  const text = (result.stderr || result.stdout || `退出码 ${result.code ?? 'unknown'}`).trim()
+  const text = (result.stderr || result.stdout || `exit code ${result.code ?? 'unknown'}`).trim()
   return text.length > 1200 ? `…${text.slice(-1200)}` : text
 }
 
@@ -1281,7 +1281,7 @@ async function readHermesDeleteTarget(
 async function deleteHermesWithCli(id: string): Promise<string | null> {
   const install = loadConfig().install.hermes
   if (!install.installed || !install.binPath || !existsSync(install.binPath)) {
-    return 'Hermes 命令不存在，无法调用官方 sessions delete'
+    return 'Hermes command not found; cannot invoke the official sessions delete command'
   }
 
   const result = await runCaptured(install.binPath, ['sessions', 'delete', '--yes', id], {
@@ -1387,7 +1387,7 @@ async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
         cliId: 'hermes',
         id,
         deletedCount: 0,
-        error: `Hermes 官方删除失败：${cliError}；系统 SQLite 删除失败：${sqliteError}`
+        error: `Official Hermes deletion failed: ${cliError}; system SQLite deletion failed: ${sqliteError}`
       }
     } catch (error) {
       const sqliteError = await deleteHermesWithSystemSqlite(dbPath, id).catch((sqliteFailure) =>
@@ -1399,7 +1399,7 @@ async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
         cliId: 'hermes',
         id,
         deletedCount: 0,
-        error: `Hermes 删除失败：${error instanceof Error ? error.message : String(error)}；系统 SQLite 删除失败：${sqliteError}`
+        error: `Hermes deletion failed: ${error instanceof Error ? error.message : String(error)}; system SQLite deletion failed: ${sqliteError}`
       }
     }
   } catch (error) {
@@ -1409,7 +1409,7 @@ async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
 
 export async function deleteSession(cliId: CliId, id: string): Promise<SessionDeleteResult> {
   const sessionId = id.trim()
-  if (!sessionId) return { ok: false, cliId, id, deletedCount: 0, error: '会话 ID 不能为空' }
+  if (!sessionId) return { ok: false, cliId, id, deletedCount: 0, error: 'Session ID is required' }
 
   try {
     if (cliId === 'claude-code') return deleteClaudeSession(sessionId)
@@ -1417,7 +1417,7 @@ export async function deleteSession(cliId: CliId, id: string): Promise<SessionDe
     if (cliId === 'pi') return deletePiSession(sessionId)
     if (cliId === 'opencode') return await deleteOpencodeSession(sessionId)
     if (cliId === 'hermes') return await deleteHermesSession(sessionId)
-    return { ok: false, cliId, id: sessionId, deletedCount: 0, error: '不支持删除这个 CLI 的会话' }
+    return { ok: false, cliId, id: sessionId, deletedCount: 0, error: 'Session deletion is not supported for this CLI' }
   } catch (error) {
     return { ok: false, cliId, id: sessionId, deletedCount: 0, error: String(error) }
   }

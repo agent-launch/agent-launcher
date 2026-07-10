@@ -15,6 +15,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'common.edit': '编辑',
     'common.delete': '删除',
     'common.loading': '加载中…',
+    'common.unnamed': '未命名',
 
     // ---- app menu ----
     'menu.file': '文件',
@@ -76,6 +77,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.deleteSessionConfirm': '删除',
     'shell.deleteSessionDeleting': '删除中…',
     'shell.deleteSessionFailed': '删除会话失败：{error}',
+    'shell.deleteSessionApiUnavailable': '会话删除功能尚未加载，请重启应用窗口后重试',
 
     // ---- terminal ----
     'terminal.exited': '[进程已退出 code={code}]',
@@ -448,6 +450,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'common.edit': 'Edit',
     'common.delete': 'Delete',
     'common.loading': 'Loading…',
+    'common.unnamed': 'Untitled',
 
     // ---- app menu ----
     'menu.file': 'File',
@@ -509,6 +512,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.deleteSessionConfirm': 'Delete',
     'shell.deleteSessionDeleting': 'Deleting…',
     'shell.deleteSessionFailed': 'Failed to delete session: {error}',
+    'shell.deleteSessionApiUnavailable': 'Session deletion is unavailable. Restart the app window and try again.',
 
     // ---- terminal ----
     'terminal.exited': '[process exited code={code}]',

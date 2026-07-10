@@ -466,11 +466,11 @@ export function readNativeFiles(cliId: CliId): NativeFiles {
           'config.toml': (() => {
             const full = join(dir, 'config.toml')
             const existing = existsSync(full) ? readFileSync(full, 'utf8') : ''
-            return mergeCodexToml(existing) || '（官方登录模式，无自定义 provider）'
+            return mergeCodexToml(existing) || '(Official login mode; no custom provider)'
           })(),
           'auth.json': (() => {
             const next = codexAuthForActiveProfile(readJsonObject(join(dir, 'auth.json')))
-            return next ? JSON.stringify(next, null, 2) : '（未写入 auth.json）'
+            return next ? JSON.stringify(next, null, 2) : '(auth.json not written)'
           })()
         }
       : cliId === 'opencode'

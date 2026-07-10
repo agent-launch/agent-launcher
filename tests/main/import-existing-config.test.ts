@@ -55,7 +55,7 @@ describe('system config import', () => {
       const cfg = loadConfig()
       expect(cfg.clis['claude-code'].profiles).toHaveLength(1)
       expect(cfg.clis['claude-code'].profiles[0]).toMatchObject({
-        name: '本机默认配置',
+        name: 'Local default config',
         baseUrl: 'https://claude.example',
         apiKey: 'sk-claude',
         sonnetModel: 'claude-sonnet'
@@ -78,7 +78,7 @@ describe('system config import', () => {
         model: 'gpt-pi-default'
       })
       expect(cfg.clis.hermes.profiles[0]).toMatchObject({
-        name: '本机 Hermes 配置',
+        name: 'Local Hermes config',
         baseUrl: 'https://hermes.example/v1',
         apiKey: 'sk-hermes',
         model: 'gpt-hermes'

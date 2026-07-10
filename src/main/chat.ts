@@ -372,7 +372,7 @@ function spawnTurn(s: ChatState, id: string, text: string): void {
 export function startChat(wc: WebContents, opts: ChatStartOptions): string {
   const cfg = loadConfig()
   const install = cfg.install[opts.cliId]
-  if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} 尚未安装`)
+  if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} is not installed`)
 
   const cwd = resolveLaunchCwd(opts.cwd)
   if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') writeNativeConfig(opts.cliId)
