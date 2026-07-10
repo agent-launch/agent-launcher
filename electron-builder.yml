@@ -1,5 +1,5 @@
 appId: org.matrixlabs.agentlauncher
-productName: AgentLauncher
+productName: Agent Launcher
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
   output: release

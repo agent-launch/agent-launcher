@@ -13,6 +13,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CLIS } from "@/data/clis";
 import { PROVIDERS_BY_CLI } from "@/data/providers";
 import { CliIcon } from "@/components/CliIcon";
+import appIcon from "@/assets/app-icon.png";
 import { useT } from "@/i18n";
 import type {
   AuthStatus,
@@ -58,11 +59,9 @@ export function Onboarding() {
           style={{ background: "var(--sidebar-gradient)" }}
         >
           <div className="mb-5 flex items-center gap-2 px-2">
-            <span className="grid size-6 place-items-center rounded-md bg-text-strong text-[12px] font-bold text-(--background-base)">
-              A
-            </span>
+            <img src={appIcon} alt="" className="size-6 shrink-0" />
             <span className="text-[13px] font-semibold text-text-strong">
-              AgentLauncher
+              Agent Launcher
             </span>
           </div>
           {STEP_KEYS.map((key, i) => {

@@ -522,7 +522,7 @@ async function linkSystemCli(id: CliId, onProgress: Progress, binPath?: string):
   const target = SYSTEM_COMMANDS[id]
   const detection = await detectSystemCli(id)
   const selected = binPath ?? detection.selectedPath
-  if (!selected) throw new Error(`未找到系统命令 ${target}，可以点击安装让 AgentLauncher 帮你安装`)
+  if (!selected) throw new Error(`未找到系统命令 ${target}，可以点击安装让 Agent Launcher 帮你安装`)
   if (!existsSync(selected)) {
     throw new Error(`系统命令不存在：${selected}`)
   }

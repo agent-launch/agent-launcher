@@ -23,6 +23,7 @@ import { useAppStore, type ThemeMode, type LocaleMode } from '@/store/app'
 import { useT } from '@/i18n'
 import { ENABLE_CHAT_HISTORY_RENDERING } from '@/features'
 import { Button } from '@/components/ui/Button'
+import appIcon from '@/assets/app-icon.png'
 import { SETTINGS_TABS, type SettingsTab } from './settingsTabs'
 import type { AppConfig, AppInfo, AppUpdateStatus, CliId, CliUpdateStatus, InstallProgress, UsageDailyBucket, UsageScanResult } from '@shared/types'
 
@@ -802,7 +803,10 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
     <div className="space-y-3">
       <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
         <div className="min-w-0">
-          <h3 className="font-display text-[16px] font-semibold text-text-strong">AgentLauncher</h3>
+          <div className="flex items-center gap-2">
+            <img src={appIcon} alt="" className="size-8 shrink-0" />
+            <h3 className="font-display text-[16px] font-semibold text-text-strong">Agent Launcher</h3>
+          </div>
           <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.aboutDesc')}</p>
           <div className="mt-3 grid gap-1.5 text-[12px]">
             <InfoRow label={t('settings.aboutVersion')} value={info?.version ?? '-'} />

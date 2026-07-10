@@ -187,7 +187,7 @@ function opencodeConfig(): Record<string, any> {
     provider: {
       [PROVIDER_ID]: {
         npm: '@ai-sdk/openai-compatible',
-        name: p.name || 'AgentLauncher',
+        name: p.name || 'Agent Launcher',
         options: { baseURL: p.baseUrl, apiKey: p.apiKey ?? '' },
         models: { [model]: { name: model } }
       }

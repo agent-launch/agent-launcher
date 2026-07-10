@@ -269,7 +269,7 @@ export interface AppInfo {
   version: string
   platform: string
   configPath: string
-  /** True when AgentLauncher's sandbox config existed before renderer startup. */
+  /** True when Agent Launcher's sandbox config existed before renderer startup. */
   hasConfig: boolean
 }
 

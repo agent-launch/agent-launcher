@@ -22,10 +22,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'menu.view': '显示',
     'menu.window': '窗口',
     'menu.help': '帮助',
-    'menu.about': '关于 AgentLauncher',
+    'menu.about': '关于 Agent Launcher',
     'menu.checkUpdates': '检查更新…',
     'menu.closeWindow': '关闭窗口',
-    'menu.quit': '退出 AgentLauncher',
+    'menu.quit': '退出 Agent Launcher',
     'menu.undo': '撤销',
     'menu.redo': '重做',
     'menu.cut': '剪切',
@@ -147,11 +147,11 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.usage.agentMeta': '{requests} 请求 · {sessions} 会话',
     'settings.usage.dayTooltip': '{date}：{tokens} token',
     'settings.usage.dayTooltipWithRequests': '{date}：{tokens} token · {requests} 请求',
-    'settings.aboutDesc': 'AgentLauncher 是一个本地桌面工具，用来安装、配置和启动常用 coding agent CLI。',
+    'settings.aboutDesc': 'Agent Launcher 是一个本地桌面工具，用来安装、配置和启动常用 coding agent CLI。',
     'settings.aboutVersion': '版本',
     'settings.aboutPlatform': '平台',
     'settings.aboutConfigPath': '配置文件',
-    'settings.appUpdate.title': 'AgentLauncher 更新',
+    'settings.appUpdate.title': 'Agent Launcher 更新',
     'settings.appUpdate.desc': '从 GitHub Releases 检查应用版本；支持的安装包可直接下载并重启安装。',
     'settings.appUpdate.check': '检查更新',
     'settings.appUpdate.checking': '检查中…',
@@ -170,7 +170,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.appUpdate.force': '强制更新',
     'settings.appUpdate.minVersion': '最低版本',
     'settings.cliStatus.title': 'Agent CLI 安装状态',
-    'settings.cliStatus.desc': '检查各 CLI 当前版本和 registry 最新版本；点击更新只刷新当前记录的 CLI，不会切到 AgentLauncher 沙盒。',
+    'settings.cliStatus.desc': '检查各 CLI 当前版本和 registry 最新版本；点击更新只刷新当前记录的 CLI，不会切到 Agent Launcher 沙盒。',
     'settings.cliStatus.check': '检查更新',
     'settings.cliStatus.checking': '检查中…',
     'settings.cliStatus.unchecked': '未检查',
@@ -196,7 +196,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.cliStatus.systemUpdateHint': '当前使用系统 CLI；点击后会尝试运行它自己的更新命令，并继续保持这个路径。',
 
     // ---- app update ----
-    'update.force.title': '需要更新 AgentLauncher',
+    'update.force.title': '需要更新 Agent Launcher',
     'update.force.desc': '当前版本已经低于远程策略要求，请更新后继续使用。',
     'update.currentVersion': '当前版本',
     'update.latestVersion': '最新版本',
@@ -255,7 +255,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.finish': '完成，进入主界面',
 
     // ---- onboarding: welcome ----
-    'onboarding.welcomeTitle': '欢迎使用 AgentLauncher',
+    'onboarding.welcomeTitle': '欢迎使用 Agent Launcher',
     'onboarding.welcomeDesc':
       '不用装 Node、不用配环境变量、不用碰命令行。接下来几分钟，我们帮你装好并配好 Claude Code、Codex、OpenCode、Pi，直接开跑。',
 
@@ -278,8 +278,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.reinstallBtn': '重装',
     'onboarding.repairBtn': '修复',
     'onboarding.installAll': '安装缺失项',
-    'onboarding.sandboxToggle': '启用 AgentLauncher 沙盒',
-    'onboarding.sandboxOnDesc': '推荐开启：AgentLauncher 会下载并管理独立 CLI，不依赖你系统里已有的 Node、npm 或 CLI。',
+    'onboarding.sandboxToggle': '启用 Agent Launcher 沙盒',
+    'onboarding.sandboxOnDesc': '推荐开启：Agent Launcher 会下载并管理独立 CLI，不依赖你系统里已有的 Node、npm 或 CLI。',
     'onboarding.sandboxOffDesc': '关闭后不会下载安装，只会从系统 PATH 查找已安装的 CLI，并使用它自己的账号、配置和历史。',
     'onboarding.sandboxWhy':
       '为什么启用沙盒：CLI 二进制、便携 Node、npm 缓存、账号配置和聊天历史都放在 ~/.agent-launcher，避免污染全局环境，也不会改你的 ~/.npmrc 或已有 CLI 安装。',
@@ -297,7 +297,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.expandPaths': '管理路径',
     'onboarding.collapsePaths': '收起',
     'onboarding.usePath': '设为默认',
-    'onboarding.usePathHint': '将该路径设为 AgentLauncher 启动此 CLI 时使用的默认路径',
+    'onboarding.usePathHint': '将该路径设为 Agent Launcher 启动此 CLI 时使用的默认路径',
     'onboarding.cleanupPath': '移除',
     'onboarding.cleanupPathHint': '将该命令移动到备份目录，避免继续被检测到',
     'onboarding.selectedPath': '当前',
@@ -305,7 +305,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.versionLabel': '版本',
     'onboarding.versionUnknown': '版本未知',
     'onboarding.cleanupTitle': '移至备份',
-    'onboarding.cleanupDesc': '清理会把该命令移动到 AgentLauncher 的备份目录，不会直接永久删除。若它属于 Homebrew、npm、nvm 或其他包管理器，后续也可以用原工具重新安装。',
+    'onboarding.cleanupDesc': '清理会把该命令移动到 Agent Launcher 的备份目录，不会直接永久删除。若它属于 Homebrew、npm、nvm 或其他包管理器，后续也可以用原工具重新安装。',
     'onboarding.cleanupConfirm': '移动到备份',
     'onboarding.cleanupBusy': '清理中…',
 
@@ -455,10 +455,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'menu.view': 'View',
     'menu.window': 'Window',
     'menu.help': 'Help',
-    'menu.about': 'About AgentLauncher',
+    'menu.about': 'About Agent Launcher',
     'menu.checkUpdates': 'Check for Updates…',
     'menu.closeWindow': 'Close Window',
-    'menu.quit': 'Quit AgentLauncher',
+    'menu.quit': 'Quit Agent Launcher',
     'menu.undo': 'Undo',
     'menu.redo': 'Redo',
     'menu.cut': 'Cut',
@@ -580,11 +580,11 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.usage.agentMeta': '{requests} req · {sessions} sessions',
     'settings.usage.dayTooltip': '{date}: {tokens} tokens',
     'settings.usage.dayTooltipWithRequests': '{date}: {tokens} tokens · {requests} requests',
-    'settings.aboutDesc': 'AgentLauncher is a local desktop tool for installing, configuring, and launching coding agent CLIs.',
+    'settings.aboutDesc': 'Agent Launcher is a local desktop tool for installing, configuring, and launching coding agent CLIs.',
     'settings.aboutVersion': 'Version',
     'settings.aboutPlatform': 'Platform',
     'settings.aboutConfigPath': 'Config file',
-    'settings.appUpdate.title': 'AgentLauncher updates',
+    'settings.appUpdate.title': 'Agent Launcher updates',
     'settings.appUpdate.desc': 'Checks GitHub Releases for app updates; supported packages can download and restart in place.',
     'settings.appUpdate.check': 'Check updates',
     'settings.appUpdate.checking': 'Checking…',
@@ -604,7 +604,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.appUpdate.minVersion': 'Minimum',
     'settings.cliStatus.title': 'Agent CLI install status',
     'settings.cliStatus.desc':
-      'Check each CLI against the latest registry version. Updating refreshes the currently linked CLI and never switches it into the AgentLauncher sandbox.',
+      'Check each CLI against the latest registry version. Updating refreshes the currently linked CLI and never switches it into the Agent Launcher sandbox.',
     'settings.cliStatus.check': 'Check updates',
     'settings.cliStatus.checking': 'Checking…',
     'settings.cliStatus.unchecked': 'Not checked',
@@ -628,10 +628,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.cliStatus.current': 'Current',
     'settings.cliStatus.systemManaged': 'System managed',
     'settings.cliStatus.systemUpdateHint':
-      'This currently uses a system CLI; updating tries its own updater and keeps AgentLauncher linked to the same path.',
+      'This currently uses a system CLI; updating tries its own updater and keeps Agent Launcher linked to the same path.',
 
     // ---- app update ----
-    'update.force.title': 'AgentLauncher update required',
+    'update.force.title': 'Agent Launcher update required',
     'update.force.desc': 'This version is below the remote policy requirement. Please update to continue.',
     'update.currentVersion': 'Current',
     'update.latestVersion': 'Latest',
@@ -690,7 +690,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.finish': 'Finish & open app',
 
     // ---- onboarding: welcome ----
-    'onboarding.welcomeTitle': 'Welcome to AgentLauncher',
+    'onboarding.welcomeTitle': 'Welcome to Agent Launcher',
     'onboarding.welcomeDesc':
       "No installing Node, no environment variables, no command line. In the next few minutes we'll install and configure Claude Code, Codex, OpenCode and Pi for you, ready to go.",
 
@@ -714,11 +714,11 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.reinstallBtn': 'Reinstall',
     'onboarding.repairBtn': 'Repair',
     'onboarding.installAll': 'Install missing',
-    'onboarding.sandboxToggle': 'Use the AgentLauncher sandbox',
+    'onboarding.sandboxToggle': 'Use the Agent Launcher sandbox',
     'onboarding.sandboxOnDesc':
-      'Recommended: AgentLauncher downloads and manages separate CLIs, without depending on your system Node, npm, or existing CLI installs.',
+      'Recommended: Agent Launcher downloads and manages separate CLIs, without depending on your system Node, npm, or existing CLI installs.',
     'onboarding.sandboxOffDesc':
-      'When off, nothing is downloaded. AgentLauncher only looks for installed CLIs on the system PATH and uses their own accounts, config, and history.',
+      'When off, nothing is downloaded. Agent Launcher only looks for installed CLIs on the system PATH and uses their own accounts, config, and history.',
     'onboarding.sandboxWhy':
       'Why keep the sandbox on: CLI binaries, portable Node, npm cache, account config, and chat history stay under ~/.agent-launcher, so global tools, ~/.npmrc, and existing CLI installs are untouched.',
     'onboarding.useAllSystem': 'Use all system CLIs',
@@ -736,7 +736,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.expandPaths': 'Manage paths',
     'onboarding.collapsePaths': 'Collapse',
     'onboarding.usePath': 'Set default',
-    'onboarding.usePathHint': 'Use this path by default when AgentLauncher starts this CLI',
+    'onboarding.usePathHint': 'Use this path by default when Agent Launcher starts this CLI',
     'onboarding.cleanupPath': 'Remove',
     'onboarding.cleanupPathHint': 'Move this command into backup storage so it is no longer detected',
     'onboarding.selectedPath': 'Current',
@@ -745,7 +745,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.versionUnknown': 'Unknown version',
     'onboarding.cleanupTitle': 'Move to backup',
     'onboarding.cleanupDesc':
-      'Cleanup moves this command into AgentLauncher backup storage instead of deleting it permanently. If it came from Homebrew, npm, nvm, or another manager, you can reinstall it with that tool later.',
+      'Cleanup moves this command into Agent Launcher backup storage instead of deleting it permanently. If it came from Homebrew, npm, nvm, or another manager, you can reinstall it with that tool later.',
     'onboarding.cleanupConfirm': 'Move to backup',
     'onboarding.cleanupBusy': 'Cleaning…',
 
@@ -823,7 +823,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.claudeHaikuModelPlaceholder': 'e.g. claude-haiku-4-5',
     'config.emptyProfileToast': 'Choose a relay or fill in Base URL / API Key / Model first',
     'config.pricingTitle': 'Pricing',
-    'config.pricingDesc': 'Keep per-agent model pricing records in per-million-token units. This is a local AgentLauncher record for now.',
+    'config.pricingDesc': 'Keep per-agent model pricing records in per-million-token units. This is a local Agent Launcher record for now.',
     'config.addPrice': 'Add price',
     'config.noPrices': 'No pricing records yet.',
     'config.untitledPrice': 'Untitled price',

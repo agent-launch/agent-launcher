@@ -80,7 +80,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
                 ? 'Pi'
                 : 'Hermes Agent',
       present: d.installed || sandboxInstalled,
-      detail: d.installed ? displayDetectionDetail(d) : sandboxInstalled ? '已安装到 AgentLauncher 沙盒' : d.detail
+      detail: d.installed ? displayDetectionDetail(d) : sandboxInstalled ? '已安装到 Agent Launcher 沙盒' : d.detail
     })
   }
 

@@ -121,7 +121,7 @@ function createWindow(): BrowserWindow {
     minWidth: 880,
     minHeight: 560,
     show: false,
-    title: 'AgentLauncher',
+    title: 'Agent Launcher',
     backgroundColor: '#ffffff',
     // Netcatty uses native macOS traffic lights with this window shape:
     // frame + hiddenInset + explicit trafficLightPosition. Keeping the controls
@@ -157,7 +157,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  app.setName('AgentLauncher')
+  app.setName('Agent Launcher')
   installApplicationMenu()
 
   // Window control IPC for the custom titlebar.
