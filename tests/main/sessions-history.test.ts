@@ -54,6 +54,9 @@ describe('sessions history and transcripts', () => {
           timestamp: '2026-07-08T02:03:00.000Z'
         }
       ])
+      writeJsonl(join(paths.cliConfig('codex'), 'session_index.jsonl'), [
+        { id: codexId, thread_name: 'Implement Codex session index', updated_at: '2026-07-08T02:01:30.000Z' }
+      ])
 
       const piFile = join(paths.cliConfig('pi'), 'sessions', 'repo', 'pi-session.jsonl')
       writeJsonl(piFile, [
@@ -78,7 +81,7 @@ describe('sessions history and transcripts', () => {
         { id: 'claude-session', cliId: 'claude-code', name: 'Build the feature', cwd: '/repo' }
       ])
       await expect(listSessions('codex')).resolves.toMatchObject([
-        { id: codexId, cliId: 'codex', name: 'Implement Codex support', cwd: '/repo' }
+        { id: codexId, cliId: 'codex', name: 'Implement Codex session index', cwd: '/repo' }
       ])
       await expect(listSessions('pi')).resolves.toMatchObject([
         { id: piFile, cliId: 'pi', name: 'Pi saved session', cwd: '/repo' }

@@ -663,8 +663,16 @@ export function Shell() {
                 );
               })}
               {!activeTab && (
-                <div className="mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-3 px-5 py-4">
-                  <div className="shrink-0 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="relative mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-3 px-5 py-4">
+                  {isMac && (
+                    <div
+                      className="drag-region absolute inset-x-0 top-0 h-4"
+                      aria-hidden="true"
+                    />
+                  )}
+                  <div
+                    className={`shrink-0 flex flex-wrap items-center justify-between gap-2.5 ${isMac ? "drag-region" : ""}`}
+                  >
                     <div className="flex items-baseline gap-3">
                       <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-weak">
                         {t("shell.history")}

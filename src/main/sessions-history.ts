@@ -1,7 +1,10 @@
 import {
+  closeSync,
   existsSync,
+  openSync,
   readdirSync,
   readFileSync,
+  readSync,
   statSync,
   unlinkSync,
   writeFileSync
@@ -9,6 +12,7 @@ import {
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, normalize, relative, resolve } from 'node:path'
 import type { ChildProcess } from 'node:child_process'
+import { StringDecoder } from 'node:string_decoder'
 import initSqlJs, { type SqlJsStatic } from 'sql.js'
 import { buildCliEnv } from './cli-env'
 import { hermesHomeDir } from './config-paths'
@@ -27,6 +31,7 @@ import type {
 
 const CODEX_THREAD_LIST_LIMIT = 500
 const CODEX_THREAD_LIST_TIMEOUT_MS = 1800
+const CODEX_LIST_SCAN_BYTES = 2 * 1024 * 1024
 const SESSION_DELETE_TIMEOUT_MS = 15_000
 
 interface FileRef {
@@ -154,6 +159,46 @@ function readLines(file: string): unknown[] {
     }
   }
   return out
+}
+
+function* readJsonlPrefix(file: string, maxBytes: number): Generator<unknown> {
+  const fd = openSync(file, 'r')
+  const decoder = new StringDecoder('utf8')
+  const buffer = Buffer.allocUnsafe(64 * 1024)
+  let remaining = maxBytes
+  let pending = ''
+
+  try {
+    while (remaining > 0) {
+      const bytesRead = readSync(fd, buffer, 0, Math.min(buffer.length, remaining), null)
+      if (bytesRead === 0) break
+      remaining -= bytesRead
+      pending += decoder.write(buffer.subarray(0, bytesRead))
+
+      let newline: number
+      while ((newline = pending.indexOf('\n')) >= 0) {
+        const line = pending.slice(0, newline)
+        pending = pending.slice(newline + 1)
+        if (!line) continue
+        try {
+          yield JSON.parse(line)
+        } catch {
+          /* skip corrupt lines */
+        }
+      }
+    }
+
+    pending += decoder.end()
+    if (pending && remaining > 0) {
+      try {
+        yield JSON.parse(pending)
+      } catch {
+        /* skip a partial/corrupt final line */
+      }
+    }
+  } finally {
+    closeSync(fd)
+  }
 }
 
 function compactText(text: string): string {
@@ -558,6 +603,20 @@ function codexSessionRoots(): string[] {
   return [join(root, 'sessions'), join(root, 'archived_sessions')]
 }
 
+function codexSessionNames(): Map<string, string> {
+  const file = join(cliStateRoot('codex'), 'session_index.jsonl')
+  if (!existsSync(file)) return new Map()
+
+  const names = new Map<string, string>()
+  for (const value of readLines(file)) {
+    const entry = asRecord(value)
+    const id = displayTitleCandidate(entry?.id)
+    const name = displayTitleCandidate(entry?.thread_name ?? entry?.threadName)
+    if (id && name) names.set(id, name)
+  }
+  return names
+}
+
 function createCodexAppServerClient(): CodexAppServerClient {
   const install = loadConfig().install.codex
   if (!install.installed || !install.binPath) throw new Error('Codex is not installed')
@@ -771,6 +830,7 @@ function listClaude(): SessionInfo[] {
 /** Codex: <cfg>/sessions/YYYY/MM/DD/rollout-*-<uuid>.jsonl, meta in first line. */
 function listCodex(): SessionInfo[] {
   const roots = codexSessionRoots()
+  const indexedNames = codexSessionNames()
   const refs: FileRef[] = []
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -794,21 +854,24 @@ function listCodex(): SessionInfo[] {
   }
   const out: SessionInfo[] = []
   for (const ref of recentJsonl(refs)) {
-    const lines = readLines(ref.full)
     let sessionId = codexSessionIdFromPath(ref.full)
     let name: string | null = null
     let responseItemName: string | null = null
     let cwd: string | undefined
-    let latestTs: number | undefined
     let sawSessionSignal = false
-    for (const rec of lines) {
+    for (const rec of readJsonlPrefix(ref.full, CODEX_LIST_SCAN_BYTES)) {
       const o = asRecord(rec)
       if (!o) continue
-      const ts = recordTs(o)
-      if (ts) latestTs = latestTs ? Math.max(latestTs, ts) : ts
       const detectedId = extractCodexSessionId(o)
       if (detectedId) sessionId = detectedId
       if (!cwd) cwd = extractCodexCwd(o)
+
+      const indexedName = indexedNames.get(sessionId)
+      if (indexedName && cwd) {
+        name = indexedName
+        sawSessionSignal = true
+        break
+      }
 
       const p = asRecord(o.payload) ?? {}
       if (o.type === 'session_meta' || o.type === 'turn_context') sawSessionSignal = true
@@ -824,15 +887,16 @@ function listCodex(): SessionInfo[] {
           responseItemName ??= text
         }
       }
+      if ((name || responseItemName) && cwd) break
     }
-    const title = name || responseItemName
+    const title = indexedNames.get(sessionId) || name || responseItemName
     if (!sawSessionSignal && !title) continue
     if (title && isCodexBackgroundHelperText(title)) continue
     out.push({
       id: sessionId,
       cliId: 'codex' as CliId,
       name: displayTitle(title, 'Codex session'),
-      updatedAt: latestTs ?? ref.mtimeMs,
+      updatedAt: ref.mtimeMs,
       cwd
     })
   }
@@ -1427,9 +1491,10 @@ export async function listSessions(cliId: CliId): Promise<SessionInfo[]> {
   try {
     if (cliId === 'claude-code') return listClaude()
     if (cliId === 'codex') {
-      const local = listCodex()
+      const local = mergeCodexSessions([], listCodex())
+      if (local.length > 0) return local
       try {
-        return mergeCodexSessions(await listCodexLive(), local)
+        return await listCodexLive()
       } catch {
         return local
       }
