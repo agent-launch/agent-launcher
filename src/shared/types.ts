@@ -203,27 +203,6 @@ export interface InstalledSkillFile {
   content: string
 }
 
-export interface SkillsShSkill {
-  id: string
-  slug: string
-  name: string
-  source: string
-  description?: string
-  installs?: number
-  sourceType?: string
-  installUrl?: string | null
-  url?: string
-  isDuplicate?: boolean
-}
-
-export type SkillsShSearchResult =
-  | { ok: true; skills: SkillsShSkill[] }
-  | { ok: false; error: string; authRequired?: boolean }
-
-export type SkillsShInstallResult =
-  | { ok: true; config: AppConfig; skill: CliSkillEntry; output?: string }
-  | { ok: false; error: string; output?: string }
-
 /** Per-CLI runtime preferences (not tied to a provider profile). */
 export interface CliPrefs {
   /** Auto-approve everything / skip permission prompts (where supported). */

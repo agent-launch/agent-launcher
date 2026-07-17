@@ -4,33 +4,23 @@ import type {
   AppConfig,
   AppInfo,
   AppUpdateCheckResult,
-  AppUpdateDownloadProgress,
   AppUpdateDownloadResult,
   AppUpdateStatus,
   CliId,
   CliUpdateStatus,
-  CliMcpPatch,
-  CliPricePatch,
   CliProfilePatch,
-  CliSkillPatch,
   CleanupCliResult,
   DashboardLaunchResult,
   DetectResult,
-  EnvPair,
   InstalledMcpEntry,
-  InstalledMcpPatch,
   InstalledSkillEntry,
   InstalledSkillFile,
-  InstalledSkillPatch,
   InstallOptions,
   InstallProgress,
   InstallResult,
   NativeFiles,
   SessionDeleteResult,
   SessionInfo,
-  SkillsShInstallResult,
-  SkillsShSearchResult,
-  SkillsShSkill,
   Transcript,
   ChatEvent,
   ChatStartOptions,
@@ -108,46 +98,22 @@ const api = {
       return () => {
         ipcRenderer.removeListener('appUpdate:status', listener)
       }
-    },
-    onDownloadProgress: (cb: (progress: AppUpdateDownloadProgress) => void) => {
-      const listener = (_e: unknown, progress: AppUpdateDownloadProgress) => cb(progress)
-      ipcRenderer.on('appUpdate:download-progress', listener)
-      return () => {
-        ipcRenderer.removeListener('appUpdate:download-progress', listener)
-      }
     }
   },
   detect: (): Promise<DetectResult> => ipcRenderer.invoke('detect'),
-  pickDir: (): Promise<string | null> => ipcRenderer.invoke('dialog:pickDir'),
   terminal: {
     openExternal: (opts: SpawnOptions): Promise<void> => ipcRenderer.invoke('terminal:openExternal', opts)
   },
   dashboard: {
     launch: (id: CliId): Promise<DashboardLaunchResult> => ipcRenderer.invoke('dashboard:launch', id)
   },
-  skillsSh: {
-    search: (query: string, limit?: number): Promise<SkillsShSearchResult> =>
-      ipcRenderer.invoke('skillsSh:search', query, limit),
-    install: (id: CliId, skill: SkillsShSkill): Promise<SkillsShInstallResult> =>
-      ipcRenderer.invoke('skillsSh:install', id, skill)
-  },
   resources: {
     listMcp: (id: CliId): Promise<InstalledMcpEntry[]> =>
       ipcRenderer.invoke('resources:listMcp', id),
-    addMcp: (id: CliId, patch: InstalledMcpPatch): Promise<InstalledMcpEntry[]> =>
-      ipcRenderer.invoke('resources:addMcp', id, patch),
-    updateMcp: (id: CliId, entryId: string, patch: InstalledMcpPatch): Promise<InstalledMcpEntry[]> =>
-      ipcRenderer.invoke('resources:updateMcp', id, entryId, patch),
-    deleteMcp: (id: CliId, entryId: string): Promise<InstalledMcpEntry[]> =>
-      ipcRenderer.invoke('resources:deleteMcp', id, entryId),
     listSkills: (id: CliId): Promise<InstalledSkillEntry[]> =>
       ipcRenderer.invoke('resources:listSkills', id),
     readSkill: (id: CliId, entryId: string): Promise<InstalledSkillFile> =>
-      ipcRenderer.invoke('resources:readSkill', id, entryId),
-    updateSkill: (id: CliId, entryId: string, patch: InstalledSkillPatch): Promise<InstalledSkillEntry[]> =>
-      ipcRenderer.invoke('resources:updateSkill', id, entryId, patch),
-    deleteSkill: (id: CliId, entryId: string): Promise<InstalledSkillEntry[]> =>
-      ipcRenderer.invoke('resources:deleteSkill', id, entryId)
+      ipcRenderer.invoke('resources:readSkill', id, entryId)
   },
   config: {
     get: (): Promise<AppConfig> => ipcRenderer.invoke('config:get'),
@@ -159,34 +125,10 @@ const api = {
       ipcRenderer.invoke('config:deleteProfile', id, pid),
     setActiveProfile: (id: CliId, pid: string): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
-    setAuthMode: (id: CliId, mode: 'official' | 'api'): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:setAuthMode', id, mode),
     setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setYolo', id, on),
-    addPrice: (id: CliId, patch: CliPricePatch): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:addPrice', id, patch),
-    updatePrice: (id: CliId, entryId: string, patch: CliPricePatch): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:updatePrice', id, entryId, patch),
-    deletePrice: (id: CliId, entryId: string): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:deletePrice', id, entryId),
-    addMcp: (id: CliId, patch: CliMcpPatch): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:addMcp', id, patch),
-    updateMcp: (id: CliId, entryId: string, patch: CliMcpPatch): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:updateMcp', id, entryId, patch),
-    deleteMcp: (id: CliId, entryId: string): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:deleteMcp', id, entryId),
-    addSkill: (id: CliId, patch: CliSkillPatch): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:addSkill', id, patch),
-    updateSkill: (id: CliId, entryId: string, patch: CliSkillPatch): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:updateSkill', id, entryId, patch),
-    deleteSkill: (id: CliId, entryId: string): Promise<AppConfig> =>
-      ipcRenderer.invoke('config:deleteSkill', id, entryId),
-    resolvedEnv: (id: CliId): Promise<EnvPair[]> => ipcRenderer.invoke('config:resolvedEnv', id),
-    openFile: (): Promise<string> => ipcRenderer.invoke('config:openFile'),
-    reveal: (): Promise<void> => ipcRenderer.invoke('config:reveal'),
     nativeFiles: (id: CliId): Promise<NativeFiles | null> =>
-      ipcRenderer.invoke('config:nativeFiles', id),
-    revealNative: (id: CliId): Promise<string> => ipcRenderer.invoke('config:revealNative', id)
+      ipcRenderer.invoke('config:nativeFiles', id)
   },
   sessions: {
     list: (requestId: string, id: CliId): Promise<SessionInfo[] | null> =>
@@ -194,8 +136,6 @@ const api = {
     cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke('sessions:cancel', requestId),
     transcript: (id: CliId, sid: string): Promise<Transcript> =>
       ipcRenderer.invoke('sessions:transcript', id, sid),
-    remove: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
-      ipcRenderer.invoke('sessions:delete', id, sid),
     delete: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
       ipcRenderer.invoke('sessions:delete', id, sid)
   },

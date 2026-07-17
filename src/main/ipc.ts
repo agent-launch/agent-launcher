@@ -1,26 +1,14 @@
-import { app, ipcMain, dialog, shell, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
-import { existsSync, mkdirSync } from 'node:fs'
+import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { existsSync } from 'node:fs'
 import {
   loadConfig,
   addProfile,
   updateProfile,
   deleteProfile,
   setActiveProfile,
-  setAuthMode,
-  setYolo,
-  addPriceEntry,
-  updatePriceEntry,
-  deletePriceEntry,
-  addMcpEntry,
-  updateMcpEntry,
-  deleteMcpEntry,
-  addSkillEntry,
-  updateSkillEntry,
-  deleteSkillEntry
+  setYolo
 } from './store'
 import { paths } from './sandbox'
-import { cliConfigDir } from './config-paths'
-import { resolvedEnvPreview } from './cli-env'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { deleteSession, readTranscript } from './sessions-history'
 import { detectEnvironment } from './install/detect'
@@ -37,32 +25,16 @@ import { startChat, sendChat, stopChat } from './chat'
 import { authStatus, startAuthLogin, writeAuth, stopAuth } from './auth'
 import { launchDashboard } from './dashboard'
 import { ensureSystemConfigImported } from './import-existing-config'
-import { installSkillFromSkillsSh, searchSkillsSh } from './skills-sh'
 import { cancelUsageRead, readUsageInWorker } from './usage-runner'
 import { cancelSessionList, listSessionsInWorker } from './sessions-runner'
-import {
-  addInstalledMcp,
-  deleteInstalledMcp,
-  deleteInstalledSkill,
-  listInstalledMcp,
-  listInstalledSkills,
-  readInstalledSkill,
-  updateInstalledMcp,
-  updateInstalledSkill
-} from './installed-resources'
+import { listInstalledMcp, listInstalledSkills, readInstalledSkill } from './installed-resources'
 import type {
   AuthLoginMethod,
   CliId,
   ChatStartOptions,
-  InstalledMcpPatch,
-  InstalledSkillPatch,
-  CliMcpPatch,
-  CliPricePatch,
   CliProfilePatch,
-  CliSkillPatch,
   InstallOptions,
-  InstallProgress,
-  SkillsShSkill
+  InstallProgress
 } from '@shared/types'
 
 export function registerIpc(): void {
@@ -97,59 +69,13 @@ export function registerIpc(): void {
   ipcMain.handle('config:setActiveProfile', (_e, id: CliId, pid: string) =>
     synced(id, setActiveProfile(id, pid))
   )
-  ipcMain.handle('config:setAuthMode', (_e, id: CliId, mode: 'official' | 'api') =>
-    synced(id, setAuthMode(id, mode))
-  )
   ipcMain.handle('config:setYolo', (_e, id: CliId, on: boolean) => setYolo(id, on))
-  ipcMain.handle('config:addPrice', (_e, id: CliId, patch: CliPricePatch) => addPriceEntry(id, patch))
-  ipcMain.handle('config:updatePrice', (_e, id: CliId, entryId: string, patch: CliPricePatch) =>
-    updatePriceEntry(id, entryId, patch)
-  )
-  ipcMain.handle('config:deletePrice', (_e, id: CliId, entryId: string) => deletePriceEntry(id, entryId))
-  ipcMain.handle('config:addMcp', (_e, id: CliId, patch: CliMcpPatch) => addMcpEntry(id, patch))
-  ipcMain.handle('config:updateMcp', (_e, id: CliId, entryId: string, patch: CliMcpPatch) =>
-    updateMcpEntry(id, entryId, patch)
-  )
-  ipcMain.handle('config:deleteMcp', (_e, id: CliId, entryId: string) => deleteMcpEntry(id, entryId))
-  ipcMain.handle('config:addSkill', (_e, id: CliId, patch: CliSkillPatch) => addSkillEntry(id, patch))
-  ipcMain.handle('config:updateSkill', (_e, id: CliId, entryId: string, patch: CliSkillPatch) =>
-    updateSkillEntry(id, entryId, patch)
-  )
-  ipcMain.handle('config:deleteSkill', (_e, id: CliId, entryId: string) => deleteSkillEntry(id, entryId))
-  ipcMain.handle('skillsSh:search', (_e, query: string, limit?: number) => searchSkillsSh(query, limit))
-  ipcMain.handle('skillsSh:install', (_e, id: CliId, skill: SkillsShSkill) =>
-    installSkillFromSkillsSh(id, skill)
-  )
   ipcMain.handle('resources:listMcp', (_e, id: CliId) => listInstalledMcp(id))
-  ipcMain.handle('resources:addMcp', (_e, id: CliId, patch: InstalledMcpPatch) =>
-    addInstalledMcp(id, patch)
-  )
-  ipcMain.handle('resources:updateMcp', (_e, id: CliId, entryId: string, patch: InstalledMcpPatch) =>
-    updateInstalledMcp(id, entryId, patch)
-  )
-  ipcMain.handle('resources:deleteMcp', (_e, id: CliId, entryId: string) =>
-    deleteInstalledMcp(id, entryId)
-  )
   ipcMain.handle('resources:listSkills', (_e, id: CliId) => listInstalledSkills(id))
   ipcMain.handle('resources:readSkill', (_e, id: CliId, entryId: string) =>
     readInstalledSkill(id, entryId)
   )
-  ipcMain.handle('resources:updateSkill', (_e, id: CliId, entryId: string, patch: InstalledSkillPatch) =>
-    updateInstalledSkill(id, entryId, patch)
-  )
-  ipcMain.handle('resources:deleteSkill', (_e, id: CliId, entryId: string) =>
-    deleteInstalledSkill(id, entryId)
-  )
-  ipcMain.handle('config:resolvedEnv', (_e, id: CliId) => resolvedEnvPreview(id))
-  ipcMain.handle('config:openFile', () => shell.openPath(paths.config))
-  ipcMain.handle('config:reveal', () => shell.showItemInFolder(paths.config))
   ipcMain.handle('config:nativeFiles', (_e, id: CliId) => (hasNativeConfig(id) ? readNativeFiles(id) : null))
-  ipcMain.handle('config:revealNative', (_e, id: CliId) => {
-    // Ensure the dir exists so the button works even before the CLI has been launched.
-    const dir = cliConfigDir(id)
-    mkdirSync(dir, { recursive: true })
-    return shell.openPath(dir)
-  })
 
   ipcMain.handle('install:cli', async (e: IpcMainInvokeEvent, id: CliId, opts?: InstallOptions) => {
     const send = (p: InstallProgress) => {
@@ -175,14 +101,6 @@ export function registerIpc(): void {
   )
   ipcMain.on('auth:write', (_e, id: string, data: string) => writeAuth(id, data))
   ipcMain.on('auth:stop', (_e, id: string) => stopAuth(id))
-
-  ipcMain.handle('dialog:pickDir', async (e) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    const res = await dialog.showOpenDialog(win!, {
-      properties: ['openDirectory', 'createDirectory']
-    })
-    return res.canceled ? null : res.filePaths[0]
-  })
 
   ipcMain.handle('terminal:openExternal', (_e, opts: SpawnOptions) => openExternalAgent(opts))
   ipcMain.handle('dashboard:launch', (_e, id: CliId) => launchDashboard(id))

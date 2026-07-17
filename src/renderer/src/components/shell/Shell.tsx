@@ -427,12 +427,7 @@ export function Shell() {
     setDeletingSessionId(deleteTarget.id);
     setDeleteError(null);
     try {
-      const deleteSession =
-        window.api.sessions.remove ?? window.api.sessions.delete;
-      if (!deleteSession) {
-        throw new Error(t("shell.deleteSessionApiUnavailable"));
-      }
-      const result = await deleteSession(deleteTarget.cliId, deleteTarget.id);
+      const result = await window.api.sessions.delete(deleteTarget.cliId, deleteTarget.id);
       if (!result.ok) {
         setDeleteError(
           t("shell.deleteSessionFailed", {
