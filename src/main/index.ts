@@ -5,6 +5,7 @@ import { killAll } from './pty'
 import { killAllChats } from './chat'
 import { killAllAuth } from './auth'
 import { cancelAllUsageReads } from './usage-runner'
+import { cancelAllSessionLists } from './sessions-runner'
 import { registerAppUpdateIpc, startAppUpdateAutoCheck } from './app-update'
 
 type MenuLocale = 'zh' | 'en'
@@ -197,6 +198,7 @@ app.on('before-quit', () => {
   killAllChats()
   killAllAuth()
   cancelAllUsageReads()
+  cancelAllSessionLists()
 })
 
 app.on('window-all-closed', () => {
@@ -204,5 +206,6 @@ app.on('window-all-closed', () => {
   killAllChats()
   killAllAuth()
   cancelAllUsageReads()
+  cancelAllSessionLists()
   if (process.platform !== 'darwin') app.quit()
 })

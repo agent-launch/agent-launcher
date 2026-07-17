@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware'
 
 export const SIDEBAR_MIN = 180
 export const SIDEBAR_MAX = 240
-export const SIDEBAR_COLLAPSED = 56
 
 /** Appearance preference; 'system' follows the OS prefers-color-scheme. */
 export type ThemeMode = 'system' | 'light' | 'dark'
