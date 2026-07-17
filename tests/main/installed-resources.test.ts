@@ -83,6 +83,16 @@ describe('installed MCP and Skill resources', () => {
         args: 'server.js'
       })
       expect(() => updateInstalledMcp('codex', pluginEntries[0].id, { name: 'nope' })).toThrow('managed by a plugin')
+
+      // Toggling a plugin server makes Codex materialize a same-name override
+      // in config.toml — the list must dedupe to the toml entry only.
+      writeText(
+        join(paths.cliConfig('codex'), 'config.toml'),
+        `[marketplaces.local]\nsource_type = "local"\nsource = "${pluginRoot}"\n\n[plugins."browser@local"]\nenabled = true\n\n[mcp_servers.browser]\ncommand = "node"\nargs = ["server.js"]\ndisabled = true\n`
+      )
+      const deduped = listInstalledMcp('codex')
+      expect(deduped).toHaveLength(1)
+      expect(deduped[0]).toMatchObject({ name: 'browser', enabled: false, configKind: 'codex-toml' })
     })
   })
 

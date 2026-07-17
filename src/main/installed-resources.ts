@@ -509,9 +509,14 @@ export function listInstalledMcp(cliId: CliId): InstalledMcpEntry[] {
   const out: InstalledMcpEntry[] = []
   for (const config of mcpConfigPaths(cliId)) {
     if (config.kind === 'codex') {
-      out.push(...listCodexMcp(cliId, config.path))
-      // Plugin-bundled MCP servers (read-only) live outside config.toml.
-      out.push(...listCodexPluginMcp(cliId, config.path))
+      const tomlEntries = listCodexMcp(cliId, config.path)
+      out.push(...tomlEntries)
+      // Plugin-bundled MCP servers (read-only) live outside config.toml. When
+      // the user toggles one, Codex materializes an override under the same
+      // name in config.toml's [mcp_servers.*] — that entry carries the real
+      // enabled state, so it wins and the bundled copy is hidden.
+      const overridden = new Set(tomlEntries.map((entry) => entry.name))
+      out.push(...listCodexPluginMcp(cliId, config.path).filter((entry) => !overridden.has(entry.name)))
     } else if (config.kind === 'hermes') {
       out.push(...listHermesMcp(cliId, config.path))
     } else if (config.key && existsSync(config.path)) {
