@@ -104,7 +104,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.yolo.danger': '危险',
     'settings.yolo.desc':
       '开启后，对应 CLI 会自动批准所有操作（执行命令、改文件等），不再逐次确认。省事但有风险，只在你信任当前项目时开启。每个 CLI 独立设置。',
-    'settings.yolo.unsupported': '该 CLI 无自动批准开关（仅工具白/黑名单）',
+    'settings.yolo.unsupported': '该 CLI 从不询问审批，工具始终直接执行，无需开关',
     'settings.yolo.notSupported': '不支持',
     'settings.renderTranscript': '在 UI 中聊天（而非终端）',
     'settings.renderTranscriptDesc':
@@ -539,7 +539,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.yolo.danger': 'Risky',
     'settings.yolo.desc':
       'When on, the CLI auto-approves every action (running commands, editing files, etc.) without asking each time. Convenient but risky — only enable it for projects you trust. Set per CLI.',
-    'settings.yolo.unsupported': 'This CLI has no auto-approve switch (allow/deny lists only)',
+    'settings.yolo.unsupported': 'This CLI never prompts for approval; tools always run without a switch',
     'settings.yolo.notSupported': 'Unsupported',
     'settings.renderTranscript': 'Chat in the UI (not the terminal)',
     'settings.renderTranscriptDesc':

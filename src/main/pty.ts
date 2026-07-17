@@ -40,13 +40,14 @@ function yoloArgs(cliId: CliId): string[] | null {
     case 'codex':
       return ['--dangerously-bypass-approvals-and-sandbox']
     case 'opencode':
-      // opencode only accepts this flag for `opencode run`; the interactive
-      // TUI rejects it and exits after printing help.
-      return null
+      // Approves permission requests unless explicitly denied; supported by
+      // both the interactive TUI and `opencode run` (added in 2026 releases —
+      // older system-linked installs may reject the flag).
+      return ['--auto']
     case 'hermes':
       return ['--yolo']
     default:
-      return null // pi has no auto-approve flag
+      return null // pi never asks for approval; tools always run
   }
 }
 
