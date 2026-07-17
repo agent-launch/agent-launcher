@@ -147,7 +147,7 @@ pnpm build
 pnpm package
 ```
 
-Use `pnpm verify` as the normal correctness gate after code edits, or `pnpm typecheck` for a quicker pass. See the [contributing guide](./CONTRIBUTING.md) for architecture, testing, packaging, and release details.
+Use `pnpm verify` as the normal correctness gate after code edits, or `pnpm typecheck` for a quicker pass. CI also runs `pnpm audit:ci`, which fails on high-severity dependency advisories. See the [contributing guide](./CONTRIBUTING.md) for architecture, testing, packaging, and release details.
 
 ## Project
 

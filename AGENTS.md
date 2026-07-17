@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+This file provides guidance to coding agents (Codex, opencode, etc.) when working with code in this repository.
 
 ## What this is
 
@@ -17,7 +17,7 @@ pnpm verify           # typecheck + test typecheck + Vitest
 pnpm package          # build + electron-builder (current OS); also package:mac/win/linux
 ```
 
-`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, install, sessions, native config, codex) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
+`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, install, sessions, native config, codex, chat, transcript) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
 
 Package manager is **pnpm** (see `packageManager` in `package.json` and dependency settings in `pnpm-workspace.yaml`). The native module `@lydell/node-pty` and `sql.js` (ships a `.wasm`) drive the asar/build config in `electron-builder.yml`.
 
@@ -38,7 +38,7 @@ A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI confi
 1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects per-CLI vars (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, opencode's `XDG_*`, `PI_CODING_AGENT_DIR`, plus `ANTHROPIC_BASE_URL`/`OPENAI_BASE_URL`/etc. and the auth token). This points each CLI's config dir into the sandbox and sets its relay endpoint.
 2. **Native config files** — `src/main/native-config.ts` writes the files some CLIs read instead of (or in addition to) env: Codex `config.toml`+`auth.json`, opencode `opencode.json` (custom `@ai-sdk/openai-compatible` provider), Pi `models.json`. `hasNativeConfig(id)` gates this. **Any profile change in `ipc.ts` re-runs `writeNativeConfig` via the `synced()` wrapper** — keep that invariant when adding config mutations.
 
-`resolvedEnvPreview` / `readNativeFiles` produce **masked** copies for the UI; secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
+`readNativeFiles` produces **masked** copies for the UI (`resolvedEnvPreview` does the same for smoke checks/tests); secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
 
 ### Install layer (`src/main/install/`)
 

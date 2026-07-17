@@ -109,3 +109,7 @@ Keep changes focused and explain user-visible behavior. Before submitting, confi
 The release workflow builds macOS, Windows, and Linux packages. Pushing a `v<major>.<minor>.<patch>` tag, including a valid prerelease suffix, publishes a GitHub Release after all platform builds succeed. The workflow also generates the update metadata consumed by `electron-updater`.
 
 Release mechanics are maintained in `.github/workflows/release.yml` and `electron-builder.yml`.
+
+### Update policy (`update-policy.json`)
+
+The app's update checker fetches `update-policy.json` from this repository's `main` branch at runtime (see `src/main/app-update.ts`). It lets maintainers announce the latest version and, via `minVersion`/`force`, require users below a minimum version to update before continuing. When cutting a release, bump `latestVersion` (and `minVersion` only when older versions must be retired) on `main`.
