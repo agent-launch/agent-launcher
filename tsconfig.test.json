@@ -22,6 +22,7 @@
   },
   "include": [
     "tests/**/*.ts",
+    "scripts/**/*.ts",
     "vitest.config.ts",
     "src/main/**/*",
     "src/shared/**/*",

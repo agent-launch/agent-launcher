@@ -9,7 +9,8 @@ import { readTranscript } from '../src/main/sessions-history'
 import type { CliId } from '../src/shared/types'
 
 function newest(dir: string, match: (n: string) => boolean): string | null {
-  let best: { f: string; m: number } | null = null
+  // Assigned inside the walk closure, so TS can't track the narrowing.
+  let best = null as { f: string; m: number } | null
   const walk = (d: string): void => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
       const full = join(d, e.name)
