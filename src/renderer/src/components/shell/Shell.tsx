@@ -573,6 +573,12 @@ export function Shell() {
           )}
           {view === "config" && (
             <div className="absolute inset-0 z-20 overflow-y-auto">
+              {isMac && (
+                <div
+                  className="drag-region absolute inset-x-0 top-0 h-4"
+                  aria-hidden="true"
+                />
+              )}
               <ConfigView
                 cliId={activeCliId}
                 onBack={() => {
@@ -664,14 +670,16 @@ export function Shell() {
               })}
               {!activeTab && (
                 <div className="relative mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-3 px-5 py-4">
-                  {isMac && (
+                  {/* app-region: drag stays active even under opacity-0/pointer-events-none,
+                      so only register drag regions while this view is actually shown. */}
+                  {isMac && view === "run" && (
                     <div
                       className="drag-region absolute inset-x-0 top-0 h-4"
                       aria-hidden="true"
                     />
                   )}
                   <div
-                    className={`shrink-0 flex flex-wrap items-center justify-between gap-2.5 ${isMac ? "drag-region" : ""}`}
+                    className={`shrink-0 flex flex-wrap items-center justify-between gap-2.5 ${isMac && view === "run" ? "drag-region" : ""}`}
                   >
                     <div className="flex items-baseline gap-3">
                       <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-weak">
