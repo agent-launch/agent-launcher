@@ -175,6 +175,15 @@ function npmMeta(spec: string): Promise<NpmDist> {
   return fetchJson<NpmDist>(`https://registry.npmjs.org/${spec}`)
 }
 
+/** Hermes Agent is a Python app installed by the official installer script
+ * (pip under the hood); its releases are published on PyPI, not npm. */
+async function hermesLatestVersion(): Promise<string> {
+  const meta = await fetchJson<{ info?: { version?: string } }>('https://pypi.org/pypi/hermes-agent/json')
+  const version = meta.info?.version
+  if (!version) throw new Error('PyPI returned no version for hermes-agent')
+  return version
+}
+
 async function downloadAndExtract(
   tarball: string,
   destDir: string,
@@ -739,23 +748,12 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
       const configured = install.installed
       const installed = configured && installExists(cliId, install)
       const stale = configured && !installed
-      if (cliId === 'hermes') {
-        return {
-          cliId,
-          installed,
-          configured,
-          stale,
-          source: install.source,
-          currentVersion: install.version,
-          updateAvailable: false,
-          canInstallUpdate: false,
-          binPath: install.binPath,
-          checkedAt
-        }
-      }
       try {
-        if (!isNpmCliId(cliId)) throw new Error(`${SYSTEM_COMMANDS[cliId]} does not support registry update checks`)
-        const latestVersion = (await npmMeta(`${NPM_PACKAGES[cliId]}/latest`)).version
+        // Hermes releases live on PyPI; the rest are npm packages. Updating
+        // hermes re-runs the official installer, which always installs latest.
+        const latestVersion = isNpmCliId(cliId)
+          ? (await npmMeta(`${NPM_PACKAGES[cliId]}/latest`)).version
+          : await hermesLatestVersion()
         return {
           cliId,
           installed,

@@ -194,7 +194,6 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.cliStatus.installing': '安装中…',
     'settings.cliStatus.updating': '安装中…',
     'settings.cliStatus.current': '已最新',
-    'settings.cliStatus.systemManaged': '系统管理',
     'settings.cliStatus.systemUpdateHint': '当前使用系统 CLI；点击后会尝试运行它自己的更新命令，并继续保持这个路径。',
 
     // ---- app update ----
@@ -630,7 +629,6 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.cliStatus.installing': 'Installing…',
     'settings.cliStatus.updating': 'Installing…',
     'settings.cliStatus.current': 'Current',
-    'settings.cliStatus.systemManaged': 'System managed',
     'settings.cliStatus.systemUpdateHint':
       'This currently uses a system CLI; updating tries its own updater and keeps Agent Launcher linked to the same path.',
 

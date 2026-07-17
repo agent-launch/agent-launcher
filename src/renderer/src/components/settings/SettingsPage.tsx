@@ -1053,8 +1053,6 @@ function CliStatusRow({
     ? t('settings.cliStatus.updating')
     : !status?.installed
       ? t('settings.cliStatus.install')
-      : cliId === 'hermes'
-        ? t('settings.cliStatus.systemManaged')
       : status?.updateAvailable
         ? t('settings.cliStatus.update')
         : t('settings.cliStatus.current')
