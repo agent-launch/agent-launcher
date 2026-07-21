@@ -9,7 +9,8 @@ import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getPrefs } from './store'
 import { buildCliEnv } from './cli-env'
 import { assertCliLaunchAllowed } from './cli-launch-safety'
-import { embeddedScrollbackArgs } from './embedded-terminal'
+import { embeddedTerminalArgs } from './embedded-terminal'
+import { CodexInterruptGuard } from './pty-compat'
 import { resolveLaunchCwd } from './launch-cwd'
 import { resumeArgs } from './sessions-history'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
@@ -29,6 +30,8 @@ export interface SpawnOptions {
 interface Session {
   proc: pty.IPty
   cliId: CliId
+  interrupt?: CodexInterruptGuard
+  normalizeExit?: boolean
 }
 
 const sessions = new Map<string, Session>()
@@ -72,13 +75,18 @@ function resolveTarget(opts: SpawnOptions, embedded = false): { file: string; ar
   const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
   const autoApprove = getPrefs(opts.cliId).yolo === true
   const yolo = autoApprove ? (yoloArgs(opts.cliId) ?? []) : []
-  const scrollback = embedded
-    ? embeddedScrollbackArgs({ cliId: opts.cliId, version: install.version, autoApprove })
+  const embeddedArgs = embedded
+    ? embeddedTerminalArgs({
+        cliId: opts.cliId,
+        version: install.version,
+        autoApprove,
+        resume: Boolean(opts.resumeId)
+      })
     : []
   // Legacy managed Pi installs run through bundled Node + their JS entry. A
   // current system Pi install is already an executable wrapper.
   if (install.nodeEntry && install.source !== 'system') {
-    const extra: string[] = [...scrollback, ...(resume ?? []), ...yolo]
+    const extra: string[] = [...embeddedArgs, ...(resume ?? []), ...yolo]
     if (opts.cliId === 'pi') {
       const profile = getActiveProfile('pi')
       if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
@@ -86,7 +94,7 @@ function resolveTarget(opts: SpawnOptions, embedded = false): { file: string; ar
     return { file: install.binPath, args: [install.nodeEntry, ...extra] }
   }
   const session = opts.cliId === 'claude-code' && !opts.resumeId ? ['--session-id', randomUUID()] : []
-  const extra: string[] = [...scrollback, ...(resume ?? []), ...session, ...yolo]
+  const extra: string[] = [...embeddedArgs, ...(resume ?? []), ...session, ...yolo]
   if (opts.cliId === 'pi') {
     const profile = getActiveProfile('pi')
     if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
@@ -202,21 +210,28 @@ export function createSession(wc: WebContents, opts: SpawnOptions): string {
   })
 
   const id = `pty-${++seq}`
-  sessions.set(id, { proc, cliId: opts.cliId })
+  const session: Session = { proc, cliId: opts.cliId }
+  sessions.set(id, session)
 
   proc.onData((data) => {
+    session.interrupt?.observe(data)
     if (!wc.isDestroyed()) wc.send('pty:data', id, data)
   })
   proc.onExit(({ exitCode }) => {
+    const interrupted = session.interrupt?.pending === true || session.normalizeExit === true
+    clearCodexInterrupt(session)
     sessions.delete(id)
-    if (!wc.isDestroyed()) wc.send('pty:exit', id, exitCode)
+    if (!wc.isDestroyed()) wc.send('pty:exit', id, interrupted ? 0 : exitCode)
   })
 
   return id
 }
 
 export function writeSession(id: string, data: string): void {
-  sessions.get(id)?.proc.write(data)
+  const session = sessions.get(id)
+  if (!session) return
+  if (isWindowsCodex(session) && data.includes('\x03')) armCodexInterrupt(id, session)
+  session.proc.write(data)
 }
 
 export function resizeSession(id: string, cols: number, rows: number): void {
@@ -230,6 +245,7 @@ export function resizeSession(id: string, cols: number, rows: number): void {
 export function killSession(id: string): void {
   const s = sessions.get(id)
   if (!s) return
+  clearCodexInterrupt(s)
   try {
     s.proc.kill()
   } catch {
@@ -240,4 +256,30 @@ export function killSession(id: string): void {
 
 export function killAll(): void {
   for (const id of [...sessions.keys()]) killSession(id)
+}
+
+function isWindowsCodex(session: Session): boolean {
+  return process.platform === 'win32' && session.cliId === 'codex'
+}
+
+function clearCodexInterrupt(session: Session): void {
+  session.interrupt?.clear()
+}
+
+function forceCodexInterruptExit(id: string, session: Session): void {
+  if (sessions.get(id) !== session) return
+  session.normalizeExit = true
+  clearCodexInterrupt(session)
+  try {
+    session.proc.kill()
+  } catch {
+    /* already dead */
+  }
+}
+
+function armCodexInterrupt(id: string, session: Session): void {
+  session.interrupt ??= new CodexInterruptGuard({
+    onForceExit: () => forceCodexInterruptExit(id, session)
+  })
+  session.interrupt.arm()
 }

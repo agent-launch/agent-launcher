@@ -1,9 +1,10 @@
 import type { CliId } from '@shared/types'
 
-interface EmbeddedScrollbackArgsOptions {
+interface EmbeddedTerminalArgsOptions {
   cliId: CliId
   version?: string
   autoApprove: boolean
+  resume?: boolean
   platform?: NodeJS.Platform
 }
 
@@ -19,23 +20,34 @@ function versionAtLeast(version: string | undefined, minimum: [number, number, n
 }
 
 /**
- * Windows' embedded xterm needs CLIs to stay on the primary screen for native
- * scrollback to exist. Reject a documented inline mode only when the recorded
- * version is known to predate it: system-linked installs can legitimately have
- * no recorded version even though the active install strategy supplies a
- * current CLI. An external terminal keeps each CLI's normal UI.
+ * Compatibility arguments used only by Windows' embedded xterm. Version-gated
+ * modes preserve scrollback, while resume-only arguments avoid startup paths
+ * that cannot reliably initialize inside ConPTY. External terminals keep each
+ * CLI's normal behavior.
  */
-export function embeddedScrollbackArgs({
+export function embeddedTerminalArgs({
   cliId,
   version,
   autoApprove,
+  resume = false,
   platform = process.platform
-}: EmbeddedScrollbackArgsOptions): string[] {
+}: EmbeddedTerminalArgsOptions): string[] {
   if (platform !== 'win32') return []
 
   // Codex 0.80.0 introduced --no-alt-screen specifically to preserve the
   // terminal emulator's scrollback.
-  if (cliId === 'codex' && versionAtLeast(version, [0, 80, 0]) !== false) return ['--no-alt-screen']
+  if (cliId === 'codex') {
+    const args = versionAtLeast(version, [0, 80, 0]) !== false ? ['--no-alt-screen'] : []
+
+    // Current Codex releases can block thread/resume before the first frame
+    // while Windows plugin startup tasks reconcile Desktop-managed plugins.
+    // Scope the workaround to affected embedded resumes so fresh sessions and
+    // non-Windows terminals retain plugin support.
+    if (resume && versionAtLeast(version, [0, 140, 0]) !== false) {
+      args.push('--disable', 'plugins')
+    }
+    return args
+  }
 
   // OpenCode 1.17.10 introduced its primary-screen split-footer UI. In current
   // releases the `--mini` shortcut does not forward `--auto`, so retain the
