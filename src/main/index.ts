@@ -157,7 +157,27 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+const isPrimaryInstance = app.requestSingleInstanceLock()
+
+if (!isPrimaryInstance) {
+  app.quit()
+}
+
+app.on('second-instance', () => {
+  const win = BrowserWindow.getAllWindows()[0]
+  if (!win) {
+    if (app.isReady()) createWindow()
+    return
+  }
+
+  if (win.isMinimized()) win.restore()
+  if (!win.isVisible()) win.show()
+  win.focus()
+})
+
 app.whenReady().then(() => {
+  if (!isPrimaryInstance) return
+
   app.setName('Agent Launcher')
   installApplicationMenu()
 
