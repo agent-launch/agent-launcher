@@ -113,6 +113,11 @@
   }
 }
 
+/* App logo: a black glyph on transparency — invert to white in dark mode. */
+:root[data-theme='dark'] .app-logo {
+  filter: invert(1);
+}
+
 /* Custom titlebar drag regions (Electron). */
 .drag-region {
   -webkit-app-region: drag;

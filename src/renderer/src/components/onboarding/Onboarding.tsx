@@ -60,7 +60,7 @@ export function Onboarding() {
           style={{ background: "var(--sidebar-gradient)" }}
         >
           <div className="mb-5 flex items-center gap-2 px-2">
-            <img src={appIcon} alt="" className="size-6 shrink-0" />
+            <img src={appIcon} alt="" className="app-logo size-6 shrink-0" />
             <span className="text-[13px] font-semibold text-text-strong">
               Agent Launcher
             </span>
@@ -128,7 +128,7 @@ function Welcome() {
   const t = useT();
   return (
     <div className="mx-auto max-w-xl pt-16 text-center">
-      <img src={appIcon} alt="" className="mx-auto mb-6 size-14" />
+      <img src={appIcon} alt="" className="app-logo mx-auto mb-6 size-14" />
       <h1 className="font-display text-[28px] font-semibold text-text-strong">
         {t("onboarding.welcomeTitle")}
       </h1>
