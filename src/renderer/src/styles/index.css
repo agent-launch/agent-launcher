@@ -404,41 +404,6 @@
   border-radius: inherit;
 }
 
-/* Chromium can use an auto-hiding overlay scrollbar on Windows. Reserve a
-   real gutter in the embedded terminal so xterm's primary-buffer scrollback
-   remains visible and draggable for long agent sessions. */
-.agent-terminal--windows .xterm .xterm-viewport {
-  overflow-y: scroll !important;
-  scrollbar-gutter: stable;
-  overscroll-behavior-y: contain;
-}
-
-.agent-terminal--windows .xterm .xterm-viewport::-webkit-scrollbar {
-  width: 12px;
-}
-
-.agent-terminal--windows .xterm .xterm-viewport::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
-  border-radius: 999px;
-}
-
-.agent-terminal--windows .xterm .xterm-viewport::-webkit-scrollbar-thumb {
-  min-height: 36px;
-  background: color-mix(in srgb, var(--text-muted) 72%, transparent);
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background-clip: content-box;
-}
-
-.agent-terminal--windows .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-weak) 88%, transparent);
-  background-clip: content-box;
-}
-
-.agent-terminal--windows .xterm .xterm-viewport::-webkit-scrollbar-button {
-  display: none;
-}
-
 /* Markdown rendering for transcript text (see components/ui/Markdown.tsx). */
 .md {
   font-size: 14px;

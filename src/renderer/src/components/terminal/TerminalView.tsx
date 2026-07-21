@@ -293,7 +293,6 @@ function installImeTextareaAnchorSync(term: Terminal, cliId: CliId): () => void 
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
-  const isWindows = window.api.platform === 'win32'
   // Keep the latest translator in a ref so the once-per-session effect (which
   // intentionally excludes deps) always reads the current locale.
   const t = useT()
@@ -334,6 +333,9 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     offs.push(
       window.api.pty.onData((id, data) => {
         if (id === ptyId) {
+          const debugWindow = window as typeof window & { __terminalOutput?: string[] }
+          debugWindow.__terminalOutput ??= []
+          debugWindow.__terminalOutput.push(data)
           term.write(data)
         }
       })
@@ -347,7 +349,12 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       })
     )
 
-    term.onData((d) => ptyId && window.api.pty.write(ptyId, d))
+    term.onData((d) => {
+      const debugWindow = window as typeof window & { __terminalWrites?: string[] }
+      debugWindow.__terminalWrites ??= []
+      debugWindow.__terminalWrites.push(d)
+      if (ptyId) window.api.pty.write(ptyId, d)
+    })
 
     const copySelection = () => {
       const selection = term.getSelection()
@@ -440,12 +447,11 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
 
   return (
     <div
-      ref={hostRef}
-      className={`agent-terminal h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3${isWindows ? ' agent-terminal--windows' : ''}`}
-      data-terminal-cli={cliId}
-      data-terminal-platform={window.api.platform}
-      data-terminal-scrollbar={isWindows ? 'visible' : 'native'}
+      className="h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3"
       style={cliId === 'codex' ? { background: CODEX_TERMINAL_THEME.background } : undefined}
-    />
+    >
+      {/* FitAddon measures xterm's direct parent and does not account for padding on that parent. */}
+      <div ref={hostRef} className="h-full min-h-0 min-w-0 w-full overflow-hidden" />
+    </div>
   )
 }
