@@ -13,9 +13,8 @@
     "noUnusedParameters": true,
     "types": ["node"],
     "lib": ["ES2022"],
-    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"]
+      "@shared/*": ["./src/shared/*"]
     }
   },
   "include": [
