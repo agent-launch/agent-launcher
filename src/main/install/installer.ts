@@ -153,7 +153,8 @@ function packageManagerUpdateCommand(
   binPath: string,
   realPath: string,
   installKind?: CodexInstallKind,
-  recordedManager?: CodexPackageManager
+  recordedManager?: CodexPackageManager,
+  systemNpm?: string
 ): SystemUpdateCommand | null {
   if (id === 'codex' && installKind === 'homebrew-cask') {
     const brew = brewCommand(binPath, realPath)
@@ -182,10 +183,16 @@ function packageManagerUpdateCommand(
   }
   if (manager === 'homebrew') return null
 
-  // nvm/fnm/mise/Homebrew npm installs, plus classic /usr/local npm installs,
-  // usually place npm next to the CLI shim. Anchor to that npm instead of PATH.
-  const npm = siblingBin(binPath, 'npm')
-  if (npm) return { file: npm, args: ['i', '-g', `${pkg}@latest`], label: `npm i -g ${pkg}@latest` }
+  // Prefer npm beside the shim. On Windows, npm itself is commonly under the
+  // Node.js installation while its global command shims live under APPDATA.
+  const npm = siblingBin(binPath, 'npm') ?? systemNpm
+  if (npm) {
+    return {
+      file: npm,
+      args: ['i', '-g', `${pkg}@latest`, '--no-audit', '--no-fund', '--no-update-notifier'],
+      label: `npm i -g ${pkg}@latest`
+    }
+  }
   return null
 }
 
@@ -194,14 +201,22 @@ function officialUpdateCommand(id: CliId, binPath: string): SystemUpdateCommand 
   return args ? { file: binPath, args, label: `${basename(binPath)} ${args.join(' ')}` } : null
 }
 
-function systemUpdateCommands(
+export function systemUpdateCommands(
   id: CliId,
   binPath: string,
   realPath: string,
   installKind?: CodexInstallKind,
-  packageManager?: CodexPackageManager
+  packageManager?: CodexPackageManager,
+  systemNpm?: string
 ): SystemUpdateCommand[] {
-  const packageCommand = packageManagerUpdateCommand(id, binPath, realPath, installKind, packageManager)
+  const packageCommand = packageManagerUpdateCommand(
+    id,
+    binPath,
+    realPath,
+    installKind,
+    packageManager,
+    systemNpm
+  )
   const officialCommand = officialUpdateCommand(id, binPath)
   if (id === 'codex') {
     const strategy = installKind ? codexUpdateStrategy(installKind) : 'npm-reinstall'
@@ -210,7 +225,9 @@ function systemUpdateCommands(
     return []
   }
   if ((id === 'claude-code' || id === 'opencode') && officialCommand) {
-    return packageCommand ? [officialCommand, packageCommand] : [officialCommand]
+    // Keep an npm-managed CLI on the npm installation whose global prefix owns
+    // its shim. Its self-updater may ignore npm's registry/proxy configuration.
+    return packageCommand ? [packageCommand] : [officialCommand]
   }
   if (packageCommand) return [packageCommand]
   return officialCommand ? [officialCommand] : []
@@ -322,6 +339,20 @@ async function npmGlobalBinDir(npm: string): Promise<string> {
     /* classic npm layouts place global commands beside npm */
   }
   return dirname(npm)
+}
+
+export async function npmForInstalledCli(
+  binPath: string,
+  npmCandidates?: string[]
+): Promise<string | undefined> {
+  const cliBinDir = await normalizePath(dirname(binPath))
+  const cliBinKey = process.platform === 'win32' ? cliBinDir.toLowerCase() : cliBinDir
+  for (const npm of npmCandidates ?? (await whichAll('npm'))) {
+    const npmBinDir = await normalizePath(await npmGlobalBinDir(npm))
+    const npmBinKey = process.platform === 'win32' ? npmBinDir.toLowerCase() : npmBinDir
+    if (npmBinKey === cliBinKey) return npm
+  }
+  return undefined
 }
 
 async function npmInstalledCommand(npm: string, command: string): Promise<string | undefined> {
@@ -714,12 +745,14 @@ async function updateSystemCli(id: CliId, onProgress: Progress, binPath?: string
   const candidate = detection.candidates.find(
     (item) => item.path === selected || item.realPath === selected || item.realPath === realSelected
   )
+  const systemNpm = isNpmCliId(id) ? await npmForInstalledCli(selected) : undefined
   const commands = systemUpdateCommands(
     id,
     selected,
     realSelected,
     candidate?.installKind,
-    candidate?.packageManager
+    candidate?.packageManager,
+    systemNpm
   )
   if (candidate?.macosSecurityRisk) {
     // Product policy requires a manual uninstall/update for a blocked binary.

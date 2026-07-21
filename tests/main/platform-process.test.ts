@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { chmodSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { commandSearchCandidates } from '../../src/main/install/installer'
+import {
+  commandSearchCandidates,
+  npmForInstalledCli,
+  systemUpdateCommands
+} from '../../src/main/install/installer'
 import { codexTargetTriple, nodeDistName, opencodePlatformKey } from '../../src/main/install/platform'
 import { decodeProcessOutput, lastLines, windowsShellTarget } from '../../src/main/process'
 import type { PlatformInfo } from '../../src/shared/types'
@@ -22,8 +26,16 @@ describe('platform and process helpers', () => {
     expect(nodeDistName(darwinArm, '24.0.0')).toEqual({ file: 'node-v24.0.0-darwin-arm64.tar.gz', ext: 'tar.gz' })
   })
 
-  it('keeps non-Windows process helpers simple on the current platform', () => {
-    expect(windowsShellTarget('tool.cmd', ['a b'])).toEqual({ file: 'tool.cmd', args: ['a b'] })
+  it('wraps Windows batch scripts and leaves other platforms unchanged', () => {
+    const target = windowsShellTarget('tool.cmd', ['a b'])
+    if (process.platform === 'win32') {
+      expect(target).toEqual({
+        file: process.env.COMSPEC || 'cmd.exe',
+        args: ['/d', '/s', '/c', 'call tool.cmd "a b"']
+      })
+    } else {
+      expect(target).toEqual({ file: 'tool.cmd', args: ['a b'] })
+    }
     expect(decodeProcessOutput(Buffer.from('hello'))).toBe('hello')
     expect(lastLines('a\nb\nc\n', 2)).toBe('b\nc')
   })
@@ -52,5 +64,39 @@ describe('platform and process helpers', () => {
         process.env.PATH = previousPath
       }
     })
+  })
+
+  it('updates npm-managed CLIs with npm instead of using a self-updater', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'agent-launcher-update-'))
+    const ext = process.platform === 'win32' ? '.cmd' : ''
+    const globalBin = join(root, 'global-bin')
+    const nodeBin = join(root, 'node-bin')
+    const claude = join(globalBin, `claude${ext}`)
+    const npm = join(nodeBin, `npm${ext}`)
+    mkdirSync(globalBin, { recursive: true })
+    writeText(claude, '')
+    writeText(
+      npm,
+      process.platform === 'win32'
+        ? `@echo off\r\necho ${globalBin}\r\n`
+        : `#!/bin/sh\nprintf '%s\\n' '${globalBin}'\n`
+    )
+    if (process.platform !== 'win32') chmodSync(npm, 0o755)
+
+    try {
+      const matchedNpm = await npmForInstalledCli(claude, [npm])
+      const commands = systemUpdateCommands('claude-code', claude, claude, undefined, undefined, matchedNpm)
+      expect(commands.map(({ file }) => file)).toEqual([npm])
+      expect(commands[0].args).toEqual([
+        'i',
+        '-g',
+        '@anthropic-ai/claude-code@latest',
+        '--no-audit',
+        '--no-fund',
+        '--no-update-notifier'
+      ])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
