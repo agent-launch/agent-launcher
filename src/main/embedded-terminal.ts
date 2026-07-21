@@ -3,8 +3,13 @@ import type { CliId } from '@shared/types'
 interface EmbeddedTerminalArgsOptions {
   cliId: CliId
   version?: string
-  autoApprove: boolean
   resume?: boolean
+  platform?: NodeJS.Platform
+}
+
+interface EmbeddedTerminalEnvOptions {
+  cliId: CliId
+  env: NodeJS.ProcessEnv
   platform?: NodeJS.Platform
 }
 
@@ -28,7 +33,6 @@ function versionAtLeast(version: string | undefined, minimum: [number, number, n
 export function embeddedTerminalArgs({
   cliId,
   version,
-  autoApprove,
   resume = false,
   platform = process.platform
 }: EmbeddedTerminalArgsOptions): string[] {
@@ -37,7 +41,9 @@ export function embeddedTerminalArgs({
   // Codex 0.80.0 introduced --no-alt-screen specifically to preserve the
   // terminal emulator's scrollback.
   if (cliId === 'codex') {
-    const args = versionAtLeast(version, [0, 80, 0]) !== false ? ['--no-alt-screen'] : []
+    if (versionAtLeast(version, [0, 80, 0]) === false) return []
+
+    const args = ['--no-alt-screen']
 
     // Current Codex releases can block thread/resume before the first frame
     // while Windows plugin startup tasks reconcile Desktop-managed plugins.
@@ -49,13 +55,33 @@ export function embeddedTerminalArgs({
     return args
   }
 
-  // OpenCode 1.17.10 introduced its primary-screen split-footer UI. In current
-  // releases the `--mini` shortcut does not forward `--auto`, so retain the
-  // full TUI when auto-approval is enabled instead of silently changing its
-  // permission behavior.
-  if (cliId === 'opencode' && !autoApprove && versionAtLeast(version, [1, 17, 10]) !== false) return ['--mini']
+  // OpenCode 1.17.10 introduced its primary-screen mini UI. --mini and --auto
+  // are independent top-level options, so the caller can safely append --auto.
+  if (cliId === 'opencode' && versionAtLeast(version, [1, 17, 10]) !== false) return ['--mini']
 
   // Pi already renders on the primary screen, so xterm's normal scrollback is
   // available without a CLI flag.
   return []
+}
+
+/** Environment overrides used only while a CLI runs in the embedded xterm. */
+export function embeddedTerminalEnv({
+  cliId,
+  env,
+  platform = process.platform
+}: EmbeddedTerminalEnvOptions): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {
+    ...env,
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    CLICOLOR: '1'
+  }
+
+  // Claude's alternate buffer has no xterm scrollback. Keep embedded Windows
+  // sessions on the primary buffer without changing external terminal launches.
+  if (platform === 'win32' && cliId === 'claude-code') {
+    out.CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN = '1'
+  }
+
+  return out
 }

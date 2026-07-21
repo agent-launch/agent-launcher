@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
+import { release } from 'node:os'
 import { join } from 'node:path'
 import * as pty from '@lydell/node-pty'
 import type { WebContents } from 'electron'
@@ -9,11 +10,13 @@ import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getPrefs } from './store'
 import { buildCliEnv } from './cli-env'
 import { assertCliLaunchAllowed } from './cli-launch-safety'
-import { embeddedTerminalArgs } from './embedded-terminal'
+import { probeCliVersion } from './cli-version'
+import { embeddedTerminalArgs, embeddedTerminalEnv } from './embedded-terminal'
 import { CodexInterruptGuard } from './pty-compat'
 import { resolveLaunchCwd } from './launch-cwd'
 import { resumeArgs } from './sessions-history'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
+import { useBundledConpty, windowsBuildNumber } from '@shared/windows-conpty'
 import type { CliId } from '@shared/types'
 
 export interface SpawnOptions {
@@ -64,7 +67,11 @@ function defaultShell(): { file: string; args: string[] } {
 }
 
 /** Resolve what to spawn for the selected CLI. */
-function resolveTarget(opts: SpawnOptions, embedded = false): { file: string; args: string[] } {
+function resolveTarget(
+  opts: SpawnOptions,
+  embedded = false,
+  embeddedVersion?: string
+): { file: string; args: string[] } {
   if (opts.mode === 'shell') return defaultShell()
   const cfg = loadConfig()
   const install = cfg.install[opts.cliId]
@@ -78,8 +85,7 @@ function resolveTarget(opts: SpawnOptions, embedded = false): { file: string; ar
   const embeddedArgs = embedded
     ? embeddedTerminalArgs({
         cliId: opts.cliId,
-        version: install.version,
-        autoApprove,
+        version: embeddedVersion ?? install.version,
         resume: Boolean(opts.resumeId)
       })
     : []
@@ -118,25 +124,17 @@ function launchEnvEntries(env: NodeJS.ProcessEnv): Array<[string, string]> {
 
 function prepareCliLaunch(
   opts: SpawnOptions,
-  embedded = false
+  embedded = false,
+  embeddedVersion?: string
 ): { cwd: string; file: string; args: string[]; env: NodeJS.ProcessEnv } {
   const cwd = resolveLaunchCwd(opts.cwd)
-  const target = resolveTarget({ ...opts, mode: 'cli' }, embedded)
+  const target = resolveTarget({ ...opts, mode: 'cli' }, embedded, embeddedVersion)
 
   if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') {
     writeNativeConfig(opts.cliId)
   }
 
   return { cwd, file: target.file, args: target.args, env: buildCliEnv(opts.cliId) }
-}
-
-function embeddedTerminalEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return {
-    ...env,
-    TERM: 'xterm-256color',
-    COLORTERM: 'truecolor',
-    CLICOLOR: '1'
-  }
 }
 
 export function openExternalAgent(opts: SpawnOptions): void {
@@ -194,19 +192,52 @@ export function openExternalAgent(opts: SpawnOptions): void {
   }
 }
 
-export function createSession(wc: WebContents, opts: SpawnOptions): string {
+async function currentEmbeddedCliVersion(opts: SpawnOptions): Promise<string | undefined> {
+  const install = loadConfig().install[opts.cliId]
+  if (
+    process.platform !== 'win32' ||
+    opts.mode !== 'cli' ||
+    (opts.cliId !== 'codex' && opts.cliId !== 'opencode') ||
+    install.source !== 'system' ||
+    !install.binPath
+  ) {
+    return install.version
+  }
+
+  return (await probeCliVersion(install.binPath)) ?? install.version
+}
+
+/**
+ * Windows 10's in-box ConPTY repaints scroll-region scrolls in place, which
+ * leaves Codex/OpenCode without xterm scrollback; use node-pty's bundled
+ * Windows Terminal ConPTY there (see shared/windows-conpty.ts). Falls back to
+ * the OS ConPTY if the sideloaded conpty.dll cannot start.
+ */
+function spawnPty(file: string, args: string[], options: pty.IWindowsPtyForkOptions): pty.IPty {
+  if (process.platform === 'win32' && useBundledConpty(windowsBuildNumber(release()))) {
+    try {
+      return pty.spawn(file, args, { ...options, useConptyDll: true })
+    } catch {
+      /* conpty.dll failed to load or start */
+    }
+  }
+  return pty.spawn(file, args, options)
+}
+
+export async function createSession(wc: WebContents, opts: SpawnOptions): Promise<string> {
+  const version = await currentEmbeddedCliVersion(opts)
   const prepared =
     opts.mode === 'shell'
       ? { cwd: resolveLaunchCwd(opts.cwd), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
-      : prepareCliLaunch(opts, true)
+      : prepareCliLaunch(opts, true, version)
 
   const target = windowsShellTarget(prepared.file, prepared.args)
-  const proc = pty.spawn(target.file, target.args, {
+  const proc = spawnPty(target.file, target.args, {
     name: 'xterm-256color',
     cols: opts.cols ?? 80,
     rows: opts.rows ?? 24,
     cwd: prepared.cwd,
-    env: embeddedTerminalEnv(prepared.env) as { [key: string]: string }
+    env: embeddedTerminalEnv({ cliId: opts.cliId, env: prepared.env }) as { [key: string]: string }
   })
 
   const id = `pty-${++seq}`

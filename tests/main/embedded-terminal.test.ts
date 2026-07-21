@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { embeddedTerminalArgs } from '../../src/main/embedded-terminal'
+import { embeddedTerminalArgs, embeddedTerminalEnv } from '../../src/main/embedded-terminal'
 import { CodexInterruptGuard, codexTuiIsClosing } from '../../src/main/pty-compat'
 
 describe('embedded terminal scrollback arguments', () => {
@@ -8,7 +8,6 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'codex',
         version: 'codex-cli 0.144.6',
-        autoApprove: false,
         platform: 'win32'
       })
     ).toEqual(['--no-alt-screen'])
@@ -17,18 +16,33 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'codex',
         version: '0.79.0',
-        autoApprove: false,
         platform: 'win32'
       })
     ).toEqual([])
   })
 
-  it('uses OpenCode mini mode without changing auto-approval semantics', () => {
+  it('uses Codex inline mode across supported versions', () => {
+    expect(
+      embeddedTerminalArgs({
+        cliId: 'codex',
+        version: '0.80.0',
+        platform: 'win32'
+      })
+    ).toEqual(['--no-alt-screen'])
+    expect(
+      embeddedTerminalArgs({
+        cliId: 'codex',
+        version: '0.144.6',
+        platform: 'win32'
+      })
+    ).toEqual(['--no-alt-screen'])
+  })
+
+  it('uses OpenCode mini mode for supported Windows installs', () => {
     expect(
       embeddedTerminalArgs({
         cliId: 'opencode',
         version: 'v1.17.10',
-        autoApprove: false,
         platform: 'win32'
       })
     ).toEqual(['--mini'])
@@ -37,36 +51,30 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'opencode',
         version: '1.18.2',
-        autoApprove: true,
         platform: 'win32'
       })
-    ).toEqual([])
+    ).toEqual(['--mini'])
 
     expect(
       embeddedTerminalArgs({
         cliId: 'opencode',
         version: '1.17.9',
-        autoApprove: false,
         platform: 'win32'
       })
     ).toEqual([])
   })
 
   it('leaves primary-screen Pi and non-Windows launches unchanged', () => {
-    expect(
-      embeddedTerminalArgs({ cliId: 'pi', version: '0.77.0', autoApprove: false, platform: 'win32' })
-    ).toEqual([])
-    expect(
-      embeddedTerminalArgs({ cliId: 'codex', version: '0.144.6', autoApprove: false, platform: 'darwin' })
-    ).toEqual([])
+    expect(embeddedTerminalArgs({ cliId: 'pi', version: '0.77.0', platform: 'win32' })).toEqual([])
+    expect(embeddedTerminalArgs({ cliId: 'codex', version: '0.144.6', platform: 'darwin' })).toEqual([])
   })
 
   it('enables current inline modes when a system-linked version was not recorded', () => {
     expect(
-      embeddedTerminalArgs({ cliId: 'codex', version: undefined, autoApprove: false, platform: 'win32' })
+      embeddedTerminalArgs({ cliId: 'codex', version: undefined, platform: 'win32' })
     ).toEqual(['--no-alt-screen'])
     expect(
-      embeddedTerminalArgs({ cliId: 'opencode', version: 'system', autoApprove: false, platform: 'win32' })
+      embeddedTerminalArgs({ cliId: 'opencode', version: 'system', platform: 'win32' })
     ).toEqual(['--mini'])
   })
 
@@ -75,7 +83,6 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'codex',
         version: '0.144.6',
-        autoApprove: false,
         resume: true,
         platform: 'win32'
       })
@@ -84,7 +91,6 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'codex',
         version: '0.139.0',
-        autoApprove: false,
         resume: true,
         platform: 'win32'
       })
@@ -93,7 +99,6 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'codex',
         version: 'system',
-        autoApprove: false,
         resume: true,
         platform: 'win32'
       })
@@ -102,11 +107,32 @@ describe('embedded terminal scrollback arguments', () => {
       embeddedTerminalArgs({
         cliId: 'codex',
         version: '0.144.6',
-        autoApprove: false,
         resume: true,
         platform: 'darwin'
       })
     ).toEqual([])
+  })
+})
+
+describe('embedded terminal environment', () => {
+  it('disables Claude alternate-screen rendering only in its Windows embedded terminal', () => {
+    expect(
+      embeddedTerminalEnv({ cliId: 'claude-code', env: { KEEP: 'yes' }, platform: 'win32' })
+    ).toMatchObject({
+      KEEP: 'yes',
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+      CLICOLOR: '1',
+      CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN: '1'
+    })
+    expect(
+      embeddedTerminalEnv({ cliId: 'claude-code', env: {}, platform: 'darwin' })
+        .CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN
+    ).toBeUndefined()
+    expect(
+      embeddedTerminalEnv({ cliId: 'codex', env: {}, platform: 'win32' })
+        .CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN
+    ).toBeUndefined()
   })
 })
 

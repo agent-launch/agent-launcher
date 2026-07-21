@@ -86,10 +86,28 @@ function windowsPtyInfo(): IWindowsPty | undefined {
 type XtermCompositionCore = {
   _core?: {
     _syncTextArea?: () => void
+    viewport?: {
+      syncScrollArea?: (immediate?: boolean) => void
+      _ignoreNextScrollEvent?: boolean
+    }
     _compositionHelper?: {
       compositionstart?: () => void
       updateCompositionElements?: (dontRecurse?: boolean) => void
     }
+  }
+}
+
+function syncTerminalScrollArea(term: Terminal): void {
+  try {
+    const viewport = (term as unknown as XtermCompositionCore)._core?.viewport
+    // Keep this deferred: xterm's immediate path can leave its next-scroll
+    // suppression armed after a large ConPTY write and swallow user scrolling.
+    viewport?.syncScrollArea?.()
+    requestAnimationFrame(() => {
+      if (viewport) viewport._ignoreNextScrollEvent = false
+    })
+  } catch {
+    /* xterm internals can change between minor versions */
   }
 }
 
@@ -293,6 +311,7 @@ function installImeTextareaAnchorSync(term: Terminal, cliId: CliId): () => void 
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const isWindows = window.api.platform === 'win32'
   // Keep the latest translator in a ref so the once-per-session effect (which
   // intentionally excludes deps) always reads the current locale.
   const t = useT()
@@ -321,10 +340,18 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     termRef.current = term
     const fit = new FitAddon()
     term.loadAddon(fit)
+    host.replaceChildren()
     term.open(host)
     const removeImeCompositionPatch = patchImeCompositionStart(term)
     const removeImeTextareaAnchorSync = installImeTextareaAnchorSync(term, cliId)
     fit.fit()
+
+    const syncScrollArea = () => {
+      // Codex and OpenCode insert history with terminal scroll regions. xterm
+      // can update its buffer before refreshing the virtual scrollbar height.
+      if (isWindows) syncTerminalScrollArea(term)
+    }
+    const parsedDisposable = term.onWriteParsed(syncScrollArea)
 
     let ptyId: string | null = null
     let disposed = false
@@ -424,11 +451,13 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       disposed = true
       window.clearTimeout(startTimer)
       ro.disconnect()
+      parsedDisposable.dispose()
       offs.forEach((off) => off())
       removeImeCompositionPatch()
       removeImeTextareaAnchorSync()
       if (ptyId) window.api.pty.kill(ptyId)
       term.dispose()
+      host.replaceChildren()
       termRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -447,7 +476,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
 
   return (
     <div
-      className="h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3"
+      className={`agent-terminal h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3${isWindows ? ' agent-terminal--windows' : ''}`}
       style={cliId === 'codex' ? { background: CODEX_TERMINAL_THEME.background } : undefined}
     >
       {/* FitAddon measures xterm's direct parent and does not account for padding on that parent. */}

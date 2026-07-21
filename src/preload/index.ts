@@ -1,5 +1,10 @@
 import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import { release } from 'node:os'
+import {
+  BUNDLED_CONPTY_BUILD_NUMBER,
+  useBundledConpty,
+  windowsBuildNumber
+} from '../shared/windows-conpty'
 import type {
   AppConfig,
   AppInfo,
@@ -46,10 +51,15 @@ interface WindowsPtyInfo {
 function getWindowsPtyInfo(): WindowsPtyInfo | null {
   if (process.platform !== 'win32') return null
 
-  const buildNumber = Number.parseInt(release().split('.')[2] || '', 10)
-  const hasBuildNumber = Number.isFinite(buildNumber)
-  const backend = hasBuildNumber && buildNumber < 18309 ? 'winpty' : 'conpty'
-  return hasBuildNumber ? { backend, buildNumber } : { backend }
+  const buildNumber = windowsBuildNumber(release())
+  if (buildNumber === undefined) return { backend: 'conpty' }
+  // Windows 10 sessions run on node-pty's bundled Windows Terminal ConPTY
+  // (main/pty.ts), which is newer than any in-box conhost — report a build
+  // that keeps xterm's legacy-ConPTY workarounds off.
+  if (useBundledConpty(buildNumber)) {
+    return { backend: 'conpty', buildNumber: BUNDLED_CONPTY_BUILD_NUMBER }
+  }
+  return { backend: buildNumber < 18309 ? 'winpty' : 'conpty', buildNumber }
 }
 
 const api = {
