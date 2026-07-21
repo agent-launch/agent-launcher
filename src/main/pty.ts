@@ -8,6 +8,8 @@ import { windowsShellTarget } from './process'
 import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getPrefs } from './store'
 import { buildCliEnv } from './cli-env'
+import { assertCliLaunchAllowed } from './cli-launch-safety'
+import { embeddedScrollbackArgs } from './embedded-terminal'
 import { resolveLaunchCwd } from './launch-cwd'
 import { resumeArgs } from './sessions-history'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
@@ -59,19 +61,24 @@ function defaultShell(): { file: string; args: string[] } {
 }
 
 /** Resolve what to spawn for the selected CLI. */
-function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
+function resolveTarget(opts: SpawnOptions, embedded = false): { file: string; args: string[] } {
   if (opts.mode === 'shell') return defaultShell()
   const cfg = loadConfig()
   const install = cfg.install[opts.cliId]
   if (!install.installed || !install.binPath) {
     throw new Error(`${opts.cliId} is not installed`)
   }
+  assertCliLaunchAllowed(opts.cliId, install)
   const resume = opts.resumeId ? resumeArgs(opts.cliId, opts.resumeId) : null
-  const yolo = getPrefs(opts.cliId).yolo ? (yoloArgs(opts.cliId) ?? []) : []
-  // Sandboxed node-based CLIs (Pi) run through bundled node + JS entry. A
-  // system Pi install is already an executable wrapper, so run binPath directly.
+  const autoApprove = getPrefs(opts.cliId).yolo === true
+  const yolo = autoApprove ? (yoloArgs(opts.cliId) ?? []) : []
+  const scrollback = embedded
+    ? embeddedScrollbackArgs({ cliId: opts.cliId, version: install.version, autoApprove })
+    : []
+  // Legacy managed Pi installs run through bundled Node + their JS entry. A
+  // current system Pi install is already an executable wrapper.
   if (install.nodeEntry && install.source !== 'system') {
-    const extra: string[] = [...(resume ?? []), ...yolo]
+    const extra: string[] = [...scrollback, ...(resume ?? []), ...yolo]
     if (opts.cliId === 'pi') {
       const profile = getActiveProfile('pi')
       if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
@@ -79,7 +86,7 @@ function resolveTarget(opts: SpawnOptions): { file: string; args: string[] } {
     return { file: install.binPath, args: [install.nodeEntry, ...extra] }
   }
   const session = opts.cliId === 'claude-code' && !opts.resumeId ? ['--session-id', randomUUID()] : []
-  const extra: string[] = [...(resume ?? []), ...session, ...yolo]
+  const extra: string[] = [...scrollback, ...(resume ?? []), ...session, ...yolo]
   if (opts.cliId === 'pi') {
     const profile = getActiveProfile('pi')
     if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
@@ -101,9 +108,12 @@ function launchEnvEntries(env: NodeJS.ProcessEnv): Array<[string, string]> {
   )
 }
 
-function prepareCliLaunch(opts: SpawnOptions): { cwd: string; file: string; args: string[]; env: NodeJS.ProcessEnv } {
+function prepareCliLaunch(
+  opts: SpawnOptions,
+  embedded = false
+): { cwd: string; file: string; args: string[]; env: NodeJS.ProcessEnv } {
   const cwd = resolveLaunchCwd(opts.cwd)
-  const target = resolveTarget({ ...opts, mode: 'cli' })
+  const target = resolveTarget({ ...opts, mode: 'cli' }, embedded)
 
   if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') {
     writeNativeConfig(opts.cliId)
@@ -180,7 +190,7 @@ export function createSession(wc: WebContents, opts: SpawnOptions): string {
   const prepared =
     opts.mode === 'shell'
       ? { cwd: resolveLaunchCwd(opts.cwd), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
-      : prepareCliLaunch(opts)
+      : prepareCliLaunch(opts, true)
 
   const target = windowsShellTarget(prepared.file, prepared.args)
   const proc = pty.spawn(target.file, target.args, {

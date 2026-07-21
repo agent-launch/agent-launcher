@@ -293,6 +293,7 @@ function installImeTextareaAnchorSync(term: Terminal, cliId: CliId): () => void 
 export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const isWindows = window.api.platform === 'win32'
   // Keep the latest translator in a ref so the once-per-session effect (which
   // intentionally excludes deps) always reads the current locale.
   const t = useT()
@@ -440,7 +441,10 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
   return (
     <div
       ref={hostRef}
-      className="h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3"
+      className={`agent-terminal h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3${isWindows ? ' agent-terminal--windows' : ''}`}
+      data-terminal-cli={cliId}
+      data-terminal-platform={window.api.platform}
+      data-terminal-scrollbar={isWindows ? 'visible' : 'native'}
       style={cliId === 'codex' ? { background: CODEX_TERMINAL_THEME.background } : undefined}
     />
   )
