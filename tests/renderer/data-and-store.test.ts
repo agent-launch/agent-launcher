@@ -6,9 +6,27 @@ describe('renderer static data and persisted app store', () => {
   it('keeps CLI and provider catalogs aligned with the shared CLI union', async () => {
     const { CLIS, YOLO_SUPPORT } = await import('../../src/renderer/src/data/clis')
     const { PROVIDERS_BY_CLI } = await import('../../src/renderer/src/data/providers')
+    const { messages } = await import('../../src/renderer/src/i18n/messages')
     const ids = CLIS.map((cli) => cli.id as CliId)
 
     expect(ids).toEqual(['claude-code', 'codex', 'opencode', 'pi', 'hermes'])
+    expect(CLIS.slice(0, 4).map((cli) => cli.install)).toEqual([
+      'npm-global',
+      'npm-global',
+      'npm-global',
+      'npm-global'
+    ])
+    expect(CLIS.at(-1)?.install).toBe('official')
+    expect(Object.values(messages.zh).join('\n')).not.toContain('安装到沙盒')
+    expect(Object.values(messages.en).join('\n').toLowerCase()).not.toContain('install to sandbox')
+    expect(messages.en['onboarding.codexManualUpdateWarning']).toBe(
+      "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Please uninstall it and install version 0.135.0 or later."
+    )
+    expect(messages.en['onboarding.macSecurityManualUpdateBtn']).toBe('Update manually')
+    expect(messages.zh['onboarding.macSecurityManualUpdateBtn']).toBe('请手动更新')
+    expect(messages.en['config.baseUrlRequiredToast']).toBe('Please enter a Base URL')
+    expect(messages.zh['config.baseUrlRequiredToast']).toBe('请填写 Base URL')
+    expect(Object.values(messages.en).join('\n')).not.toMatch(/one-click (?:npm )?repair/i)
     expect(Object.keys(PROVIDERS_BY_CLI)).toEqual(ids)
     expect(Object.keys(YOLO_SUPPORT)).toEqual(ids)
     expect(PROVIDERS_BY_CLI.codex[0]).toMatchObject({

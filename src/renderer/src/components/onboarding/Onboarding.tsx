@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import toast from "react-hot-toast";
 import { useAppStore } from "@/store/app";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
@@ -818,6 +819,7 @@ function ConfigStep() {
     setProviderId(id);
     const p = providers.find((x) => x.id === id);
     setBaseUrl(p?.baseUrl ?? "");
+    setApiKey("");
     setModel("");
     setSaved(false);
   };
@@ -828,18 +830,38 @@ function ConfigStep() {
     setMode(id === "claude-code" || id === "codex" ? "official" : "api");
     setProviderId(first?.id ?? "");
     setBaseUrl(first?.baseUrl ?? "");
+    setApiKey("");
     setModel("");
     setSaved(false);
   };
 
   const save = async () => {
     const p = providers.find((x) => x.id === providerId);
+    const nextBaseUrl = baseUrl.trim();
+    const nextApiKey = apiKey.trim();
+    const nextModel = model.trim();
+
+    if (!nextBaseUrl) {
+      toast.error(t("config.baseUrlRequiredToast"));
+      return;
+    }
+
+    if (!nextApiKey) {
+      toast.error(t("config.apiKeyRequiredToast"));
+      return;
+    }
+
+    // Relay profiles must name the model explicitly — we never pick a default.
+    if (!nextModel) {
+      toast.error(t("config.modelRequiredToast"));
+      return;
+    }
     const cfg = await window.api.config.addProfile(cliId, {
       name: p?.name ?? t("category.custom"),
       providerId,
-      baseUrl,
-      apiKey,
-      model,
+      baseUrl: nextBaseUrl,
+      apiKey: nextApiKey,
+      model: nextModel,
     });
     const created = cfg.clis[cliId].profiles.at(-1);
     if (created) await window.api.config.setActiveProfile(cliId, created.id);
@@ -922,6 +944,7 @@ function ConfigStep() {
           <button
             onClick={() => {
               setMode("official");
+              setApiKey("");
               setSaved(false);
             }}
             className={`rounded-xl border bg-surface/92 px-3 py-2.5 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] ${
@@ -1010,7 +1033,7 @@ function ConfigStep() {
           </label>
           <label className="block">
             <span className="text-[12px] text-text-weak">
-              {t("config.modelOptional")}
+              {t("config.model")}
             </span>
             <input
               value={model}

@@ -640,10 +640,12 @@ function ProfileForm({
 
   const onProvider = (id: string) => {
     setProviderId(id)
+    // Credentials belong to a single provider. Never carry a secret into the
+    // next provider's draft when the selection changes.
+    setApiKey('')
     const p = providers.find((x) => x.id === id)
     if (p) {
       setBaseUrl(p.baseUrl)
-      if (p.category === 'official') setApiKey('')
       if (!name || !initial) setName(p.name)
     }
   }
@@ -666,8 +668,24 @@ function ProfileForm({
         (isClaude && (nextDefaultModel || nextOpusModel || nextSonnetModel || nextHaikuModel))
     )
 
+    if (!isOfficialProvider && !nextBaseUrl) {
+      toast.error(t('config.baseUrlRequiredToast'))
+      return
+    }
+
+    if (!isOfficialProvider && !nextApiKey) {
+      toast.error(t('config.apiKeyRequiredToast'))
+      return
+    }
+
     if (!initial && !hasPresetProvider && !hasManualConfig) {
       toast.error(t('config.emptyProfileToast'))
+      return
+    }
+
+    // Relay profiles must name the model explicitly — we never pick a default.
+    if (!isClaude && !isOfficialProvider && !nextModel) {
+      toast.error(t('config.modelRequiredToast'))
       return
     }
 
@@ -740,7 +758,7 @@ function ProfileForm({
           </>
         ) : (
           <Field
-            label={t('config.modelOptional')}
+            label={t('config.model')}
             value={model}
             onChange={setModel}
             placeholder={t('config.modelPlaceholder')}

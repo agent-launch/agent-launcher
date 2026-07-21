@@ -181,19 +181,21 @@ function mergeCodexToml(existing: string): string {
 function opencodeConfig(): Record<string, any> {
   const p = getActiveProfile('opencode')
   if (!p?.baseUrl) return { $schema: 'https://opencode.ai/config.json' }
-  const model = p.model || 'default'
-  return {
+  // No default model: the user names it explicitly; legacy profiles without one get no model entry.
+  const model = p.model?.trim()
+  const config: Record<string, any> = {
     $schema: 'https://opencode.ai/config.json',
     provider: {
       [PROVIDER_ID]: {
         npm: '@ai-sdk/openai-compatible',
         name: p.name || 'Agent Launcher',
         options: { baseURL: p.baseUrl, apiKey: p.apiKey ?? '' },
-        models: { [model]: { name: model } }
+        models: model ? { [model]: { name: model } } : {}
       }
-    },
-    model: `${PROVIDER_ID}/${model}`
+    }
   }
+  if (model) config.model = `${PROVIDER_ID}/${model}`
+  return config
 }
 
 function opencodeJson(): string {
@@ -204,7 +206,8 @@ function opencodeJson(): string {
 function piModelsConfig(): Record<string, any> {
   const p = getActiveProfile('pi')
   if (!p?.baseUrl) return { providers: {} }
-  const model = p.model || 'default'
+  // No default model: the user names it explicitly; legacy profiles without one get no model entry.
+  const model = p.model?.trim()
   return {
     providers: {
       [PROVIDER_ID]: {
@@ -212,7 +215,7 @@ function piModelsConfig(): Record<string, any> {
         apiKey: p.apiKey ?? '',
         // OpenAI Chat Completions is the most universal relay API.
         api: 'openai-completions',
-        models: [{ id: model }]
+        models: model ? [{ id: model }] : []
       }
     }
   }
