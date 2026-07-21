@@ -99,8 +99,8 @@ export function resolvedEnvPreview(cliId: CliId): EnvPair[] {
 
 /**
  * Full process env for spawning the CLI: the injected vars over a copy of the
- * current env, plus our sandbox node/bin prepended to PATH (node-npm CLIs like
- * Pi exec their JS entry via `node`). The user never exports any of this.
+ * current env. Deprecated managed installs may still prepend their bundled
+ * Node directory while they are being migrated. The user never exports this.
  */
 export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = withCommonPath({ ...process.env })

@@ -7,8 +7,8 @@ export interface CliMeta {
   accent: string
   /** Env-var prefix the resolved-config preview will surface later. */
   envPrefix: string
-  /** Install source under route B (hybrid): native binary, bundled-node npm, or system-managed installer/link. */
-  install: 'native-binary' | 'node-npm' | 'system'
+  /** Active installation path. The former app-managed sandbox path is legacy-only. */
+  install: 'npm-global' | 'official'
 }
 
 export const CLIS: CliMeta[] = [
@@ -19,7 +19,7 @@ export const CLIS: CliMeta[] = [
     glyph: 'C',
     accent: '#d97757',
     envPrefix: 'ANTHROPIC_*',
-    install: 'native-binary'
+    install: 'npm-global'
   },
   {
     id: 'codex',
@@ -28,7 +28,7 @@ export const CLIS: CliMeta[] = [
     glyph: 'O',
     accent: '#10a37f',
     envPrefix: 'OPENAI_*',
-    install: 'native-binary'
+    install: 'npm-global'
   },
   {
     id: 'opencode',
@@ -37,7 +37,7 @@ export const CLIS: CliMeta[] = [
     glyph: 'O',
     accent: '#f2a60d',
     envPrefix: 'XDG_* / OPENCODE_CONFIG',
-    install: 'native-binary'
+    install: 'npm-global'
   },
   {
     id: 'pi',
@@ -46,7 +46,7 @@ export const CLIS: CliMeta[] = [
     glyph: 'π',
     accent: '#7c3aed',
     envPrefix: 'PI_CODING_AGENT_DIR',
-    install: 'node-npm'
+    install: 'npm-global'
   },
   {
     id: 'hermes',
@@ -55,7 +55,7 @@ export const CLIS: CliMeta[] = [
     glyph: 'H',
     accent: '#d7a900',
     envPrefix: '~/.hermes / OPENAI_*',
-    install: 'system'
+    install: 'official'
   }
 ]
 

@@ -57,6 +57,31 @@ describe('main store', () => {
     })
   })
 
+  it('clears a persisted macOS launch block until detection confirms it again', async () => {
+    await withIsolatedHome(async () => {
+      const { paths } = await import('../../src/main/sandbox')
+      mkdirSync(dirname(paths.config), { recursive: true })
+      writeFileSync(
+        paths.config,
+        JSON.stringify({
+          install: {
+            codex: {
+              installed: true,
+              source: 'system',
+              version: '0.144.5',
+              binPath: '/usr/local/bin/codex',
+              launchBlockedReason: 'macos-security'
+            }
+          }
+        })
+      )
+
+      const { loadConfig } = await import('../../src/main/store')
+
+      expect(loadConfig().install.codex.launchBlockedReason).toBeUndefined()
+    })
+  })
+
   it('keeps official-login profiles pinned only when the user requests them', async () => {
     await withIsolatedHome(async () => {
       const { addProfile, getActiveProfile, getAuthMode, loadConfig, setAuthMode } = await import('../../src/main/store')

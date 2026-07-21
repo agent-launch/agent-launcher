@@ -766,8 +766,6 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
 
   const installUpdate = async (status: CliUpdateStatus) => {
     const cliId = status.cliId
-    const meta = CLIS.find((cli) => cli.id === cliId)
-    const source = status.source ?? (meta?.install === 'system' ? 'system' : 'sandbox')
     const action = status.installed ? 'reinstall' : 'install'
     setInstalling(cliId)
     setProgress((prev) => ({
@@ -779,9 +777,9 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
       }
     }))
     const result = await window.api.install.cli(cliId, {
-      source,
+      source: 'system',
       action,
-      binPath: source === 'system' ? status.binPath : undefined
+      binPath: status.source === 'system' ? status.binPath : undefined
     })
     if (!result.ok) {
       setProgress((prev) => ({
@@ -1016,7 +1014,7 @@ function CliStatusRow({
   const installed = !!status?.installed
   const sourceLabel =
     status?.source === 'sandbox'
-      ? t('settings.cliStatus.sourceSandbox')
+      ? t('settings.cliStatus.sourceLegacy')
       : status?.source === 'system'
         ? t('settings.cliStatus.sourceSystem')
         : t('settings.cliStatus.sourceUnknown')

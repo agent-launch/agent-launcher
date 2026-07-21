@@ -1,24 +1,45 @@
 import { spawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { loadConfig } from '../store'
+import { loadConfig, setInstallState } from '../store'
 import { detectPlatform } from './platform'
 import type { DetectItem, DetectResult } from '@shared/types'
-import { detectSystemCli } from './installer'
+import { detectSystemCli, findSystemCommand } from './installer'
 
 const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes'] as const
 
-function which(cmd: string): Promise<string | null> {
-  const finder = process.platform === 'win32' ? 'where' : 'which'
+function detectWslCodex(): Promise<string | undefined> {
+  if (process.platform !== 'win32') return Promise.resolve(undefined)
   return new Promise((resolve) => {
-    const p = spawn(finder, [cmd], { stdio: ['ignore', 'pipe', 'ignore'] })
+    const p = spawn('wsl.exe', ['--exec', 'sh', '-lc', 'command -v codex'], {
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
     let out = ''
-    p.stdout.on('data', (d) => (out += d))
-    p.on('error', () => resolve(null))
-    p.on('close', (code) => resolve(code === 0 ? out.trim().split(/\r?\n/)[0] || null : null))
+    const timer = setTimeout(() => {
+      p.kill()
+      resolve(undefined)
+    }, 2500)
+    p.stdout.on('data', (data) => (out += data))
+    p.on('error', () => {
+      clearTimeout(timer)
+      resolve(undefined)
+    })
+    p.on('close', (code) => {
+      clearTimeout(timer)
+      const path = out.trim().split(/\r?\n/)[0]
+      resolve(code === 0 && path ? path : undefined)
+    })
   })
 }
 
 function displayDetectionDetail(d: Awaited<ReturnType<typeof detectSystemCli>>): string {
+  if (d.macosSecurityRisk) {
+    const message =
+      d.cliId === 'codex'
+        ? 'Manual update required: uninstall Codex and install version 0.135.0 or later'
+        : 'Manual update required: uninstall this CLI and install a current version'
+    return d.selectedPath
+      ? `${message} · ${d.selectedPath}`
+      : message
+  }
   if (d.status === 'linked' && d.selectedPath) return d.selectedPath
   return d.detail
 }
@@ -26,12 +47,32 @@ function displayDetectionDetail(d: Awaited<ReturnType<typeof detectSystemCli>>):
 export async function detectEnvironment(): Promise<DetectResult> {
   const platform = detectPlatform()
   const cfg = loadConfig()
-  const detections = await Promise.all(
-    CLI_IDS.map((id) => detectSystemCli(id, cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined))
-  )
+  const [detections, wslCodexPath] = await Promise.all([
+    Promise.all(
+      CLI_IDS.map((id) =>
+        detectSystemCli(id, cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined)
+      )
+    ),
+    detectWslCodex()
+  ])
+  const codexDetection = detections.find((detection) => detection.cliId === 'codex')
+  if (codexDetection && wslCodexPath) {
+    codexDetection.wslPath = wslCodexPath
+    if (!codexDetection.installed) {
+      codexDetection.detail = `Codex was detected inside WSL at ${wslCodexPath}; Agent Launcher will install the native Windows command with npm`
+    }
+  }
   const systemClis = Object.fromEntries(detections.map((d) => [d.cliId, d])) as DetectResult['systemClis']
+  for (const detection of detections) {
+    const install = cfg.install[detection.cliId]
+    if (install.source !== 'system') continue
+    const launchBlockedReason = detection.macosSecurityRisk ? 'macos-security' : undefined
+    if (install.launchBlockedReason !== launchBlockedReason) {
+      setInstallState(detection.cliId, { ...install, launchBlockedReason })
+    }
+  }
   const pkgManager = platform.os === 'darwin' ? 'brew' : 'npm'
-  const [pkg, npm] = await Promise.all([which(pkgManager), which('npm')])
+  const [pkg, npm] = await Promise.all([findSystemCommand(pkgManager), findSystemCommand('npm')])
 
   const items: DetectItem[] = [
     {
@@ -64,9 +105,6 @@ export async function detectEnvironment(): Promise<DetectResult> {
   ]
 
   for (const d of detections) {
-    const configured = cfg.install[d.cliId]
-    const sandboxInstalled =
-      configured.installed && configured.source === 'sandbox' && !!configured.binPath && existsSync(configured.binPath)
     items.push({
       key: d.cliId,
       label:
@@ -79,8 +117,8 @@ export async function detectEnvironment(): Promise<DetectResult> {
               : d.cliId === 'pi'
                 ? 'Pi'
                 : 'Hermes Agent',
-      present: d.installed || sandboxInstalled,
-      detail: d.installed ? displayDetectionDetail(d) : sandboxInstalled ? 'Installed in the Agent Launcher sandbox' : d.detail
+      present: d.installed,
+      detail: d.installed ? displayDetectionDetail(d) : d.detail
     })
   }
 

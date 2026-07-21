@@ -1,16 +1,19 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:fs'
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
 import { realpath } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { paths } from '../sandbox'
 import { hermesHomeDir } from '../config-paths'
+import { macosSecurityManualUpdateMessage } from '../cli-launch-safety'
 import { decodeProcessOutput, lastLines, spawnProcess } from '../process'
 import { loadConfig, setInstallState } from '../store'
 import type {
   CliId,
   CliInstallState,
   CliUpdateStatus,
+  CodexInstallKind,
+  CodexPackageManager,
   CleanupCliResult,
   InstallAction,
   InstallOptions,
@@ -18,15 +21,19 @@ import type {
   SystemCliCandidate,
   SystemCliDetection
 } from '@shared/types'
-import { detectPlatform, codexTargetTriple, opencodePlatformKey } from './platform'
-import { fetchJson, downloadFile, extractArchive, verifyIntegrity } from './download'
-import { ensureNode } from './node-runtime'
+import { fetchJson } from './download'
+import {
+  codexInstallLabel,
+  codexUpdateStrategy,
+  inspectCodexInstall,
+  isExplicitMacSecurityAssessmentFailure,
+  type CodexInstallInspection
+} from './codex-safety'
 
 type Progress = (phase: string, message: string, fraction?: number) => void
 
 interface NpmDist {
   version: string
-  dist: { tarball: string; integrity?: string }
 }
 
 const SYSTEM_COMMANDS: Record<CliId, string> = {
@@ -58,6 +65,7 @@ const NODE_NPM_ENTRY_ROOT: Partial<Record<CliId, string[]>> = {
 
 const OFFICIAL_UPDATE_ARGS: Partial<Record<CliId, string[]>> = {
   'claude-code': ['update'],
+  codex: ['update'],
   opencode: ['upgrade']
 }
 
@@ -90,6 +98,15 @@ function brewFormulaFromPath(realPath: string): string | null {
   return cellarIndex >= 0 ? parts[cellarIndex + 1] || null : null
 }
 
+function brewCommand(binPath: string, realPath: string): string | null {
+  const candidates = [
+    siblingBin(binPath, 'brew'),
+    realPath.startsWith('/opt/homebrew/') ? '/opt/homebrew/bin/brew' : undefined,
+    realPath.startsWith('/usr/local/') ? '/usr/local/bin/brew' : undefined
+  ]
+  return candidates.find((candidate): candidate is string => !!candidate && existsSync(candidate)) ?? null
+}
+
 function siblingBin(binPath: string, name: string): string | null {
   const dir = dirname(binPath)
   if (!dir || dir === binPath) return null
@@ -105,7 +122,16 @@ function siblingBin(binPath: string, name: string): string | null {
 
 function commonCliPathDirs(): string[] {
   if (process.platform === 'win32') return []
-  return [join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+  return [
+    join(homedir(), '.local', 'bin'),
+    join(homedir(), 'local', 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin'
+  ]
 }
 
 function envForCommand(commandPath: string): NodeJS.ProcessEnv {
@@ -125,17 +151,23 @@ function spawnInstallerProcess(cmd: string, args: string[], options: Parameters<
 function packageManagerUpdateCommand(
   id: CliId,
   binPath: string,
-  realPath: string
+  realPath: string,
+  installKind?: CodexInstallKind,
+  recordedManager?: CodexPackageManager
 ): SystemUpdateCommand | null {
+  if (id === 'codex' && installKind === 'homebrew-cask') {
+    const brew = brewCommand(binPath, realPath)
+    return brew ? { file: brew, args: ['upgrade', '--cask', 'codex'], label: 'brew upgrade --cask codex' } : null
+  }
   const formula = brewFormulaFromPath(realPath)
   if (formula) {
-    const brew = siblingBin(binPath, 'brew')
+    const brew = brewCommand(binPath, realPath)
     if (brew) return { file: brew, args: ['upgrade', formula], label: `brew upgrade ${formula}` }
   }
 
   if (!isNpmCliId(id)) return null
   const pkg = NPM_PACKAGES[id]
-  const manager = inferInstallManager(binPath, realPath)
+  const manager = recordedManager ?? inferInstallManager(binPath, realPath)
   if (manager === 'volta') {
     const volta = siblingBin(binPath, 'volta')
     if (volta) return { file: volta, args: ['install', pkg], label: `volta install ${pkg}` }
@@ -148,6 +180,7 @@ function packageManagerUpdateCommand(
     const pnpm = siblingBin(binPath, 'pnpm')
     if (pnpm) return { file: pnpm, args: ['add', '-g', `${pkg}@latest`], label: `pnpm add -g ${pkg}@latest` }
   }
+  if (manager === 'homebrew') return null
 
   // nvm/fnm/mise/Homebrew npm installs, plus classic /usr/local npm installs,
   // usually place npm next to the CLI shim. Anchor to that npm instead of PATH.
@@ -161,9 +194,21 @@ function officialUpdateCommand(id: CliId, binPath: string): SystemUpdateCommand 
   return args ? { file: binPath, args, label: `${basename(binPath)} ${args.join(' ')}` } : null
 }
 
-function systemUpdateCommands(id: CliId, binPath: string, realPath: string): SystemUpdateCommand[] {
-  const packageCommand = packageManagerUpdateCommand(id, binPath, realPath)
+function systemUpdateCommands(
+  id: CliId,
+  binPath: string,
+  realPath: string,
+  installKind?: CodexInstallKind,
+  packageManager?: CodexPackageManager
+): SystemUpdateCommand[] {
+  const packageCommand = packageManagerUpdateCommand(id, binPath, realPath, installKind, packageManager)
   const officialCommand = officialUpdateCommand(id, binPath)
+  if (id === 'codex') {
+    const strategy = installKind ? codexUpdateStrategy(installKind) : 'npm-reinstall'
+    if (strategy === 'self-update') return officialCommand ? [officialCommand] : []
+    if (strategy === 'package-manager') return packageCommand ? [packageCommand] : []
+    return []
+  }
   if ((id === 'claude-code' || id === 'opencode') && officialCommand) {
     return packageCommand ? [officialCommand, packageCommand] : [officialCommand]
   }
@@ -184,32 +229,75 @@ async function hermesLatestVersion(): Promise<string> {
   return version
 }
 
-async function downloadAndExtract(
-  tarball: string,
-  destDir: string,
-  onProgress: Progress,
-  integrity?: string
-): Promise<void> {
-  if (existsSync(destDir)) rmSync(destDir, { recursive: true, force: true })
-  mkdirSync(paths.downloads, { recursive: true })
-  const archive = join(paths.downloads, `${Date.now()}-pkg.tgz`)
-  onProgress('download', 'Downloading binary…', 0)
-  await downloadFile(tarball, archive, (r, t) => t && onProgress('download', 'Downloading binary…', r / t))
-  await verifyIntegrity(archive, integrity)
-  onProgress('extract', 'Extracting…')
-  // npm tarballs nest everything under package/ — strip it.
-  await extractArchive(archive, destDir, 1)
-  rmSync(archive, { force: true })
-  await clearMacQuarantine(destDir)
+/** Gatekeeper shows a "will damage your computer" dialog when a quarantined
+ * binary is executed — so this must be checked with xattr, never by running
+ * the binary. Checks the given path and its symlink target. */
+async function isMacQuarantined(...targets: (string | undefined)[]): Promise<boolean> {
+  if (process.platform !== 'darwin') return false
+  for (const target of targets) {
+    if (!target) continue
+    const quarantined = await new Promise<boolean>((resolve) => {
+      const p = spawn('xattr', ['-p', 'com.apple.quarantine', target], { stdio: 'ignore' })
+      p.on('error', () => resolve(false))
+      p.on('close', (code) => resolve(code === 0))
+    })
+    if (quarantined) return true
+  }
+  return false
 }
 
-function clearMacQuarantine(target: string): Promise<void> {
-  if (process.platform !== 'darwin') return Promise.resolve()
-  return new Promise((resolve) => {
-    const p = spawn('xattr', ['-dr', 'com.apple.quarantine', target], { stdio: 'ignore' })
-    p.on('error', () => resolve())
-    p.on('close', () => resolve())
+const macSecurityAssessmentCache = new Map<string, { expiresAt: number; risky: boolean }>()
+
+/** Ask Gatekeeper for a static assessment without executing Codex. A generic
+ * CLI rejection is normal; only explicit revoked-certificate/malware verdicts
+ * are considered unsafe. */
+async function hasExplicitMacSecurityFailure(target?: string): Promise<boolean> {
+  if (process.platform !== 'darwin' || !target || !existsSync(target)) return false
+  let stamp = target
+  try {
+    const stat = statSync(target)
+    stamp = `${target}:${stat.size}:${stat.mtimeMs}`
+  } catch {
+    return false
+  }
+  const cached = macSecurityAssessmentCache.get(stamp)
+  if (cached && cached.expiresAt > Date.now()) return cached.risky
+
+  const risky = await new Promise<boolean>((resolve) => {
+    let output = ''
+    let settled = false
+    const finish = (value: boolean) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const p = spawn('spctl', ['--assess', '--type', 'execute', '-vv', target], {
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    const append = (data: Buffer) => {
+      output = `${output}${decodeProcessOutput(data)}`.slice(-4000)
+    }
+    p.stdout.on('data', append)
+    p.stderr.on('data', append)
+    p.on('error', () => finish(false))
+    p.on('close', () => finish(isExplicitMacSecurityAssessmentFailure(output)))
+    const timer = setTimeout(() => {
+      p.kill()
+      finish(false)
+    }, 5000)
   })
+  macSecurityAssessmentCache.set(stamp, { expiresAt: Date.now() + 60_000, risky })
+  return risky
+}
+
+async function codexMacSecurityRisk(
+  inspection: CodexInstallInspection | undefined,
+  quarantined: boolean
+): Promise<boolean> {
+  if (process.platform !== 'darwin') return false
+  if (quarantined || inspection?.runtimeMissing) return true
+  return hasExplicitMacSecurityFailure(inspection?.executablePath)
 }
 
 function run(cmd: string, args: string[]): Promise<string> {
@@ -224,6 +312,23 @@ function run(cmd: string, args: string[]): Promise<string> {
       code === 0 ? resolve(out.trim()) : reject(new Error(lastLines(err || out, 8) || `exit ${code}`))
     )
   })
+}
+
+async function npmGlobalBinDir(npm: string): Promise<string> {
+  try {
+    const prefix = (await run(npm, ['prefix', '-g'])).trim()
+    if (prefix) return process.platform === 'win32' ? prefix : join(prefix, 'bin')
+  } catch {
+    /* classic npm layouts place global commands beside npm */
+  }
+  return dirname(npm)
+}
+
+async function npmInstalledCommand(npm: string, command: string): Promise<string | undefined> {
+  const dirs = uniquePaths([await npmGlobalBinDir(npm), dirname(npm)])
+  return dirs
+    .flatMap((dir) => commandNames(command).map((name) => join(dir, name)))
+    .find((candidate) => existsSync(candidate))
 }
 
 function runStreaming(cmd: string, args: string[], onProgress: Progress, label: string): Promise<void> {
@@ -262,28 +367,100 @@ function hermesCommandDirs(): string[] {
 }
 
 function pathCandidates(cmd: string): string[] {
-  const exts = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';') : ['']
-  const names =
-    process.platform === 'win32' && !/\.[A-Za-z0-9]+$/.test(cmd)
-      ? exts.map((ext) => `${cmd}${ext.toLowerCase()}`)
-      : [cmd]
-  const defaultDirs =
-    process.platform === 'win32'
-      ? []
-      : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
-  return uniquePaths([...(process.env.PATH ?? '').split(delimiter), ...defaultDirs])
+  const names = commandNames(cmd)
+  return uniquePaths([...(process.env.PATH ?? '').split(delimiter), ...commonCliPathDirs()])
     .filter(Boolean)
     .flatMap((dir) => names.map((name) => join(dir, name)))
 }
 
-function commandPathCandidates(cmd: string, id?: CliId): string[] {
-  const candidates = pathCandidates(cmd)
-  if (id !== 'hermes') return candidates
+function commandNames(cmd: string): string[] {
   const exts = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';') : ['']
-  const names =
-    process.platform === 'win32' && !/\.[A-Za-z0-9]+$/.test(cmd)
-      ? exts.map((ext) => `${cmd}${ext.toLowerCase()}`)
-      : [cmd]
+  return process.platform === 'win32' && !/\.[A-Za-z0-9]+$/.test(cmd)
+    ? exts.map((ext) => `${cmd}${ext.toLowerCase()}`)
+    : [cmd]
+}
+
+function versionedBinDirs(root: string, suffix: string[]): string[] {
+  try {
+    return readdirSync(root, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }))
+      .map((entry) => join(root, entry.name, ...suffix))
+  } catch {
+    return []
+  }
+}
+
+function npmManagedBinDirs(): string[] {
+  if (process.platform === 'win32') {
+    return uniquePaths(
+      [
+        process.env.APPDATA ? join(process.env.APPDATA, 'npm') : undefined,
+        process.env.NVM_SYMLINK,
+        process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Volta', 'bin') : undefined,
+        process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'pnpm') : undefined,
+        join(homedir(), '.bun', 'bin')
+      ].filter((dir): dir is string => !!dir)
+    )
+  }
+  return uniquePaths([
+    ...commonCliPathDirs(),
+    ...versionedBinDirs(join(homedir(), '.nvm', 'versions', 'node'), ['bin']),
+    ...versionedBinDirs(join(homedir(), '.local', 'share', 'fnm', 'node-versions'), ['installation', 'bin']),
+    ...versionedBinDirs(join(homedir(), 'Library', 'Application Support', 'fnm', 'node-versions'), [
+      'installation',
+      'bin'
+    ]),
+    ...versionedBinDirs(join(homedir(), '.local', 'share', 'mise', 'installs', 'node'), ['bin']),
+    join(homedir(), '.volta', 'bin'),
+    join(homedir(), '.bun', 'bin'),
+    ...[process.env.PNPM_HOME, join(homedir(), 'Library', 'pnpm'), join(homedir(), '.local', 'share', 'pnpm')].filter(
+      (dir): dir is string => !!dir
+    )
+  ])
+}
+
+function codexExtraCandidates(): string[] {
+  const names = process.platform === 'win32' ? ['codex.exe', 'codex.cmd', 'codex.bat', 'codex'] : ['codex']
+  const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex')
+  const customInstallDir = process.env.CODEX_INSTALL_DIR
+  const visibleDirs =
+    process.platform === 'win32'
+      ? [customInstallDir, process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs', 'OpenAI', 'Codex', 'bin') : undefined]
+      : [customInstallDir, join(homedir(), '.local', 'bin')]
+  const standalone = [
+    ...names.map((name) => join(codexHome, 'packages', 'standalone', 'current', 'bin', name)),
+    ...names.map((name) => join(codexHome, 'packages', 'standalone', 'current', name))
+  ]
+  const appBundled =
+    process.platform === 'darwin'
+      ? [
+          '/Applications/Codex.app/Contents/Resources/codex',
+          '/Applications/ChatGPT.app/Contents/Resources/codex'
+        ]
+      : []
+  const npmManaged = npmManagedBinDirs().flatMap((dir) => names.map((name) => join(dir, name)))
+  return uniquePaths([
+    ...visibleDirs
+      .filter((dir): dir is string => !!dir)
+      .flatMap((dir) => names.map((name) => join(dir, name))),
+    ...standalone,
+    ...npmManaged,
+    ...appBundled
+  ]).filter((candidate) => existsSync(candidate))
+}
+
+export function commandSearchCandidates(cmd: string, id?: CliId): string[] {
+  const candidates = pathCandidates(cmd)
+  if (id === 'codex') return uniquePaths([...candidates, ...codexExtraCandidates()])
+  const names = commandNames(cmd)
+  if (cmd === 'npm' || (id && isNpmCliId(id))) {
+    return uniquePaths([
+      ...candidates,
+      ...npmManagedBinDirs().flatMap((dir) => names.map((name) => join(dir, name)))
+    ])
+  }
+  if (id !== 'hermes') return candidates
   return uniquePaths([
     ...candidates,
     ...hermesCommandDirs().flatMap((dir) => names.map((name) => join(dir, name)))
@@ -312,7 +489,7 @@ function uniquePaths(paths: string[]): string[] {
 
 async function whichAll(cmd: string, id?: CliId): Promise<string[]> {
   if (isAbsolute(cmd) || cmd.includes('/') || cmd.includes('\\')) return existsSync(cmd) ? [cmd] : []
-  const direct = uniquePaths(commandPathCandidates(cmd, id).filter((candidate) => existsSync(candidate)))
+  const direct = uniquePaths(commandSearchCandidates(cmd, id).filter((candidate) => existsSync(candidate)))
   const finder = process.platform === 'win32' ? 'where' : 'which'
   const fromFinder = await new Promise<string[]>((resolve) => {
     const args = process.platform === 'win32' ? [cmd] : ['-a', cmd]
@@ -340,6 +517,12 @@ async function which(cmd: string): Promise<string | null> {
   return first ?? null
 }
 
+/** Detect commands from a GUI process whose PATH may omit /usr/local/bin,
+ * Homebrew, nvm, fnm, mise, Volta, pnpm, or user-local bin directories. */
+export function findSystemCommand(cmd: string): Promise<string | null> {
+  return which(cmd)
+}
+
 async function systemCandidates(id: CliId): Promise<SystemCliCandidate[]> {
   const command = SYSTEM_COMMANDS[id]
   const paths = await whichAll(command, id)
@@ -350,7 +533,21 @@ async function systemCandidates(id: CliId): Promise<SystemCliCandidate[]> {
     const key = process.platform === 'win32' ? realPath.toLowerCase() : realPath
     if (seen.has(key)) continue
     seen.add(key)
-    out.push({ path, realPath, version: await systemVersion(path) })
+    const codexInspection = id === 'codex' ? inspectCodexInstall(path, realPath) : undefined
+    const quarantined = await isMacQuarantined(path, realPath, codexInspection?.executablePath)
+    const macosSecurityRisk =
+      id === 'codex'
+        ? await codexMacSecurityRisk(codexInspection, quarantined)
+        : process.platform === 'darwin' && quarantined
+    out.push({
+      path,
+      realPath,
+      version: macosSecurityRisk ? codexInspection?.version : await systemVersion(id, path, realPath),
+      quarantined: quarantined || undefined,
+      macosSecurityRisk: macosSecurityRisk || undefined,
+      installKind: codexInspection?.installKind,
+      packageManager: codexInspection?.packageManager
+    })
   }
   return out
 }
@@ -370,10 +567,26 @@ export async function detectSystemCli(
       return key === configuredKey
     })
     if (!hasConfigured) {
+      const codexInspection = id === 'codex' ? inspectCodexInstall(configuredBinPath, configuredRealPath) : undefined
+      const quarantined = await isMacQuarantined(
+        configuredBinPath,
+        configuredRealPath,
+        codexInspection?.executablePath
+      )
+      const macosSecurityRisk =
+        id === 'codex'
+          ? await codexMacSecurityRisk(codexInspection, quarantined)
+          : process.platform === 'darwin' && quarantined
       candidates.unshift({
         path: configuredBinPath,
         realPath: configuredRealPath,
-        version: await systemVersion(configuredBinPath)
+        version: macosSecurityRisk
+          ? codexInspection?.version
+          : await systemVersion(id, configuredBinPath, configuredRealPath),
+        quarantined: quarantined || undefined,
+        macosSecurityRisk: macosSecurityRisk || undefined,
+        installKind: codexInspection?.installKind,
+        packageManager: codexInspection?.packageManager
       })
     }
   }
@@ -395,7 +608,7 @@ export async function detectSystemCli(
 
   if (status === 'stale') selectedPath = candidates[0]?.path
 
-  const detail =
+  const baseDetail =
     status === 'linked'
       ? duplicate
         ? `Pinned ${selectedPath}; ${candidates.length} ${command} commands are still detected`
@@ -408,6 +621,18 @@ export async function detectSystemCli(
             ? 'The recorded command is missing'
             : `${command} was not detected`
 
+  const selectedCandidate = selectedPath
+    ? candidates.find((candidate) => candidate.path === selectedPath || candidate.realPath === selectedPath)
+    : undefined
+  const quarantined = selectedCandidate?.quarantined
+  const macosSecurityRisk = selectedCandidate?.macosSecurityRisk
+  const installKind = selectedCandidate?.installKind
+  const packageManager = selectedCandidate?.packageManager
+  const detail =
+    id === 'codex' && selectedPath && installKind
+      ? `${baseDetail} · ${codexInstallLabel(installKind, packageManager)}`
+      : baseDetail
+
   return {
     cliId: id,
     command,
@@ -417,7 +642,11 @@ export async function detectSystemCli(
     installed,
     duplicate,
     status,
-    detail
+    detail,
+    quarantined,
+    macosSecurityRisk,
+    installKind,
+    packageManager
   }
 }
 
@@ -445,22 +674,27 @@ async function installHermesAgent(onProgress: Progress): Promise<void> {
   )
 }
 
-async function installSystemCli(id: CliId, onProgress: Progress, reinstall: boolean): Promise<void> {
+async function installSystemCli(
+  id: CliId,
+  onProgress: Progress,
+  reinstall: boolean
+): Promise<string | undefined> {
   if (id === 'hermes') {
     await installHermesAgent(onProgress)
-    return
+    return undefined
   }
   const npm = await which('npm')
   if (npm) {
     if (!isNpmCliId(id)) throw new Error(`${SYSTEM_COMMANDS[id]} does not support automatic installation`)
     const pkg = NPM_PACKAGES[id]
     onProgress('system', `${reinstall ? 'Reinstalling' : 'Installing'} ${pkg}…`)
-    const args = ['install', '-g', pkg]
-    if (reinstall) {
-      await runStreaming(npm, ['uninstall', '-g', pkg], onProgress, 'npm')
-    }
-    await runStreaming(npm, args, onProgress, 'npm')
-    return
+    await runStreaming(
+      npm,
+      ['install', '-g', `${pkg}@latest`, '--no-audit', '--no-fund', '--no-update-notifier'],
+      onProgress,
+      'npm'
+    )
+    return npmInstalledCommand(npm, SYSTEM_COMMANDS[id])
   }
 
   const command = SYSTEM_COMMANDS[id]
@@ -476,9 +710,46 @@ async function updateSystemCli(id: CliId, onProgress: Progress, binPath?: string
     throw new Error(`System command does not exist: ${selected}`)
   }
   const realSelected = await normalizePath(selected)
-  const commands = systemUpdateCommands(id, selected, realSelected)
+  const detection = await detectSystemCli(id, selected)
+  const candidate = detection.candidates.find(
+    (item) => item.path === selected || item.realPath === selected || item.realPath === realSelected
+  )
+  const commands = systemUpdateCommands(
+    id,
+    selected,
+    realSelected,
+    candidate?.installKind,
+    candidate?.packageManager
+  )
+  if (candidate?.macosSecurityRisk) {
+    // Product policy requires a manual uninstall/update for a blocked binary.
+    // Do not run either the binary itself or a package-manager repair here.
+    throw new Error(macosSecurityManualUpdateMessage(id))
+  }
   if (!commands.length) {
-    throw new Error('The CLI install manager could not be determined. Update it with the original install method, then check again here.')
+    if (id === 'codex') {
+      const method = candidate?.installKind
+        ? codexInstallLabel(candidate.installKind, candidate.packageManager)
+        : 'original install method'
+      throw new Error(`Automatic update is not available for this ${method}. Reinstall Codex with npm instead.`)
+    }
+    throw new Error(
+      `Automatic update is not available for ${SYSTEM_COMMANDS[id]}. Reinstall it with the system npm instead.`
+    )
+  }
+
+  // Self-updaters like `claude update` can exit 0 after updating a different
+  // (self-managed) copy of the CLI, leaving the linked binary untouched. Only
+  // trust a command when the linked binary's version actually moved (or is
+  // already at the registry latest) — otherwise fall through to the next one.
+  const before = await systemVersion(id, selected, realSelected)
+  let latest: string | undefined
+  if (isNpmCliId(id)) {
+    try {
+      latest = (await npmMeta(`${NPM_PACKAGES[id]}/latest`)).version
+    } catch {
+      /* offline registry check — fall back to before/after comparison only */
+    }
   }
 
   let lastError: unknown
@@ -486,17 +757,21 @@ async function updateSystemCli(id: CliId, onProgress: Progress, binPath?: string
     try {
       onProgress('system', `Running ${command.label}…`)
       await runStreaming(command.file, command.args, onProgress, command.label)
-      return selected
     } catch (e) {
       lastError = e
+      continue
     }
+    const after = await systemVersion(id, selected, await normalizePath(selected))
+    const probed = !!versionParts(after)
+    const changed = probed && after !== before
+    const atLatest = probed && !!latest && !isVersionNewer(latest, after)
+    if (changed || atLatest) return selected
+    lastError = new Error(
+      `${command.label} finished, but ${basename(selected)} still reports ${after}. ` +
+        'The update likely went to another install that shadows this path. Remove this copy and reinstall with Agent Launcher, or update it with its original install method.'
+    )
   }
   throw lastError instanceof Error ? lastError : new Error(String(lastError))
-}
-
-async function repairSystemCli(id: CliId, onProgress: Progress): Promise<void> {
-  const command = SYSTEM_COMMANDS[id]
-  onProgress('repair', `Pinning the highest-priority ${command} command on PATH…`)
 }
 
 function backupPathForCli(id: CliId, binPath: string): string {
@@ -529,15 +804,31 @@ export async function cleanupSystemCli(id: CliId, binPath: string): Promise<Clea
 async function linkSystemCli(id: CliId, onProgress: Progress, binPath?: string): Promise<InstallResult> {
   onProgress('link', 'Finding system CLI…')
   const target = SYSTEM_COMMANDS[id]
-  const detection = await detectSystemCli(id)
+  const detection = await detectSystemCli(id, binPath)
   const selected = binPath ?? detection.selectedPath
   if (!selected) throw new Error(`System command ${target} was not found. Use Install to let Agent Launcher install it.`)
   if (!existsSync(selected)) {
     throw new Error(`System command does not exist: ${selected}`)
   }
+  const selectedCandidate = detection.candidates.find(
+    (candidate) => candidate.path === selected || candidate.realPath === selected
+  )
+  if (selectedCandidate?.macosSecurityRisk) {
+    throw new Error(macosSecurityManualUpdateMessage(id))
+  }
+  if (await isMacQuarantined(selected, await normalizePath(selected))) {
+    throw new Error(macosSecurityManualUpdateMessage(id))
+  }
   onProgress('verify', `Verifying ${basename(selected)}…`)
-  const version = await systemVersion(selected)
-  setInstallState(id, { installed: true, source: 'system', version, binPath: selected })
+  const version = await systemVersion(id, selected, selectedCandidate?.realPath)
+  setInstallState(id, {
+    installed: true,
+    source: 'system',
+    version,
+    binPath: selected,
+    installKind: selectedCandidate?.installKind,
+    packageManager: selectedCandidate?.packageManager
+  })
   const warning =
     detection.duplicate && !binPath
       ? `Detected ${detection.candidates.length} ${target} commands; temporarily using the highest-priority version on PATH`
@@ -553,19 +844,37 @@ async function useSystemCli(
 ): Promise<InstallResult> {
   if (action === 'install' || action === 'reinstall') {
     if (id === 'hermes') {
-      await installSystemCli(id, onProgress, action === 'reinstall')
-      return linkSystemCli(id, onProgress, binPath)
+      const installedPath = await installSystemCli(id, onProgress, action === 'reinstall')
+      return linkSystemCli(id, onProgress, installedPath ?? binPath)
     }
     if (action === 'reinstall') {
+      if (id === 'codex') {
+        const configuredPath = binPath ?? loadConfig().install.codex.binPath
+        const detection = await detectSystemCli('codex', configuredPath)
+        const candidate = detection.candidates.find(
+          (entry) => entry.path === configuredPath || entry.realPath === configuredPath
+        )
+        const strategy = candidate?.installKind
+          ? codexUpdateStrategy(candidate.installKind)
+          : 'npm-reinstall'
+        if (candidate?.macosSecurityRisk) {
+          throw new Error(macosSecurityManualUpdateMessage('codex'))
+        }
+        if (strategy === 'npm-reinstall') {
+          onProgress('repair', 'Reinstalling Codex with npm…')
+          return installCodexWithNpm(onProgress, configuredPath)
+        }
+      }
       const selected = await updateSystemCli(id, onProgress, binPath)
       return linkSystemCli(id, onProgress, selected)
     }
-    await installSystemCli(id, onProgress, false)
-    return linkSystemCli(id, onProgress, binPath)
+    const installedPath = await installSystemCli(id, onProgress, false)
+    return linkSystemCli(id, onProgress, installedPath ?? binPath)
   }
   if (action === 'repair') {
-    await repairSystemCli(id, onProgress)
-    return linkSystemCli(id, onProgress, binPath)
+    if (id === 'codex') return installCodexWithNpm(onProgress, binPath)
+    const installedPath = await installSystemCli(id, onProgress, true)
+    return linkSystemCli(id, onProgress, installedPath ?? binPath)
   }
   return linkSystemCli(id, onProgress, binPath)
 }
@@ -583,7 +892,9 @@ function versionParts(version?: string): number[] | null {
 function isVersionNewer(latest?: string, current?: string): boolean {
   const a = versionParts(latest)
   const b = versionParts(current)
-  if (!a || !b) return !!latest && !!current && latest !== current
+  // Unknown versions (e.g. a probe that failed and recorded 'system') can't be
+  // compared — claiming an update would show a permanent phantom "update available".
+  if (!a || !b) return false
   const max = Math.max(a.length, b.length)
   for (let i = 0; i < max; i += 1) {
     const diff = (a[i] ?? 0) - (b[i] ?? 0)
@@ -596,6 +907,16 @@ function isVersionNewer(latest?: string, current?: string): boolean {
 function installExists(id: CliId, install: CliInstallState): boolean {
   if (!install.binPath || !existsSync(install.binPath)) return false
   if (install.source !== 'sandbox') return true
+  if (id === 'codex' && install.installKind === 'standalone') {
+    const packageRoot = dirname(dirname(install.binPath))
+    const helper = join(
+      packageRoot,
+      'bin',
+      process.platform === 'win32' ? 'codex-code-mode-host.exe' : 'codex-code-mode-host'
+    )
+    const rg = join(packageRoot, 'codex-path', process.platform === 'win32' ? 'rg.exe' : 'rg')
+    if (!existsSync(join(packageRoot, 'codex-package.json')) || !existsSync(helper) || !existsSync(rg)) return false
+  }
   if (install.nodeEntry) return existsSync(install.nodeEntry)
   if (NODE_NPM_ENTRY_ROOT[id]) {
     return !!install.nodeEntry && existsSync(install.nodeEntry)
@@ -603,120 +924,53 @@ function installExists(id: CliId, install: CliInstallState): boolean {
   return true
 }
 
-async function systemVersion(binPath: string): Promise<string> {
+async function systemVersion(id: CliId, binPath: string, realPath?: string): Promise<string> {
   try {
+    if (id === 'codex') {
+      const inspected = inspectCodexInstall(binPath, realPath ?? (await normalizePath(binPath)))
+      if (inspected.version) return inspected.version
+      if (process.platform === 'darwin') return 'system'
+    }
+    // Never execute a quarantined binary — that pops the Gatekeeper dialog.
+    if (await isMacQuarantined(binPath, await normalizePath(binPath))) return 'system'
     return parseVersion(await run(binPath, ['--version']))
   } catch {
     return 'system'
   }
 }
 
-/** Claude Code: native binary from the platform optional-dep package. */
-async function installClaude(onProgress: Progress): Promise<InstallResult> {
-  const p = detectPlatform()
-  onProgress('resolve', 'Resolving version…')
-  const main = await npmMeta('@anthropic-ai/claude-code/latest')
-  const sub = `@anthropic-ai/claude-code-${p.platformKey}`
-  const subMeta = await npmMeta(`${sub}/${main.version}`)
-  const dir = paths.cliInstall('claude-code')
-  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress, subMeta.dist.integrity)
-  const binPath = join(dir, p.os === 'win32' ? 'claude.exe' : 'claude')
-  if (!existsSync(binPath)) throw new Error('claude binary missing after extract')
-  if (p.os !== 'win32') chmodSync(binPath, 0o755)
-  onProgress('verify', 'Verifying…')
-  let version = main.version
-  try {
-    version = (await run(binPath, ['--version'])).split(/\s+/)[0] || main.version
-  } catch {
-    /* keep registry version if --version fails (e.g. wrong arch under emulation) */
+async function npmForCodex(preferredCodexPath?: string): Promise<string> {
+  const configuredPath = preferredCodexPath ?? loadConfig().install.codex.binPath
+  const adjacent = configuredPath ? siblingBin(configuredPath, 'npm') : null
+  if (adjacent) return adjacent
+
+  const detection = await detectSystemCli('codex', configuredPath)
+  for (const candidate of detection.candidates) {
+    const npm = siblingBin(candidate.path, 'npm')
+    if (npm) return npm
   }
-  setInstallState('claude-code', { installed: true, source: 'sandbox', version, binPath })
-  return { ok: true, cliId: 'claude-code', version, binPath, source: 'sandbox' }
+
+  const npm = await which('npm')
+  if (npm) return npm
+  throw new Error('npm was not detected. Install Node.js/npm, then retry the Codex repair.')
 }
 
-/** Codex: native Rust binary from @openai/codex@<ver>-<platform> (keeps vendor/). */
-async function installCodex(onProgress: Progress): Promise<InstallResult> {
-  const p = detectPlatform()
-  onProgress('resolve', 'Resolving version…')
-  const main = await npmMeta('@openai/codex/latest')
-  const subMeta = await npmMeta(`@openai/codex/${main.version}-${p.platformKey}`)
-  const dir = paths.cliInstall('codex')
-  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress, subMeta.dist.integrity)
-  const triple = codexTargetTriple(p)
-  const binPath = join(dir, 'vendor', triple, 'bin', p.os === 'win32' ? 'codex.exe' : 'codex')
-  if (!existsSync(binPath)) throw new Error(`codex binary missing: ${binPath}`)
-  if (p.os !== 'win32') chmodSync(binPath, 0o755)
-  onProgress('verify', 'Verifying…')
-  let version = main.version
-  try {
-    version = (await run(binPath, ['--version'])).split(/\s+/).pop() || main.version
-  } catch {
-    /* keep registry version */
+/** Codex installation and repair temporarily use the user's npm environment. */
+async function installCodexWithNpm(onProgress: Progress, preferredCodexPath?: string): Promise<InstallResult> {
+  const npm = await npmForCodex(preferredCodexPath)
+  onProgress('npm', 'Installing the latest Codex with npm…')
+  await runStreaming(
+    npm,
+    ['install', '-g', '@openai/codex@latest', '--no-audit', '--no-fund', '--no-update-notifier'],
+    onProgress,
+    'npm install -g @openai/codex@latest'
+  )
+
+  const installedPath = await npmInstalledCommand(npm, 'codex')
+  if (!installedPath) {
+    throw new Error(`npm completed, but the installed Codex command could not be located from ${basename(npm)}`)
   }
-  setInstallState('codex', { installed: true, source: 'sandbox', version, binPath })
-  return { ok: true, cliId: 'codex', version, binPath, source: 'sandbox' }
-}
-
-/** opencode: native binary from the platform optional-dep package (no Node). */
-async function installOpencode(onProgress: Progress): Promise<InstallResult> {
-  const p = detectPlatform()
-  onProgress('resolve', 'Resolving version…')
-  const main = await npmMeta('opencode-ai/latest')
-  const sub = `opencode-${opencodePlatformKey(p)}`
-  const subMeta = await npmMeta(`${sub}/${main.version}`)
-  const dir = paths.cliInstall('opencode')
-  await downloadAndExtract(subMeta.dist.tarball, dir, onProgress, subMeta.dist.integrity)
-  const binPath = join(dir, 'bin', p.os === 'win32' ? 'opencode.exe' : 'opencode')
-  if (!existsSync(binPath)) throw new Error('opencode binary missing after extract')
-  if (p.os !== 'win32') chmodSync(binPath, 0o755)
-  onProgress('verify', 'Verifying…')
-  let version = main.version
-  try {
-    version = (await run(binPath, ['--version'])).trim().split(/\s+/).pop() || main.version
-  } catch {
-    /* keep registry version */
-  }
-  setInstallState('opencode', { installed: true, source: 'sandbox', version, binPath })
-  return { ok: true, cliId: 'opencode', version, binPath, source: 'sandbox' }
-}
-
-/** Pi: Node app — bundled portable Node + npm install into sandbox. */
-async function installPi(onProgress: Progress): Promise<InstallResult> {
-  onProgress('node', 'Preparing portable Node…')
-  const { nodeBin, npmCli } = await ensureNode((msg, f) => onProgress('node', msg, f))
-  const dir = paths.cliInstall('pi')
-  mkdirSync(dir, { recursive: true })
-  mkdirSync(paths.npmCache, { recursive: true })
-  const emptyNpmrc = join(paths.root, '.npmrc-empty')
-  writeFileSync(emptyNpmrc, '')
-
-  onProgress('npm', 'Installing Pi with npm…')
-  await run(nodeBin, [
-    npmCli,
-    'install',
-    '@earendil-works/pi-coding-agent@latest',
-    '--prefix',
-    dir,
-    '--no-audit',
-    '--no-fund',
-    '--no-update-notifier',
-    `--cache=${paths.npmCache}`,
-    `--userconfig=${emptyNpmrc}`
-  ])
-
-  const pkgRoot = join(dir, 'node_modules', '@earendil-works', 'pi-coding-agent')
-  const entry = join(pkgRoot, 'dist', 'cli.js')
-  if (!existsSync(entry)) throw new Error('pi entry missing after npm install')
-  onProgress('verify', 'Verifying…')
-  // pi prints --version to stderr; read the installed package.json instead.
-  let version = ''
-  try {
-    version = JSON.parse(readFileSync(join(pkgRoot, 'package.json'), 'utf8')).version ?? ''
-  } catch {
-    /* ignore */
-  }
-  setInstallState('pi', { installed: true, source: 'sandbox', version, binPath: nodeBin, nodeEntry: entry })
-  return { ok: true, cliId: 'pi', version, binPath: nodeBin, source: 'sandbox' }
+  return linkSystemCli('codex', onProgress, installedPath)
 }
 
 export async function installCli(
@@ -725,13 +979,31 @@ export async function installCli(
   opts: InstallOptions = {}
 ): Promise<InstallResult> {
   try {
-    if (opts.source !== 'sandbox') return await useSystemCli(id, onProgress, opts.action, opts.binPath)
-    if (id === 'hermes') return await useSystemCli(id, onProgress, opts.action ?? 'install', opts.binPath)
-    if (id === 'claude-code') return await installClaude(onProgress)
-    if (id === 'codex') return await installCodex(onProgress)
-    if (id === 'opencode') return await installOpencode(onProgress)
-    if (id === 'pi') return await installPi(onProgress)
-    throw new Error(`Unknown CLI: ${id}`)
+    const action = opts.action ?? 'install'
+    const legacyManagedInstall = loadConfig().install[id].source === 'sandbox'
+    if (id === 'codex') {
+      if (action === 'link') return await linkSystemCli('codex', onProgress, opts.binPath)
+      if (action === 'install' || action === 'repair' || legacyManagedInstall) {
+        if (process.platform === 'darwin') {
+          const configuredPath = opts.binPath ?? loadConfig().install.codex.binPath
+          const detection = await detectSystemCli('codex', configuredPath)
+          if (detection.macosSecurityRisk) {
+            throw new Error(macosSecurityManualUpdateMessage('codex'))
+          }
+        }
+        return await installCodexWithNpm(onProgress, opts.binPath)
+      }
+      return await useSystemCli('codex', onProgress, action, opts.binPath)
+    }
+    // The old app-managed installation mode is read-only compatibility now.
+    // Any install/repair/update migrates it to the system npm/official path.
+    const effectiveAction = legacyManagedInstall && action !== 'link' ? 'install' : action
+    return await useSystemCli(
+      id,
+      onProgress,
+      effectiveAction,
+      legacyManagedInstall && action !== 'link' ? undefined : opts.binPath
+    )
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
     onProgress('error', error)
@@ -748,7 +1020,31 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
       const configured = install.installed
       const installed = configured && installExists(cliId, install)
       const stale = configured && !installed
+      const legacyManaged = install.source === 'sandbox'
       try {
+        // System binaries are also updated outside the app; re-probe the live
+        // version instead of trusting the recorded one, so a finished update
+        // (or an external one) clears the "update available" badge.
+        let currentVersion = install.version
+        if (installed && install.source === 'system' && install.binPath) {
+          const realPath = await normalizePath(install.binPath)
+          const inspection = cliId === 'codex' ? inspectCodexInstall(install.binPath, realPath) : undefined
+          const live = await systemVersion(cliId, install.binPath, realPath)
+          const nextVersion = versionParts(live) ? live : currentVersion
+          if (
+            nextVersion !== currentVersion ||
+            inspection?.installKind !== install.installKind ||
+            inspection?.packageManager !== install.packageManager
+          ) {
+            setInstallState(cliId, {
+              ...install,
+              version: nextVersion,
+              installKind: inspection?.installKind,
+              packageManager: inspection?.packageManager
+            })
+            currentVersion = nextVersion
+          }
+        }
         // Hermes releases live on PyPI; the rest are npm packages. Updating
         // hermes re-runs the official installer, which always installs latest.
         const latestVersion = isNpmCliId(cliId)
@@ -760,9 +1056,11 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
           configured,
           stale,
           source: install.source,
-          currentVersion: install.version,
+          currentVersion,
           latestVersion,
-          updateAvailable: installed ? isVersionNewer(latestVersion, install.version) : configured,
+          updateAvailable: installed
+            ? legacyManaged || isVersionNewer(latestVersion, currentVersion)
+            : configured,
           canInstallUpdate: installed && !stale,
           binPath: install.binPath,
           checkedAt
@@ -775,7 +1073,7 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
           stale,
           source: install.source,
           currentVersion: install.version,
-          updateAvailable: false,
+          updateAvailable: installed && legacyManaged,
           canInstallUpdate: installed && !stale,
           binPath: install.binPath,
           error: e instanceof Error ? e.message : String(e),

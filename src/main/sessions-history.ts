@@ -15,6 +15,7 @@ import type { ChildProcess } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
 import type initSqlJs from 'sql.js'
 import { buildCliEnv } from './cli-env'
+import { assertCliLaunchAllowed } from './cli-launch-safety'
 import { getSql, readSqliteSnapshot } from './sqlite'
 import { hermesHomeDir } from './config-paths'
 import { decodeProcessOutput, spawnProcess } from './process'
@@ -621,6 +622,7 @@ function codexSessionNames(): Map<string, string> {
 function createCodexAppServerClient(): CodexAppServerClient {
   const install = loadConfig().install.codex
   if (!install.installed || !install.binPath) throw new Error('Codex is not installed')
+  assertCliLaunchAllowed('codex', install)
 
   const proc = spawnProcess(install.binPath, ['app-server', '--stdio'], {
     cwd: homedir(),

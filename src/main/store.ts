@@ -151,6 +151,10 @@ function normalize(raw: unknown): AppConfig {
     if (r.install?.[id]) {
       base.install[id] = { ...base.install[id], ...r.install[id] }
       base.install[id].source = inferInstallSource(base.install[id])
+      // Security blocks are detection-session state. Older builds persisted a
+      // version-based guess here, which could keep a working Codex disabled
+      // after restart even though no explicit security failure was present.
+      base.install[id].launchBlockedReason = undefined
     }
     if (rp?.[id]) base.prefs[id] = { ...base.prefs[id], ...rp[id] }
     if (rr?.[id]) {

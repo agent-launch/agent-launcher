@@ -5,6 +5,7 @@ import type { WebContents } from 'electron'
 import { paths } from './sandbox'
 import { loadConfig, getActiveProfile, getInstallSource } from './store'
 import { buildCliEnv } from './cli-env'
+import { assertCliLaunchAllowed } from './cli-launch-safety'
 import { resolveLaunchCwd } from './launch-cwd'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
 import { spawnProcess } from './process'
@@ -337,7 +338,7 @@ function turnTarget(s: ChatState, text: string): { file: string; args: string[] 
   if (install.source === 'system') {
     return { file: bin, args: ['--mode', 'json', '-p', text, ...sess, ...modelArgs] }
   }
-  // Sandboxed pi (node app): node + cli.js entry.
+  // Legacy managed Pi (node app): node + cli.js entry.
   const entry = install.nodeEntry as string
   return { file: bin, args: [entry, '--mode', 'json', '-p', text, ...sess, ...modelArgs] }
 }
@@ -373,6 +374,7 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
   const cfg = loadConfig()
   const install = cfg.install[opts.cliId]
   if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} is not installed`)
+  assertCliLaunchAllowed(opts.cliId, install)
 
   const cwd = resolveLaunchCwd(opts.cwd)
   if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') writeNativeConfig(opts.cliId)

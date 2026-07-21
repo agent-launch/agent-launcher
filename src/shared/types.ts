@@ -2,9 +2,19 @@
 
 export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes'
 
-export type InstallStrategy = 'native-binary' | 'node-npm' | 'system'
+export type InstallStrategy = 'npm-global' | 'official'
 export type InstallSource = 'sandbox' | 'system'
 export type InstallAction = 'link' | 'install' | 'reinstall' | 'repair'
+export type CodexInstallKind =
+  | 'standalone'
+  | 'npm'
+  | 'homebrew-cask'
+  | 'github-release'
+  | 'dotslash'
+  | 'source-build'
+  | 'app-bundled'
+  | 'unknown'
+export type CodexPackageManager = 'npm' | 'pnpm' | 'bun' | 'volta'
 
 export interface PlatformInfo {
   os: 'darwin' | 'win32' | 'linux'
@@ -36,12 +46,25 @@ export interface CliInstallState {
   binPath?: string
   /** For node-npm CLIs (Pi): the bundled-node entry we exec. */
   nodeEntry?: string
+  /** Prevents launch paths from executing a binary that macOS has blocked or
+   * that must be replaced before it is safe to probe. */
+  launchBlockedReason?: 'macos-security'
+  /** Static provenance for Codex system installs. */
+  installKind?: CodexInstallKind
+  packageManager?: CodexPackageManager
 }
 
 export interface SystemCliCandidate {
   path: string
   realPath?: string
   version?: string
+  /** macOS Gatekeeper quarantine — executing this binary pops a security dialog. */
+  quarantined?: boolean
+  /** The candidate must not be executed during detection. For Codex this also
+   * covers explicit Gatekeeper/XProtect assessment failures. */
+  macosSecurityRisk?: boolean
+  installKind?: CodexInstallKind
+  packageManager?: CodexPackageManager
 }
 
 export interface SystemCliDetection {
@@ -54,6 +77,16 @@ export interface SystemCliDetection {
   duplicate: boolean
   status: 'linked' | 'available' | 'missing' | 'duplicate' | 'stale'
   detail: string
+  /** True when the selected candidate carries the macOS quarantine attribute. */
+  quarantined?: boolean
+  /** True when a static check found that launching the selected candidate may
+   * trigger a macOS security dialog. */
+  macosSecurityRisk?: boolean
+  installKind?: CodexInstallKind
+  packageManager?: CodexPackageManager
+  /** A Codex command detected inside the default WSL distribution. It is
+   * informational; the native desktop app installs its own Windows runtime. */
+  wslPath?: string
 }
 
 export interface InstallOptions {

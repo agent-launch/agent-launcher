@@ -3,8 +3,9 @@ import { join } from 'node:path'
 import type { CliId } from '@shared/types'
 
 /**
- * The whole app lives in an isolated sandbox so we never touch the user's
- * existing CLI installs or global npm. Layout:
+ * Agent Launcher state root. CLI/config subdirectories remain for backwards
+ * compatibility with deprecated app-managed installs; new CLI installs use
+ * the system npm or an official installer. Layout:
  *
  *   ~/.agent-launcher/
  *     config.json            app config (provider/key/model, install state)

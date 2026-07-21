@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import type { WebContents } from 'electron'
 import { buildCliEnv } from './cli-env'
+import { cliLaunchBlockMessage, macosSecurityManualUpdateMessage } from './cli-launch-safety'
 import { detectSystemCli } from './install/installer'
 import { hasNativeConfig, writeNativeConfig } from './native-config'
 import { spawnProcess } from './process'
@@ -32,14 +33,26 @@ function statusTarget(cliId: CliId): string[] | null {
 
 async function installedBin(cliId: CliId): Promise<string | undefined> {
   const install = loadConfig().install[cliId]
+  const blocked = cliLaunchBlockMessage(cliId, install)
+  if (blocked) throw new Error(blocked)
   if (install.installed && install.binPath && existsSync(install.binPath)) return install.binPath
 
   const detection = await detectSystemCli(cliId, install.source === 'system' ? install.binPath : undefined)
   const selected = detection.selectedPath
   if (!selected || !existsSync(selected)) return undefined
+  if (detection.macosSecurityRisk) {
+    throw new Error(macosSecurityManualUpdateMessage(cliId))
+  }
 
   const candidate = detection.candidates.find((c) => c.path === selected || c.realPath === selected)
-  setInstallState(cliId, { installed: true, source: 'system', version: candidate?.version, binPath: selected })
+  setInstallState(cliId, {
+    installed: true,
+    source: 'system',
+    version: candidate?.version,
+    binPath: selected,
+    installKind: candidate?.installKind,
+    packageManager: candidate?.packageManager
+  })
   return selected
 }
 
@@ -54,7 +67,18 @@ function isLoggedIn(code: number | null, text: string): boolean {
 }
 
 async function runStatus(cliId: CliId, args: string[]): Promise<AuthStatus> {
-  const bin = await installedBin(cliId)
+  let bin: string | undefined
+  try {
+    bin = await installedBin(cliId)
+  } catch (error) {
+    return {
+      cliId,
+      supported: true,
+      installed: true,
+      loggedIn: false,
+      error: error instanceof Error ? error.message : String(error)
+    }
+  }
   if (!bin) return Promise.resolve({ cliId, supported: !!statusTarget(cliId), installed: false, loggedIn: false })
 
   return new Promise((resolve) => {

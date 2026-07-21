@@ -34,7 +34,7 @@ export interface NodeRuntime {
 }
 
 /**
- * Ensure a portable Node + npm is present in the sandbox. Downloads the
+ * Legacy managed-install helper: ensure a portable Node + npm is present. Downloads the
  * official build, verifies its SHA256 against SHASUMS256.txt, extracts it.
  */
 export async function ensureNode(

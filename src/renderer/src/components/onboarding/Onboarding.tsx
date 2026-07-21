@@ -429,6 +429,9 @@ function CliPathManager({
                       {candidate.version
                         ? `${t("onboarding.versionLabel")} ${candidate.version}`
                         : t("onboarding.versionUnknown")}
+                      {candidate.installKind
+                        ? ` · ${candidate.packageManager ?? candidate.installKind}`
+                        : ""}
                       {candidate.realPath &&
                       candidate.realPath !== candidate.path
                         ? ` · ${candidate.realPath}`
@@ -498,6 +501,9 @@ function InstallStep() {
           const inst = cfg.install[id];
           const detected = result.systemClis?.[id];
           if (!detected?.installed || !detected.selectedPath) return false;
+          // Never probe a candidate that can trigger a macOS security dialog.
+          // The row explains the required manual update instead.
+          if (detected.macosSecurityRisk) return false;
           return (
             !inst?.installed ||
             inst.source !== "system" ||
@@ -512,10 +518,12 @@ function InstallStep() {
             const inst = cfg.install[id];
             const detected = result.systemClis?.[id];
             const staleSystemInstall =
-              inst?.source === "system" && detected?.status === "stale";
+              inst?.source === "system" &&
+              (detected?.status === "stale" || detected?.macosSecurityRisk);
             const shouldAutoLink = autoLinks.includes(id);
             if (
               inst?.installed &&
+              inst.source === "system" &&
               !staleSystemInstall &&
               !shouldAutoLink &&
               !next[id]?.busy
@@ -573,19 +581,9 @@ function InstallStep() {
     action?: InstallAction,
     binPath?: string,
   ) => {
-    const current = ui[id] ?? {};
-    const meta = CLIS.find((c) => c.id === id);
-    const source =
-      action === "link" || action === "repair"
-        ? "system"
-        : action === "reinstall" && current.source === "system"
-          ? "system"
-          : meta?.install === "system"
-            ? "system"
-          : "sandbox";
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }));
     const r = await window.api.install.cli(id, {
-      source,
+      source: "system",
       action,
       binPath,
     });
@@ -610,6 +608,11 @@ function InstallStep() {
       const id = c.id as CliId;
       const s = ui[id] ?? {};
       if (s.phase === "done") continue;
+      if (systemClis[id]?.macosSecurityRisk) {
+        // Risky binaries require a manual uninstall/update and must never be
+        // repaired or launched as part of the bulk action.
+        continue;
+      }
       await installOne(id, installAction(id));
     }
   };
@@ -617,6 +620,7 @@ function InstallStep() {
   const installAction = (id: CliId): InstallAction => {
     const s = ui[id] ?? {};
     const detected = systemClis[id];
+    if (s.phase === "error") return "repair";
     if (s.phase === "done") return "reinstall";
     if (detected?.status === "linked") return "reinstall";
     if (detected?.installed) return "link";
@@ -650,6 +654,14 @@ function InstallStep() {
           const s = ui[c.id] ?? {};
           const id = c.id as CliId;
           const detected = systemClis[id];
+          const hasMacSecurityRisk = !!detected?.macosSecurityRisk;
+          const macSecurityWarning = hasMacSecurityRisk
+            ? t(
+                id === "codex"
+                  ? "onboarding.codexManualUpdateWarning"
+                  : "onboarding.macSecurityManualUpdateWarning",
+              )
+            : undefined;
           return (
             <div
               key={c.id}
@@ -666,9 +678,16 @@ function InstallStep() {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-[14px] text-text-strong">{c.name}</div>
-                <div className="truncate text-[12px] text-text-weak">
+                <div
+                  className={`${hasMacSecurityRisk ? "whitespace-normal break-words leading-relaxed" : "truncate"} text-[12px] text-text-weak`}
+                  title={macSecurityWarning}
+                >
                   {s.error ? (
                     <span style={{ color: "var(--danger)" }}>{s.error}</span>
+                  ) : hasMacSecurityRisk && !s.busy ? (
+                    <span style={{ color: "var(--warning)" }}>
+                      {macSecurityWarning}
+                    </span>
                   ) : s.phase === "done" ? (
                     <span style={{ color: "var(--success)" }}>
                       {t(
@@ -687,10 +706,10 @@ function InstallStep() {
                     `${s.message ?? t("onboarding.installing")}${s.fraction != null ? ` ${Math.round(s.fraction * 100)}%` : ""}`
                   ) : detected?.status === "available" ? (
                     t("onboarding.systemAvailable")
-                  ) : c.install === "system" ? (
+                  ) : c.install === "official" ? (
                     t("onboarding.systemInstallMissing")
                   ) : (
-                    t("onboarding.systemMissing")
+                    t("onboarding.npmSystemMissing")
                   )}
                 </div>
                 {(s.binPath || detected?.selectedPath) && (
@@ -700,14 +719,24 @@ function InstallStep() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  disabled={s.busy}
-                  onClick={() => installOne(id, installAction(id))}
-                >
-                  {actionLabel(id, s.busy)}
-                </Button>
+                {hasMacSecurityRisk ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled
+                  >
+                    {t("onboarding.macSecurityManualUpdateBtn")}
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={s.busy}
+                    onClick={() => installOne(id, installAction(id))}
+                  >
+                    {actionLabel(id, s.busy)}
+                  </Button>
+                )}
               </div>
             </div>
           );
@@ -751,7 +780,12 @@ function ConfigStep() {
   };
 
   useEffect(() => {
-    for (const c of officialClis) refreshStatus(c.id as CliId);
+    // Checking Codex auth executes the CLI. Keep that behind the explicit
+    // "Check" button so simply entering this step cannot reopen a macOS
+    // security dialog.
+    for (const c of officialClis) {
+      if (c.id !== "codex") refreshStatus(c.id as CliId);
+    }
   }, [officialClis]);
 
   useEffect(() => {
