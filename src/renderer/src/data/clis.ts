@@ -61,7 +61,8 @@ export const CLIS: CliMeta[] = [
     glyph: 'G',
     accent: '#4285f4',
     envPrefix: 'GEMINI_* / GOOGLE_GEMINI_*',
-    install: 'npm-global'
+    install: 'npm-global',
+    installDocsUrl: 'https://github.com/google-gemini/gemini-cli'
   },
   {
     id: 'hermes',
