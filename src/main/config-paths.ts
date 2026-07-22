@@ -13,11 +13,25 @@ export function hermesHomeDir(): string {
   return join(homedir(), '.hermes')
 }
 
+/**
+ * gemini-cli's GEMINI_CLI_HOME env var (v0.25+) replaces its own os.homedir()
+ * resolution rather than pointing at a config dir directly, so its actual
+ * state lands at `${GEMINI_CLI_HOME}/.gemini` (see buildCliEnv). Anything
+ * that needs to read gemini's on-disk config/session state directly — not
+ * just set the env var — should go through this instead of cliConfigDir().
+ */
+export function geminiStateDir(): string {
+  return getInstallSource('gemini') === 'system'
+    ? join(homedir(), '.gemini')
+    : join(paths.cliConfig('gemini'), '.gemini')
+}
+
 export function systemCliConfigDir(cliId: CliId): string {
   if (cliId === 'claude-code') return join(homedir(), '.claude')
   if (cliId === 'codex') return join(homedir(), '.codex')
   if (cliId === 'pi') return join(homedir(), '.pi', 'agent')
   if (cliId === 'hermes') return hermesHomeDir()
+  if (cliId === 'gemini') return join(homedir(), '.gemini')
   const xdgConfigHome = process.env.XDG_CONFIG_HOME || join(homedir(), '.config')
   return join(xdgConfigHome, 'opencode')
 }

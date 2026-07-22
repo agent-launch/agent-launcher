@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
-import { cliConfigDir, hermesHomeDir, systemCliConfigDir } from './config-paths'
+import { cliConfigDir, geminiStateDir, hermesHomeDir, systemCliConfigDir } from './config-paths'
 import { getInstallSource } from './store'
 import type {
   CliId,
@@ -483,8 +483,11 @@ function deleteHermesMcp(configPath: string, entryId: string): void {
 }
 
 function mcpConfigPaths(cliId: CliId): Array<{ path: string; key?: 'mcp' | 'mcpServers'; kind?: 'codex' | 'hermes' }> {
-  const dir = cliConfigDir(cliId)
+  const dir = cliId === 'gemini' ? geminiStateDir() : cliConfigDir(cliId)
   if (cliId === 'codex') return [{ path: join(dir, 'config.toml'), kind: 'codex' }]
+  // Gemini reads `mcpServers` from its own settings.json only — no project-
+  // scoped .mcp.json convention here like the generic fallback below assumes.
+  if (cliId === 'gemini') return [{ path: join(dir, 'settings.json'), key: 'mcpServers' }]
   if (cliId === 'opencode') return [{ path: join(dir, 'opencode.json'), key: 'mcp' }]
   if (cliId === 'claude-code') {
     // Claude Code keeps user-scope MCP servers in `.claude.json` under
@@ -572,7 +575,7 @@ function systemSkillRoots(cliId: CliId, dir: string): string[] {
 }
 
 function skillRoots(cliId: CliId): string[] {
-  const dir = cliConfigDir(cliId)
+  const dir = cliId === 'gemini' ? geminiStateDir() : cliConfigDir(cliId)
   const roots =
     getInstallSource(cliId) === 'system'
       ? systemSkillRoots(cliId, dir)

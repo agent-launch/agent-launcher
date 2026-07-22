@@ -17,7 +17,7 @@ import type initSqlJs from 'sql.js'
 import { buildCliEnv } from './cli-env'
 import { assertCliLaunchAllowed } from './cli-launch-safety'
 import { getSql, readSqliteSnapshot } from './sqlite'
-import { hermesHomeDir } from './config-paths'
+import { geminiStateDir, hermesHomeDir } from './config-paths'
 import { decodeProcessOutput, spawnProcess } from './process'
 import { paths } from './sandbox'
 import { getInstallSource, loadConfig } from './store'
@@ -50,8 +50,9 @@ interface CodexAppServerClient {
 }
 
 function cliStateRoot(cliId: CliId): string {
-  // Gemini CLI has no config-dir override, sandboxed or not — always its real home.
-  if (cliId === 'gemini') return join(homedir(), '.gemini')
+  // Gemini nests state under `.gemini` inside GEMINI_CLI_HOME rather than at
+  // configDir itself (sandboxed or not) — see geminiStateDir.
+  if (cliId === 'gemini') return geminiStateDir()
   if (getInstallSource(cliId) !== 'system') return paths.cliConfig(cliId)
   if (cliId === 'claude-code') return join(homedir(), '.claude')
   if (cliId === 'codex') return join(homedir(), '.codex')
@@ -1153,8 +1154,11 @@ async function listHermes(): Promise<SessionInfo[]> {
 
 /** Gemini: each project's tmp/<hash>/logs.json is a JSON array of
  * {sessionId, messageId, timestamp, type, message} entries — per gemini-cli's
- * own Logger, only USER prompts are recorded there (no assistant replies or
- * tool calls), grouped across projects by sessionId. */
+ * own Logger, only USER prompts are recorded there, grouped across projects
+ * by sessionId. gemini-cli's ChatRecordingService separately writes full
+ * two-sided transcripts (assistant replies, tool calls) to
+ * tmp/<hash>/chats/session-<ts>-<uuid8>.jsonl; listing/reading from there
+ * instead is a known follow-up (would also fix geminiTranscript below). */
 function listGemini(): SessionInfo[] {
   const files: string[] = []
   collectJsonFiles(join(cliStateRoot('gemini'), 'tmp'), files)
@@ -2054,9 +2058,10 @@ async function hermesTranscript(id: string): Promise<Transcript> {
   return done('hermes', id, msgs, false, fallbackTs)
 }
 
-/** Gemini: logs.json only records the USER side (see listGemini) — there is
- * no assistant reply or tool-call data to show, so this transcript is
- * one-sided by design of the upstream format, not a bug here. */
+/** Gemini: logs.json only records the USER side (see listGemini), so this
+ * transcript is one-sided — not because the upstream format lacks the other
+ * side (chats/*.jsonl has it, see listGemini's comment), but because this
+ * reads logs.json specifically. */
 function geminiTranscript(id: string): Transcript {
   const files: string[] = []
   collectJsonFiles(join(cliStateRoot('gemini'), 'tmp'), files)
@@ -2107,6 +2112,10 @@ export function resumeArgs(cliId: CliId, id: string): string[] | null {
   if (cliId === 'opencode') return ['--session', id]
   if (cliId === 'pi') return ['--session', id]
   if (cliId === 'hermes') return ['--resume', id]
+  // Cross-project resume-by-id only landed in newer gemini-cli releases;
+  // older pinned installs resolve `--resume <uuid>` within the launch cwd's
+  // project only, so resuming a session listed from a different project can
+  // fail there even though the id is otherwise valid.
   if (cliId === 'gemini') return ['--resume', id]
   return null
 }

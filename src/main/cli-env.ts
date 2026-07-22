@@ -36,6 +36,8 @@ function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
   } else if (cliId === 'gemini') {
     delete env.GEMINI_API_KEY
     delete env.GOOGLE_GEMINI_BASE_URL
+    delete env.GOOGLE_GENAI_USE_VERTEXAI
+    delete env.GOOGLE_GENAI_USE_GCA
   }
 }
 
@@ -88,9 +90,16 @@ function cliVars(cliId: CliId): EnvPair[] {
     // PI_CODING_AGENT_DIR holds config (models.json/auth.json) + sessions/.
     out.push({ key: 'PI_CODING_AGENT_DIR', value: configDir })
   } else if (cliId === 'gemini') {
-    // Gemini CLI has no reliable config-dir override (unlike the CLIs above),
-    // so its config/session state always lives in the real ~/.gemini — no
-    // configDir redirection here. Official (OAuth) mode needs no env at all.
+    // GEMINI_CLI_HOME (gemini-cli v0.25+) replaces its own os.homedir()
+    // resolution, so state lands at `${configDir}/.gemini` — not at configDir
+    // itself (see geminiStateDir in config-paths.ts, used wherever we need to
+    // read that state back, e.g. sessions/MCP/skills).
+    if (!isSystemInstall) out.push({ key: 'GEMINI_CLI_HOME', value: configDir })
+    // A previously-saved `security.auth.selectedType` in settings.json wins
+    // over these env vars — harmless for a fresh sandbox, but a system install
+    // that already OAuth'd will keep using OAuth even after a relay profile
+    // is configured here. GOOGLE_GEMINI_BASE_URL also switches env-based auth
+    // detection to "gateway" mode (checked before GEMINI_API_KEY).
     if (getAuthMode('gemini') === 'official') return out
     if (p?.baseUrl) out.push({ key: 'GOOGLE_GEMINI_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'GEMINI_API_KEY', value: p.apiKey, secret: true })
