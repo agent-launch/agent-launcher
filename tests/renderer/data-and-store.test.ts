@@ -17,13 +17,15 @@ describe('renderer static data and persisted app store', () => {
       'npm-global'
     ])
     expect(CLIS.at(-1)?.install).toBe('official')
+    expect(CLIS.every((cli) => cli.installDocsUrl.startsWith('https://'))).toBe(true)
+    expect(new Set(CLIS.map((cli) => cli.installDocsUrl)).size).toBe(CLIS.length)
     expect(Object.values(messages.zh).join('\n')).not.toContain('安装到沙盒')
     expect(Object.values(messages.en).join('\n').toLowerCase()).not.toContain('install to sandbox')
     expect(messages.en['onboarding.codexManualUpdateWarning']).toBe(
-      "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Please uninstall it and install version 0.135.0 or later."
+      "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Uninstall it, then follow the official installation docs to install version 0.135.0 or later."
     )
-    expect(messages.en['onboarding.macSecurityManualUpdateBtn']).toBe('Update manually')
-    expect(messages.zh['onboarding.macSecurityManualUpdateBtn']).toBe('请手动更新')
+    expect(messages.en['onboarding.officialInstallDocs']).toBe('Official install docs')
+    expect(messages.zh['onboarding.officialInstallDocs']).toBe('官方安装文档')
     expect(messages.en['config.baseUrlRequiredToast']).toBe('Please enter a Base URL')
     expect(messages.zh['config.baseUrlRequiredToast']).toBe('请填写 Base URL')
     expect(Object.values(messages.en).join('\n')).not.toMatch(/one-click (?:npm )?repair/i)

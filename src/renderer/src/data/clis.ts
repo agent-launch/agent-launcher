@@ -9,6 +9,8 @@ export interface CliMeta {
   envPrefix: string
   /** Active installation path. The former app-managed sandbox path is legacy-only. */
   install: 'npm-global' | 'official'
+  /** Official instructions for installing and updating this CLI. */
+  installDocsUrl: string
 }
 
 export const CLIS: CliMeta[] = [
@@ -19,7 +21,8 @@ export const CLIS: CliMeta[] = [
     glyph: 'C',
     accent: '#d97757',
     envPrefix: 'ANTHROPIC_*',
-    install: 'npm-global'
+    install: 'npm-global',
+    installDocsUrl: 'https://code.claude.com/docs/en/setup'
   },
   {
     id: 'codex',
@@ -28,7 +31,8 @@ export const CLIS: CliMeta[] = [
     glyph: 'O',
     accent: '#10a37f',
     envPrefix: 'OPENAI_*',
-    install: 'npm-global'
+    install: 'npm-global',
+    installDocsUrl: 'https://developers.openai.com/codex/cli/'
   },
   {
     id: 'opencode',
@@ -37,7 +41,8 @@ export const CLIS: CliMeta[] = [
     glyph: 'O',
     accent: '#f2a60d',
     envPrefix: 'XDG_* / OPENCODE_CONFIG',
-    install: 'npm-global'
+    install: 'npm-global',
+    installDocsUrl: 'https://opencode.ai/docs/'
   },
   {
     id: 'pi',
@@ -46,7 +51,8 @@ export const CLIS: CliMeta[] = [
     glyph: 'π',
     accent: '#7c3aed',
     envPrefix: 'PI_CODING_AGENT_DIR',
-    install: 'npm-global'
+    install: 'npm-global',
+    installDocsUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent'
   },
   {
     id: 'hermes',
@@ -55,7 +61,8 @@ export const CLIS: CliMeta[] = [
     glyph: 'H',
     accent: '#d7a900',
     envPrefix: '~/.hermes / OPENAI_*',
-    install: 'official'
+    install: 'official',
+    installDocsUrl: 'https://hermes-agent.nousresearch.com/docs/getting-started/installation/'
   }
 ]
 

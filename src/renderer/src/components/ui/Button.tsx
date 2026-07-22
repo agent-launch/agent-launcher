@@ -1,9 +1,14 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react'
 
 type Variant = 'primary' | 'secondary' | 'ghost'
 type Size = 'sm' | 'md' | 'lg'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: Variant
+  size?: Size
+}
+
+interface LinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
   variant?: Variant
   size?: Size
 }
@@ -31,4 +36,8 @@ const sizes: Record<Size, string> = {
 
 export function Button({ variant = 'primary', size = 'md', className = '', ...rest }: Props) {
   return <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest} />
+}
+
+export function ButtonLink({ variant = 'primary', size = 'md', className = '', ...rest }: LinkProps) {
+  return <a className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest} />
 }

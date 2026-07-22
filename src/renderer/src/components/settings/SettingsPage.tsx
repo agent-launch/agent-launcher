@@ -22,10 +22,10 @@ import { CLIS, YOLO_SUPPORT } from '@/data/clis'
 import { useAppStore, type ThemeMode, type LocaleMode } from '@/store/app'
 import { useT } from '@/i18n'
 import { ENABLE_CHAT_HISTORY_RENDERING } from '@/features'
-import { Button } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import appIcon from '@/assets/app-icon.png'
 import { SETTINGS_TABS, type SettingsTab } from './settingsTabs'
-import type { AppConfig, AppInfo, AppUpdateStatus, CliId, CliUpdateStatus, InstallProgress, UsageDailyBucket, UsageScanResult } from '@shared/types'
+import type { AppConfig, AppInfo, AppUpdateStatus, CliId, CliUpdateStatus, UsageDailyBucket, UsageScanResult } from '@shared/types'
 
 type UsageTooltipState = {
   content: string
@@ -714,8 +714,6 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
   const [appUpdate, setAppUpdate] = useState<AppUpdateStatus | null>(null)
   const [statuses, setStatuses] = useState<CliUpdateStatus[] | null>(null)
   const [checking, setChecking] = useState(false)
-  const [installing, setInstalling] = useState<CliId | null>(null)
-  const [progress, setProgress] = useState<Partial<Record<CliId, InstallProgress>>>({})
 
   useEffect(() => {
     window.api.app.info().then(setInfo)
@@ -723,12 +721,8 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
   }, [])
 
   useEffect(() => {
-    const offProgress = window.api.install.onProgress((p) => {
-      setProgress((prev) => ({ ...prev, [p.cliId]: p }))
-    })
     const offUpdate = window.api.appUpdate.onStatus(setAppUpdate)
     return () => {
-      offProgress()
       offUpdate()
     }
   }, [])
@@ -762,37 +756,6 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
     } finally {
       setChecking(false)
     }
-  }
-
-  const installUpdate = async (status: CliUpdateStatus) => {
-    const cliId = status.cliId
-    const action = status.installed ? 'reinstall' : 'install'
-    setInstalling(cliId)
-    setProgress((prev) => ({
-      ...prev,
-      [cliId]: {
-        cliId,
-        phase: 'resolve',
-        message: t(status.installed ? 'settings.cliStatus.updating' : 'settings.cliStatus.installing')
-      }
-    }))
-    const result = await window.api.install.cli(cliId, {
-      source: 'system',
-      action,
-      binPath: status.source === 'system' ? status.binPath : undefined
-    })
-    if (!result.ok) {
-      setProgress((prev) => ({
-        ...prev,
-        [cliId]: {
-          cliId,
-          phase: 'error',
-          message: result.error
-        }
-      }))
-    }
-    setInstalling(null)
-    await refreshStatuses()
   }
 
   const statusById = new Map((statuses ?? []).map((status) => [status.cliId, status]))
@@ -832,7 +795,7 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
             variant="secondary"
             className="shrink-0"
             onClick={refreshStatuses}
-            disabled={checking || !!installing}
+            disabled={checking}
           >
             <RefreshCw size={13} className={checking ? 'animate-spin' : ''} />
             {checking ? t('settings.cliStatus.checking') : t('settings.cliStatus.check')}
@@ -843,18 +806,14 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
           {CLIS.map((cli) => {
             const id = cli.id as CliId
             const status = statusById.get(id)
-            const activeProgress = progress[id]
-            const busy = installing === id
             return (
               <CliStatusRow
                 key={id}
                 cliId={id}
                 name={cli.name}
                 status={status}
-                progress={activeProgress}
-                busy={busy}
                 checking={checking && !statuses}
-                onInstall={status ? () => installUpdate(status) : undefined}
+                installDocsUrl={cli.installDocsUrl}
               />
             )
           })}
@@ -997,18 +956,14 @@ function CliStatusRow({
   cliId,
   name,
   status,
-  progress,
-  busy,
   checking,
-  onInstall
+  installDocsUrl
 }: {
   cliId: CliId
   name: string
   status?: CliUpdateStatus
-  progress?: InstallProgress
-  busy: boolean
   checking: boolean
-  onInstall?: () => void
+  installDocsUrl: string
 }) {
   const t = useT()
   const installed = !!status?.installed
@@ -1035,25 +990,11 @@ function CliStatusRow({
     ? '-'
     : status.currentVersion || (installed ? t('settings.cliStatus.versionUnknown') : '-')
   const latestText = status?.latestVersion ?? (status?.error ? t('settings.cliStatus.latestFailed') : '-')
-  const detailText = progress && (busy || progress.phase === 'error')
-    ? `${progress.message}${progress.fraction != null ? ` ${Math.round(progress.fraction * 100)}%` : ''}`
-    : status?.error
-      ? status.error
-      : status?.binPath
-        ? status.binPath
-        : t('settings.cliStatus.noPath')
-  const canInstall =
-    !!status &&
-    !!onInstall &&
-    !busy &&
-    (!status.installed || (status.updateAvailable && status.canInstallUpdate))
-  const actionLabel = busy
-    ? t('settings.cliStatus.updating')
-    : !status?.installed
-      ? t('settings.cliStatus.install')
-      : status?.updateAvailable
-        ? t('settings.cliStatus.update')
-        : t('settings.cliStatus.current')
+  const detailText = status?.error
+    ? status.error
+    : status?.binPath
+      ? status.binPath
+      : t('settings.cliStatus.noPath')
 
   return (
     <div className="grid gap-2 rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-2.5 py-2 md:grid-cols-[minmax(160px,1fr)_minmax(0,1.2fr)_auto] md:items-center">
@@ -1084,7 +1025,7 @@ function CliStatusRow({
           </span>
         </div>
         <div
-          className={`mt-1 truncate text-[11px] ${progress?.phase === 'error' || status?.error ? 'text-[var(--danger)]' : 'text-text-weak'}`}
+          className={`mt-1 truncate text-[11px] ${status?.error ? 'text-[var(--danger)]' : 'text-text-weak'}`}
           title={detailText}
         >
           {detailText}
@@ -1092,16 +1033,16 @@ function CliStatusRow({
       </div>
 
       <div className="flex justify-end">
-        <Button
+        <ButtonLink
           size="sm"
-          variant={status?.updateAvailable || !status?.installed ? 'primary' : 'secondary'}
-          disabled={!canInstall}
-          onClick={onInstall}
-          title={status?.source === 'system' ? t('settings.cliStatus.systemUpdateHint') : undefined}
+          variant="secondary"
+          href={installDocsUrl}
+          target="_blank"
+          rel="noreferrer"
         >
-          {busy ? <RefreshCw size={13} className="animate-spin" /> : <Download size={13} />}
-          {actionLabel}
-        </Button>
+          <ExternalLink size={13} />
+          {t('settings.cliStatus.officialInstallDocs')}
+        </ButtonLink>
       </div>
     </div>
   )

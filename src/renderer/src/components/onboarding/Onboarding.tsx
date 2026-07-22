@@ -6,10 +6,10 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAppStore } from "@/store/app";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { CLIS } from "@/data/clis";
 import { PROVIDERS_BY_CLI } from "@/data/providers";
@@ -609,6 +609,7 @@ function InstallStep() {
       const id = c.id as CliId;
       const s = ui[id] ?? {};
       if (s.phase === "done") continue;
+      if (systemClis[id]?.status === "linked") continue;
       if (systemClis[id]?.macosSecurityRisk) {
         // Risky binaries require a manual uninstall/update and must never be
         // repaired or launched as part of the bulk action.
@@ -622,8 +623,6 @@ function InstallStep() {
     const s = ui[id] ?? {};
     const detected = systemClis[id];
     if (s.phase === "error") return "repair";
-    if (s.phase === "done") return "reinstall";
-    if (detected?.status === "linked") return "reinstall";
     if (detected?.installed) return "link";
     if (detected?.status === "available") return "link";
     return "install";
@@ -632,7 +631,6 @@ function InstallStep() {
   const actionLabel = (id: CliId, busy?: boolean) => {
     if (busy) return t("onboarding.installBusy");
     const action = installAction(id);
-    if (action === "reinstall") return t("onboarding.reinstallBtn");
     if (action === "link") return t("onboarding.useSystemBtn");
     return t("onboarding.installBtn");
   };
@@ -656,6 +654,7 @@ function InstallStep() {
           const id = c.id as CliId;
           const detected = systemClis[id];
           const hasMacSecurityRisk = !!detected?.macosSecurityRisk;
+          const isLinked = s.phase === "done" || detected?.status === "linked";
           const macSecurityWarning = hasMacSecurityRisk
             ? t(
                 id === "codex"
@@ -720,14 +719,17 @@ function InstallStep() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {hasMacSecurityRisk ? (
-                  <Button
+                {hasMacSecurityRisk || isLinked ? (
+                  <ButtonLink
                     size="sm"
                     variant="secondary"
-                    disabled
+                    href={c.installDocsUrl}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    {t("onboarding.macSecurityManualUpdateBtn")}
-                  </Button>
+                    <ExternalLink size={13} />
+                    {t("onboarding.officialInstallDocs")}
+                  </ButtonLink>
                 ) : (
                   <Button
                     size="sm"
