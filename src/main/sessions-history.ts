@@ -50,6 +50,8 @@ interface CodexAppServerClient {
 }
 
 function cliStateRoot(cliId: CliId): string {
+  // Gemini CLI has no config-dir override, sandboxed or not — always its real home.
+  if (cliId === 'gemini') return join(homedir(), '.gemini')
   if (getInstallSource(cliId) !== 'system') return paths.cliConfig(cliId)
   if (cliId === 'claude-code') return join(homedir(), '.claude')
   if (cliId === 'codex') return join(homedir(), '.codex')
@@ -1149,6 +1151,48 @@ async function listHermes(): Promise<SessionInfo[]> {
   return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
+/** Gemini: each project's tmp/<hash>/logs.json is a JSON array of
+ * {sessionId, messageId, timestamp, type, message} entries — per gemini-cli's
+ * own Logger, only USER prompts are recorded there (no assistant replies or
+ * tool calls), grouped across projects by sessionId. */
+function listGemini(): SessionInfo[] {
+  const files: string[] = []
+  collectJsonFiles(join(cliStateRoot('gemini'), 'tmp'), files)
+  const bySession = new Map<string, { firstMessage?: string; updatedAt: number }>()
+  for (const file of files) {
+    if (basename(file) !== 'logs.json') continue
+    let entries: unknown
+    try {
+      entries = JSON.parse(readFileSync(file, 'utf8'))
+    } catch {
+      continue
+    }
+    if (!Array.isArray(entries)) continue
+    let fileMtime: number | undefined
+    for (const rec of entries) {
+      const o = asRecord(rec)
+      const sessionId = typeof o?.sessionId === 'string' ? o.sessionId : undefined
+      if (!o || !sessionId) continue
+      fileMtime ??= statSync(file).mtimeMs
+      const ts = normalizeTs(o.timestamp) ?? fileMtime
+      const text = typeof o.message === 'string' ? o.message : undefined
+      const existing = bySession.get(sessionId)
+      bySession.set(sessionId, {
+        firstMessage: existing?.firstMessage ?? text,
+        updatedAt: Math.max(existing?.updatedAt ?? 0, ts)
+      })
+    }
+  }
+  return [...bySession.entries()]
+    .map(([id, v]) => ({
+      id,
+      cliId: 'gemini' as CliId,
+      name: displayTitle(v.firstMessage, 'Gemini session'),
+      updatedAt: v.updatedAt
+    }))
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+}
+
 function deleteClaudeSession(id: string): SessionDeleteResult {
   const root = join(cliStateRoot('claude-code'), 'projects')
   if (!existsSync(root)) return { ok: true, cliId: 'claude-code', id, deletedCount: 0, missing: true }
@@ -1435,6 +1479,7 @@ export async function listSessions(cliId: CliId): Promise<SessionInfo[]> {
     if (cliId === 'pi') return listPi()
     if (cliId === 'opencode') return await listOpencode()
     if (cliId === 'hermes') return await listHermes()
+    if (cliId === 'gemini') return listGemini()
     return []
   } catch {
     return []
@@ -2009,6 +2054,37 @@ async function hermesTranscript(id: string): Promise<Transcript> {
   return done('hermes', id, msgs, false, fallbackTs)
 }
 
+/** Gemini: logs.json only records the USER side (see listGemini) — there is
+ * no assistant reply or tool-call data to show, so this transcript is
+ * one-sided by design of the upstream format, not a bug here. */
+function geminiTranscript(id: string): Transcript {
+  const files: string[] = []
+  collectJsonFiles(join(cliStateRoot('gemini'), 'tmp'), files)
+  const msgs: TranscriptMessage[] = []
+  let fallbackTs: number | undefined
+  for (const file of files) {
+    if (basename(file) !== 'logs.json') continue
+    let entries: unknown
+    try {
+      entries = JSON.parse(readFileSync(file, 'utf8'))
+    } catch {
+      continue
+    }
+    if (!Array.isArray(entries)) continue
+    const matching = entries
+      .map((rec) => asRecord(rec))
+      .filter((o): o is Record<string, any> => !!o && o.sessionId === id)
+      .sort((a, b) => (Number(a.messageId) || 0) - (Number(b.messageId) || 0))
+    if (!matching.length) continue
+    fallbackTs = statSync(file).mtimeMs
+    for (const o of matching) {
+      if (typeof o.message === 'string') pushPart(msgs, 'user', { kind: 'text', text: o.message }, normalizeTs(o.timestamp))
+    }
+    break
+  }
+  return done('gemini', id, msgs, false, fallbackTs)
+}
+
 /** Read a session's conversation as a normalized, read-only transcript. */
 export async function readTranscript(cliId: CliId, id: string): Promise<Transcript> {
   try {
@@ -2017,6 +2093,7 @@ export async function readTranscript(cliId: CliId, id: string): Promise<Transcri
     if (cliId === 'pi') return piTranscript(id)
     if (cliId === 'opencode') return await opencodeTranscript(id)
     if (cliId === 'hermes') return await hermesTranscript(id)
+    if (cliId === 'gemini') return geminiTranscript(id)
   } catch {
     /* fall through to empty transcript */
   }
@@ -2030,5 +2107,6 @@ export function resumeArgs(cliId: CliId, id: string): string[] | null {
   if (cliId === 'opencode') return ['--session', id]
   if (cliId === 'pi') return ['--session', id]
   if (cliId === 'hermes') return ['--resume', id]
+  if (cliId === 'gemini') return ['--resume', id]
   return null
 }

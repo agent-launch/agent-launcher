@@ -41,18 +41,20 @@ const SYSTEM_COMMANDS: Record<CliId, string> = {
   codex: 'codex',
   opencode: 'opencode',
   pi: 'pi',
-  hermes: 'hermes'
+  hermes: 'hermes',
+  gemini: 'gemini'
 }
 
 type NpmCliId = Exclude<CliId, 'hermes'>
 
-const NPM_CLI_IDS: NpmCliId[] = ['claude-code', 'codex', 'opencode', 'pi']
+const NPM_CLI_IDS: NpmCliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'gemini']
 
 const NPM_PACKAGES: Record<NpmCliId, string> = {
   'claude-code': '@anthropic-ai/claude-code',
   codex: '@openai/codex',
   opencode: 'opencode-ai',
-  pi: '@earendil-works/pi-coding-agent'
+  pi: '@earendil-works/pi-coding-agent',
+  gemini: '@google/gemini-cli'
 }
 
 function isNpmCliId(id: CliId): id is NpmCliId {

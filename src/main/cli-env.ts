@@ -33,6 +33,9 @@ function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
     delete env.OPENAI_API_KEY
     delete env.HERMES_INFERENCE_MODEL
     delete env.HERMES_MODEL
+  } else if (cliId === 'gemini') {
+    delete env.GEMINI_API_KEY
+    delete env.GOOGLE_GEMINI_BASE_URL
   }
 }
 
@@ -84,6 +87,13 @@ function cliVars(cliId: CliId): EnvPair[] {
     if (isSystemInstall) return out
     // PI_CODING_AGENT_DIR holds config (models.json/auth.json) + sessions/.
     out.push({ key: 'PI_CODING_AGENT_DIR', value: configDir })
+  } else if (cliId === 'gemini') {
+    // Gemini CLI has no reliable config-dir override (unlike the CLIs above),
+    // so its config/session state always lives in the real ~/.gemini — no
+    // configDir redirection here. Official (OAuth) mode needs no env at all.
+    if (getAuthMode('gemini') === 'official') return out
+    if (p?.baseUrl) out.push({ key: 'GOOGLE_GEMINI_BASE_URL', value: p.baseUrl })
+    if (p?.apiKey) out.push({ key: 'GEMINI_API_KEY', value: p.apiKey, secret: true })
   }
   return out
 }

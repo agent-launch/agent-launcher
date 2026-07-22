@@ -18,8 +18,8 @@ import type {
 } from '@shared/types'
 
 const SCHEMA = 4
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes']
-const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex'])
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini']
+const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex', 'gemini'])
 const OPENAI_COMPATIBLE_CLIS = new Set<CliId>(['codex', 'opencode', 'pi', 'hermes'])
 const OFFICIAL_PROFILE_ID = 'official'
 const ROUTERLINK_OPENAI_BASE_URL = 'https://router-link.world3.ai/api/v1'
@@ -30,7 +30,9 @@ function defaultAuthMode(id: CliId): AuthMode {
 }
 
 function officialProfileName(id: CliId): string {
-  return id === 'codex' ? 'OpenAI Official' : 'Claude Official'
+  if (id === 'codex') return 'OpenAI Official'
+  if (id === 'gemini') return 'Google Official'
+  return 'Claude Official'
 }
 
 function createOfficialProfile(id: CliId): CliProfile {

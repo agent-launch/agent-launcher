@@ -55,6 +55,15 @@ export const CLIS: CliMeta[] = [
     installDocsUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent'
   },
   {
+    id: 'gemini',
+    name: 'Gemini CLI',
+    vendor: 'Google',
+    glyph: 'G',
+    accent: '#4285f4',
+    envPrefix: 'GEMINI_* / GOOGLE_GEMINI_*',
+    install: 'npm-global'
+  },
+  {
     id: 'hermes',
     name: 'Hermes Agent',
     vendor: 'Nous Research',
@@ -74,5 +83,6 @@ export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> 
   codex: { supported: true, note: '--dangerously-bypass-approvals-and-sandbox' },
   opencode: { supported: true, note: '--auto' },
   pi: { supported: false, note: 'Pi never prompts for approval; tools always run automatically' },
+  gemini: { supported: true, note: '--yolo' },
   hermes: { supported: true, note: '--yolo' }
 }

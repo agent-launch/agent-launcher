@@ -54,6 +54,8 @@ function yoloArgs(cliId: CliId): string[] | null {
       return ['--auto']
     case 'hermes':
       return ['--yolo']
+    case 'gemini':
+      return ['--yolo']
     default:
       return null // pi never asks for approval; tools always run
   }
@@ -104,6 +106,10 @@ function resolveTarget(
   if (opts.cliId === 'pi') {
     const profile = getActiveProfile('pi')
     if (profile?.baseUrl && profile.model) extra.push('--model', `agentlauncher/${profile.model}`)
+  }
+  if (opts.cliId === 'gemini') {
+    const profile = getActiveProfile('gemini')
+    if (profile?.model) extra.push('--model', profile.model)
   }
   return { file: install.binPath, args: extra }
 }

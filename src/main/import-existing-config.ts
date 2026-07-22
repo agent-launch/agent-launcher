@@ -4,7 +4,7 @@ import { addProfile, getPrefs, loadConfig, markSystemConfigImportChecked, setAct
 import { systemCliConfigDir } from './config-paths'
 import type { CliId, CliProfilePatch } from '@shared/types'
 
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes']
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini']
 
 function hasApiProfile(cliId: CliId): boolean {
   return loadConfig().clis[cliId].profiles.some((profile) => {

@@ -76,6 +76,22 @@ const OPENCODE: Provider[] = [
   ...CODEX.filter((provider) => provider.id !== 'official')
 ]
 
+// Gemini uses GOOGLE_GEMINI_BASE_URL, which expects the native Gemini API
+// shape — not the OpenAI-compatible shape the CODEX list above assumes — so
+// it can't reuse that list. Kept to official + custom until a specific
+// Gemini-protocol-compatible relay is verified to work.
+const GEMINI: Provider[] = [
+  {
+    id: 'official',
+    name: 'Google Official',
+    category: 'official',
+    baseUrl: '',
+    websiteUrl: 'https://github.com/google-gemini/gemini-cli',
+    note: 'Official Google account login'
+  },
+  CUSTOM
+]
+
 export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   'claude-code': CLAUDE,
   codex: CODEX,
@@ -85,6 +101,7 @@ export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   // pi and Hermes consume OpenAI-compatible relays, so the Codex relay list
   // applies to them too.
   pi: CODEX,
+  gemini: GEMINI,
   hermes: CODEX
 }
 
