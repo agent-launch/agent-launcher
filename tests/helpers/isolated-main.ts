@@ -5,6 +5,20 @@ import { vi } from 'vitest'
 
 export async function withIsolatedHome<T>(run: (ctx: { home: string }) => Promise<T> | T): Promise<T> {
   const home = mkdtempSync(join(tmpdir(), 'agent-launcher-test-'))
+  const isolatedEnv = {
+    XDG_CONFIG_HOME: join(home, '.config'),
+    XDG_DATA_HOME: join(home, '.local', 'share'),
+    XDG_CACHE_HOME: join(home, '.cache'),
+    XDG_STATE_HOME: join(home, '.local', 'state'),
+    HERMES_HOME: join(home, '.hermes'),
+    LOCALAPPDATA: join(home, 'AppData', 'Local'),
+    APPDATA: join(home, 'AppData', 'Roaming'),
+    USERPROFILE: home
+  }
+  const previousEnv = Object.fromEntries(
+    Object.keys(isolatedEnv).map((key) => [key, process.env[key]])
+  )
+  Object.assign(process.env, isolatedEnv)
   vi.resetModules()
   vi.doMock('node:os', async (importOriginal) => {
     const actual = await importOriginal<typeof import('node:os')>()
@@ -14,6 +28,10 @@ export async function withIsolatedHome<T>(run: (ctx: { home: string }) => Promis
   try {
     return await run({ home })
   } finally {
+    for (const [key, value] of Object.entries(previousEnv)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
     vi.doUnmock('node:os')
     vi.resetModules()
     rmSync(home, { recursive: true, force: true })
