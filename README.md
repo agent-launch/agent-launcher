@@ -80,7 +80,7 @@ Supported MCP config styles include Codex TOML, Claude-style JSON `mcpServers`, 
 
 ![Installed Skills](docs/images/agent-launcher-skills.jpg)
 
-Installed Skills are displayed from the selected agent's managed skill roots. You can filter by name, source, or path, and open a Skill to inspect its `SKILL.md` content from inside the app. Agent Launcher can also search and install Skills from [skills.sh](https://skills.sh/) for supported agents.
+Installed Skills are displayed from the selected agent's managed skill roots. You can filter by name, source, or path, and open a Skill to inspect its `SKILL.md` content from inside the app.
 
 ### Usage dashboard
 
@@ -115,7 +115,7 @@ Release builds are available for macOS, Windows, and Linux. The installer format
 
 ## Privacy and Security
 
-Agent Launcher is local-first, but not offline-only. CLI version checks may contact npm or PyPI, Agent Launcher updates may contact GitHub Releases, and Skills features may contact skills.sh. Running an agent sends requests to the official provider or relay endpoint selected in that agent's active profile.
+Agent Launcher is local-first, but not offline-only. CLI version checks may contact npm or PyPI, and Agent Launcher updates may contact GitHub Releases. Running an agent sends requests to the official provider or relay endpoint selected in that agent's active profile.
 
 API keys are deliberately stored as plaintext in `~/.agent-launcher/config.json` and, when required, in sandboxed CLI-native config files. Secrets are masked in the interface, but the files remain readable by your local user account. Never attach real config directories, unredacted logs, or screenshots containing credentials to a public issue.
 
