@@ -22,7 +22,7 @@ export function hermesHomeDir(): string {
  */
 export function geminiStateDir(): string {
   return getInstallSource('gemini') === 'system'
-    ? join(homedir(), '.gemini')
+    ? join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini')
     : join(paths.cliConfig('gemini'), '.gemini')
 }
 
@@ -31,7 +31,7 @@ export function systemCliConfigDir(cliId: CliId): string {
   if (cliId === 'codex') return join(homedir(), '.codex')
   if (cliId === 'pi') return join(homedir(), '.pi', 'agent')
   if (cliId === 'hermes') return hermesHomeDir()
-  if (cliId === 'gemini') return join(homedir(), '.gemini')
+  if (cliId === 'gemini') return join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini')
   const xdgConfigHome = process.env.XDG_CONFIG_HOME || join(homedir(), '.config')
   return join(xdgConfigHome, 'opencode')
 }

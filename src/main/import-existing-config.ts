@@ -288,12 +288,20 @@ function importHermesProfile(): CliProfilePatch | null {
   }
 }
 
+/** gemini-cli reads GEMINI_API_KEY/GOOGLE_GEMINI_BASE_URL from a plain
+ * ~/.gemini/.env — same dotenv mechanism as importHermesProfile above. */
+function importGeminiProfile(): CliProfilePatch | null {
+  const env = readDotenv(join(systemCliConfigDir('gemini'), '.env'))
+  return importedProfile('Local default config', firstString(env.GOOGLE_GEMINI_BASE_URL), firstString(env.GEMINI_API_KEY))
+}
+
 function readExistingProfile(cliId: CliId): CliProfilePatch | null {
   if (cliId === 'claude-code') return importClaudeProfile()
   if (cliId === 'codex') return importCodexProfile()
   if (cliId === 'opencode') return importOpencodeProfile()
   if (cliId === 'pi') return importPiProfile()
   if (cliId === 'hermes') return importHermesProfile()
+  if (cliId === 'gemini') return importGeminiProfile()
   return null
 }
 
