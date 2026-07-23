@@ -8,6 +8,25 @@ import type {
 const DEFAULT_TIMEOUT_MS = 30_000
 const TEST_PROMPT = 'Reply with OK.'
 
+// Claude Code relays commonly fingerprint the client (user-agent, the
+// claude-code beta flag, and the billing marker Claude Code puts in its first
+// system block) and 403 anything else. The test must look like the real CLI
+// or a working key reads as "no access".
+const CLAUDE_CODE_UA = 'claude-cli/2.1.215 (external, cli)'
+const CLAUDE_CODE_BETA = 'claude-code-20250219'
+const CLAUDE_CODE_BILLING_BLOCK = {
+  type: 'text',
+  text: 'x-anthropic-billing-header: cc_version=2.1.215; cc_entrypoint=cli;'
+}
+
+/**
+ * Normalizes a model name the same way Claude Code does before sending to the
+ * API. For example, "glm-5.2[1m]" becomes "glm-5.2".
+ */
+function normalizeModelName(model: string): string {
+  return model.replace(/\[.*?\]$/g, '')
+}
+
 function result(
   value: Omit<ProfileConnectionResult, 'kind'>
 ): ProfileConnectionResult {
@@ -42,11 +61,13 @@ function responseCode(status: number): ProfileConnectionCode {
   return 'http_error'
 }
 
-function requestBody(cliId: CliId, model: string): Record<string, unknown> {
+function requestBody(cliId: CliId, rawModel: string): Record<string, unknown> {
+  const model = normalizeModelName(rawModel)
   if (cliId === 'claude-code') {
     return {
       model,
       max_tokens: 1,
+      system: [CLAUDE_CODE_BILLING_BLOCK],
       messages: [{ role: 'user', content: TEST_PROMPT }]
     }
   }
@@ -63,6 +84,36 @@ function requestBody(cliId: CliId, model: string): Record<string, unknown> {
     messages: [{ role: 'user', content: TEST_PROMPT }],
     max_tokens: 1,
     stream: false
+  }
+}
+
+/** Pull a human-readable error message out of an error response body. */
+async function errorDetail(response: Response): Promise<string | undefined> {
+  try {
+    const text = (await response.text()).trim()
+    if (!text) return undefined
+    let message = text
+    try {
+      const payload: unknown = JSON.parse(text)
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        const record = payload as Record<string, unknown>
+        const error = record.error
+        if (error && typeof error === 'object' && typeof (error as Record<string, unknown>).message === 'string') {
+          message = (error as Record<string, unknown>).message as string
+        } else if (typeof error === 'string') {
+          message = error
+        } else if (typeof record.message === 'string') {
+          message = record.message
+        }
+      }
+    } catch {
+      // Not JSON — keep the raw text.
+    }
+    message = message.replace(/\s+/g, ' ').trim()
+    if (!message) return undefined
+    return message.length > 300 ? `${message.slice(0, 300)}…` : message
+  } catch {
+    return undefined
   }
 }
 
@@ -100,8 +151,10 @@ export async function testProfileConnection(
     'Content-Type': 'application/json'
   }
   if (cliId === 'claude-code') {
+    // Bearer-only, matching the ANTHROPIC_AUTH_TOKEN env we inject (cli-env.ts).
     headers['anthropic-version'] = '2023-06-01'
-    headers['x-api-key'] = apiKey
+    headers['anthropic-beta'] = CLAUDE_CODE_BETA
+    headers['User-Agent'] = CLAUDE_CODE_UA
   }
 
   try {
@@ -118,7 +171,12 @@ export async function testProfileConnection(
         ? result({ ok: true, code: 'ok', status: response.status })
         : result({ ok: false, code: 'invalid_response', status: response.status })
     }
-    return result({ ok: false, code: responseCode(response.status), status: response.status })
+    return result({
+      ok: false,
+      code: responseCode(response.status),
+      status: response.status,
+      detail: await errorDetail(response)
+    })
   } catch (error) {
     if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) {
       return result({ ok: false, code: 'timeout' })

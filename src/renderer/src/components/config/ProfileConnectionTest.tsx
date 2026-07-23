@@ -89,7 +89,10 @@ export function ProfileConnectionTest({
       {displayedResult && (
         <span className="flex min-w-0 items-center gap-1 text-[12px]" style={{ color }}>
           {displayedResult.ok ? <CircleCheck className="shrink-0" size={13} /> : <CircleAlert className="shrink-0" size={13} />}
-          <span className="break-words">{t(`config.connection.${displayedResult.code}`)}</span>
+          <span className="break-words">
+            {t(`config.connection.${displayedResult.code}`)}
+            {displayedResult.detail ? ` — ${displayedResult.detail}` : ''}
+          </span>
         </span>
       )}
     </div>

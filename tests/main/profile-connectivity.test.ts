@@ -54,15 +54,22 @@ describe('profile connectivity test', () => {
         headers: expect.objectContaining({
           Authorization: 'Bearer sk-anthropic',
           'anthropic-version': '2023-06-01',
-          'x-api-key': 'sk-anthropic'
+          'anthropic-beta': 'claude-code-20250219',
+          'User-Agent': expect.stringMatching(/^claude-cli\//)
         }),
         body: JSON.stringify({
           model: 'claude-test',
           max_tokens: 1,
+          system: [{
+            type: 'text',
+            text: 'x-anthropic-billing-header: cc_version=2.1.215; cc_entrypoint=cli;'
+          }],
           messages: [{ role: 'user', content: 'Reply with OK.' }]
         })
       })
     )
+    // Bearer-only auth, matching the ANTHROPIC_AUTH_TOKEN env the app injects.
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-api-key')
 
     await expect(testProfileConnection('opencode', {
       baseUrl: 'https://relay.example/v1',
@@ -102,6 +109,51 @@ describe('profile connectivity test', () => {
       apiKey: 'secret',
       model: 'test-model'
     })).resolves.toEqual({ kind: 'generation', ok: false, code, status })
+  })
+
+  it('normalizes Claude Code model names the same way the CLI does', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"content":[]}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await testProfileConnection('claude-code', {
+      baseUrl: 'https://relay.example',
+      apiKey: 'secret',
+      defaultModel: 'glm-5.2[1m]'
+    })
+    // The [1m] suffix should be stripped before sending.
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body)
+    expect(body.model).toBe('glm-5.2')
+  })
+
+  it('surfaces the server error message on failures', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      '{"type": "error", "error": {"type": "ccx2_error", "message": "refused: not a claude-code client (user-agent)"}}',
+      { status: 403 }
+    )))
+    await expect(testProfileConnection('claude-code', {
+      baseUrl: 'https://relay.example',
+      apiKey: 'secret',
+      defaultModel: 'claude-test'
+    })).resolves.toEqual({
+      kind: 'generation',
+      ok: false,
+      code: 'forbidden',
+      status: 403,
+      detail: 'refused: not a claude-code client (user-agent)'
+    })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('plain text failure', { status: 500 })))
+    await expect(testProfileConnection('codex', {
+      baseUrl: 'https://relay.example/v1',
+      apiKey: 'secret',
+      model: 'test-model'
+    })).resolves.toEqual({
+      kind: 'generation',
+      ok: false,
+      code: 'server_error',
+      status: 500,
+      detail: 'plain text failure'
+    })
   })
 
   it('rejects missing, malformed, and non-HTTP configuration without fetching', async () => {

@@ -153,6 +153,8 @@ export interface ProfileConnectionResult {
   ok: boolean
   code: ProfileConnectionCode
   status?: number
+  /** Server-reported error message, when the endpoint returned one. */
+  detail?: string
 }
 
 export interface CliPriceEntry {
