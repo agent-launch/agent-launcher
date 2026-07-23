@@ -1,7 +1,7 @@
 {
   "name": "agent-launcher",
   "version": "0.1.0",
-  "description": "Install, configure, and run coding-agent CLIs from a desktop app.",
+  "description": "Configure and run existing coding-agent CLIs from a desktop app.",
   "author": "matrixlabs",
   "license": "MIT",
   "homepage": "https://github.com/matrixlabs/agent-launcher#readme",

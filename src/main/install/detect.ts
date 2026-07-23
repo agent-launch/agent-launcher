@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { loadConfig, setInstallState } from '../store'
 import { detectPlatform } from './platform'
 import type { DetectItem, DetectResult } from '@shared/types'
-import { detectSystemCli, findSystemCommand } from './installer'
+import { detectSystemCli } from './installer'
 
 const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes'] as const
 
@@ -59,7 +59,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   if (codexDetection && wslCodexPath) {
     codexDetection.wslPath = wslCodexPath
     if (!codexDetection.installed) {
-      codexDetection.detail = `Codex was detected inside WSL at ${wslCodexPath}; Agent Launcher will install the native Windows command with npm`
+      codexDetection.detail = `Codex was detected inside WSL at ${wslCodexPath}; install a native Windows version to use it here`
     }
   }
   const systemClis = Object.fromEntries(detections.map((d) => [d.cliId, d])) as DetectResult['systemClis']
@@ -71,36 +71,12 @@ export async function detectEnvironment(): Promise<DetectResult> {
       setInstallState(detection.cliId, { ...install, launchBlockedReason })
     }
   }
-  const pkgManager = platform.os === 'darwin' ? 'brew' : 'npm'
-  const [pkg, npm] = await Promise.all([findSystemCommand(pkgManager), findSystemCommand('npm')])
-
   const items: DetectItem[] = [
     {
       key: 'os',
       label: 'Operating system',
       present: true,
       detail: `${platform.os} · ${platform.arch}`
-    },
-    {
-      key: 'installer',
-      label: 'System install support',
-      present: !!pkg || !!npm,
-      detail:
-        platform.os === 'darwin'
-          ? pkg
-            ? `Homebrew · ${pkg}`
-            : npm
-              ? `npm · ${npm}`
-              : 'Homebrew and npm were not detected'
-          : npm
-            ? `npm · ${npm}`
-            : 'npm was not detected'
-    },
-    {
-      key: 'npm',
-      label: 'npm',
-      present: !!npm,
-      detail: npm ?? 'npm was not detected; some CLIs may require a manual Node/npm installation'
     }
   ]
 

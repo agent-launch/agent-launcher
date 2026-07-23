@@ -2,9 +2,7 @@
 
 export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes'
 
-export type InstallStrategy = 'npm-global' | 'official'
 export type InstallSource = 'sandbox' | 'system'
-export type InstallAction = 'link' | 'install' | 'reinstall' | 'repair'
 export type CodexInstallKind =
   | 'standalone'
   | 'npm'
@@ -85,13 +83,11 @@ export interface SystemCliDetection {
   installKind?: CodexInstallKind
   packageManager?: CodexPackageManager
   /** A Codex command detected inside the default WSL distribution. It is
-   * informational; the native desktop app installs its own Windows runtime. */
+   * informational because the native desktop app can only use Windows commands. */
   wslPath?: string
 }
 
-export interface InstallOptions {
-  source?: InstallSource
-  action?: InstallAction
+export interface CliLinkOptions {
   binPath?: string
 }
 
@@ -480,27 +476,14 @@ export interface AuthStatus {
   error?: string
 }
 
-/** Streamed install progress. */
-export interface InstallProgress {
+/** Streamed progress while linking an existing system CLI. */
+export interface CliLinkProgress {
   cliId: CliId
-  phase:
-    | 'resolve'
-    | 'download'
-    | 'extract'
-    | 'node'
-    | 'npm'
-    | 'system'
-    | 'link'
-    | 'repair'
-    | 'verify'
-    | 'done'
-    | 'error'
+  phase: 'link' | 'verify' | 'done' | 'error'
   message: string
-  /** 0..1 when known. */
-  fraction?: number
 }
 
-export type InstallResult =
+export type CliLinkResult =
   | {
       ok: true
       cliId: CliId
@@ -524,8 +507,6 @@ export interface CliUpdateStatus {
   currentVersion?: string
   latestVersion?: string
   updateAvailable: boolean
-  /** The About page can install or refresh this CLI through the configured source. */
-  canInstallUpdate: boolean
   binPath?: string
   error?: string
   checkedAt: number

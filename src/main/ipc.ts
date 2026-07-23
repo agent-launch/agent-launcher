@@ -1,4 +1,4 @@
-import { app, ipcMain, type IpcMainInvokeEvent } from 'electron'
+import { app, ipcMain } from 'electron'
 import { existsSync } from 'node:fs'
 import {
   loadConfig,
@@ -12,7 +12,7 @@ import { paths } from './sandbox'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { deleteSession, readTranscript } from './sessions-history'
 import { detectEnvironment } from './install/detect'
-import { cleanupSystemCli, getCliUpdateStatuses, installCli } from './install/installer'
+import { cleanupSystemCli, getCliUpdateStatuses, linkSystemCli } from './install/installer'
 import {
   createSession,
   openExternalAgent,
@@ -30,11 +30,11 @@ import { cancelSessionList, listSessionsInWorker } from './sessions-runner'
 import { listInstalledMcp, listInstalledSkills, readInstalledSkill } from './installed-resources'
 import type {
   AuthLoginMethod,
+  CliLinkOptions,
+  CliLinkProgress,
   CliId,
   ChatStartOptions,
-  CliProfilePatch,
-  InstallOptions,
-  InstallProgress
+  CliProfilePatch
 } from '@shared/types'
 
 export function registerIpc(): void {
@@ -77,19 +77,19 @@ export function registerIpc(): void {
   )
   ipcMain.handle('config:nativeFiles', (_e, id: CliId) => (hasNativeConfig(id) ? readNativeFiles(id) : null))
 
-  ipcMain.handle('install:cli', async (e: IpcMainInvokeEvent, id: CliId, opts?: InstallOptions) => {
-    const send = (p: InstallProgress) => {
-      if (!e.sender.isDestroyed()) e.sender.send('install:progress', p)
+  ipcMain.handle('cli:link', async (e, id: CliId, opts?: CliLinkOptions) => {
+    const send = (p: CliLinkProgress) => {
+      if (!e.sender.isDestroyed()) e.sender.send('cli:linkProgress', p)
     }
-    return installCli(
+    return linkSystemCli(
       id,
-      (phase, message, fraction) =>
-        send({ cliId: id, phase: phase as InstallProgress['phase'], message, fraction }),
-      opts
+      (phase, message) =>
+        send({ cliId: id, phase: phase as CliLinkProgress['phase'], message }),
+      opts?.binPath
     )
   })
-  ipcMain.handle('install:cleanupCli', (_e, id: CliId, binPath: string) => cleanupSystemCli(id, binPath))
-  ipcMain.handle('install:status', () => getCliUpdateStatuses())
+  ipcMain.handle('cli:cleanup', (_e, id: CliId, binPath: string) => cleanupSystemCli(id, binPath))
+  ipcMain.handle('cli:status', () => getCliUpdateStatuses())
   ipcMain.handle('usage:read', (_e, requestId: string, rangeDays?: number, summaryDays?: number) =>
     readUsageInWorker(requestId, rangeDays, summaryDays)
   )

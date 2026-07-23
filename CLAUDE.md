@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-AgentLauncher is an Electron desktop app that **installs, configures, and runs** five coding-agent CLIs — Claude Code, Codex, opencode, Pi, and Hermes Agent — for users who don't use the command line. It bundles each sandbox-managed CLI into an isolated home, materializes its provider/relay config from the UI, and spawns it in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
+AgentLauncher is an Electron desktop app that **configures and runs** five coding-agent CLIs — Claude Code, Codex, opencode, Pi, and Hermes Agent — for users who don't use the command line. It detects and links existing system CLIs but does not install, reinstall, or update them. The app materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
 
 ## Commands
 
@@ -17,7 +17,7 @@ pnpm verify           # typecheck + test typecheck + Vitest
 pnpm package          # build + electron-builder (current OS); also package:mac/win/linux
 ```
 
-`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, install, sessions, native config, codex, chat, transcript) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
+`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, CLI linking, sessions, native config, codex, chat, transcript) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
 
 Package manager is **pnpm** (see `packageManager` in `package.json` and dependency settings in `pnpm-workspace.yaml`). The native module `@lydell/node-pty` and `sql.js` (ships a `.wasm`) drive the asar/build config in `electron-builder.yml`.
 
@@ -27,25 +27,22 @@ Three TS projects, two tsconfigs: **main** + **preload** compile under `tsconfig
 
 All renderer↔main communication goes through `src/preload/index.ts`, which exposes `window.api`. Every channel there has a matching `ipcMain.handle` in `src/main/ipc.ts`. There is no direct Node access in the renderer (`contextIsolation: true`, `sandbox: false`).
 
-### The sandbox is the core design constraint
+### App data and legacy managed installs
 
-`src/main/sandbox.ts` defines `~/.agent-launcher/` — the app **never touches the user's existing CLI installs, global npm, or `~/.npmrc`**. Everything (config, a bundled portable Node, npm cache, per-CLI installs, and per-CLI redirected config dirs) lives under that root. When adding any feature that reads/writes CLI state, route it through `paths.*` — do not assume system paths.
+`src/main/sandbox.ts` defines `~/.agent-launcher/` for app state and compatibility with old app-managed installs. Do not add installation flows under `paths.cliInstall`, bundled Node, the private npm cache, the system npm, or official installers. Existing legacy installs remain readable and runnable.
 
 ### How a CLI gets configured (two mechanisms, often both)
 
 A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI config two ways:
 
-1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects per-CLI vars (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, opencode's `XDG_*`, `PI_CODING_AGENT_DIR`, plus `ANTHROPIC_BASE_URL`/`OPENAI_BASE_URL`/etc. and the auth token). This points each CLI's config dir into the sandbox and sets its relay endpoint.
+1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects relay/auth/model variables. System installs use their normal config homes; redirected config directories remain only for legacy managed installs.
 2. **Native config files** — `src/main/native-config.ts` writes the files some CLIs read instead of (or in addition to) env: Codex `config.toml`+`auth.json`, opencode `opencode.json` (custom `@ai-sdk/openai-compatible` provider), Pi `models.json`. `hasNativeConfig(id)` gates this. **Any profile change in `ipc.ts` re-runs `writeNativeConfig` via the `synced()` wrapper** — keep that invariant when adding config mutations.
 
 `readNativeFiles` produces **masked** copies for the UI (`resolvedEnvPreview` does the same for smoke checks/tests); secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
 
-### Install layer (`src/main/install/`)
+### CLI discovery and linking (`src/main/install/`)
 
-Two strategies, per `CliMeta.install`:
-- **native-binary** (Claude Code, Codex, opencode): download the platform-specific npm tarball from the registry, extract with system `tar`, run the binary directly. Codex binaries live under `vendor/<rust-triple>/bin/`.
-- **node-npm** (Pi): a real Node app, so `node-runtime.ts` first fetches a **portable Node LTS** (SHA256-verified against `SHASUMS256.txt`), then `npm install`s the package into the sandbox with an empty `--userconfig` so the user's npmrc is never read. Spawned later via `binPath`(=node) + `nodeEntry`(=the JS entry).
-- **system** (Hermes Agent, or user-selected system installs): link or install a system-managed binary, then use that CLI's normal config home.
+The app detects existing system commands, lets users choose among duplicate paths, and records the selected command. It never invokes npm, package-manager updates, or official CLI installers. Legacy `source: "sandbox"` records remain supported only for reading and running.
 
 `platform.ts` holds all the OS/arch → package-key/triple mapping quirks (win32→"windows"/"win", musl on linux, etc.). `detect.ts` reports environment facts to the wizard and cross-checks recorded `binPath`s still exist on disk.
 
@@ -59,7 +56,7 @@ Reads each CLI's **own** on-disk conversation history so users can resume — ea
 
 ### Renderer
 
-React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run install wizard) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`, ported from cc-switch) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).
+React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run detection, linking, and configuration) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`, ported from cc-switch) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).
 
 ## Adding a new CLI
 

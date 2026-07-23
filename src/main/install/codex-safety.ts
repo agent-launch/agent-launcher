@@ -15,8 +15,6 @@ export interface CodexInstallInspection {
   runtimeMissing?: boolean
 }
 
-export type CodexUpdateStrategy = 'self-update' | 'package-manager' | 'npm-reinstall'
-
 interface PackageJson {
   name?: string
   version?: string
@@ -268,10 +266,4 @@ export function codexInstallLabel(kind: CodexInstallKind, manager?: CodexPackage
     unknown: 'unknown install'
   }
   return labels[kind]
-}
-
-export function codexUpdateStrategy(kind: CodexInstallKind): CodexUpdateStrategy {
-  if (kind === 'standalone') return 'self-update'
-  if (kind === 'npm' || kind === 'homebrew-cask') return 'package-manager'
-  return 'npm-reinstall'
 }

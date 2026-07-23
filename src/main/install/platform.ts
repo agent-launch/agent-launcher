@@ -12,31 +12,3 @@ export function detectPlatform(): PlatformInfo {
   }
   return { os, arch, platformKey: `${os}-${arch}` }
 }
-
-/** Rust target triples used inside the Codex vendor/ tarball layout. */
-export function codexTargetTriple(p: PlatformInfo): string {
-  const map: Record<string, string> = {
-    'linux-x64': 'x86_64-unknown-linux-musl',
-    'linux-arm64': 'aarch64-unknown-linux-musl',
-    'darwin-x64': 'x86_64-apple-darwin',
-    'darwin-arm64': 'aarch64-apple-darwin',
-    'win32-x64': 'x86_64-pc-windows-msvc',
-    'win32-arm64': 'aarch64-pc-windows-msvc'
-  }
-  const triple = map[p.platformKey]
-  if (!triple) throw new Error(`No Codex triple for ${p.platformKey}`)
-  return triple
-}
-
-/** opencode's npm platform subpackage key (note win32 -> "windows"). */
-export function opencodePlatformKey(p: PlatformInfo): string {
-  const os = p.os === 'win32' ? 'windows' : p.os
-  return `${os}-${p.arch}`
-}
-
-/** Node dist filename component (note win32 -> "win"). */
-export function nodeDistName(p: PlatformInfo, version: string): { file: string; ext: string } {
-  const osPart = p.os === 'win32' ? 'win' : p.os
-  const ext = p.os === 'win32' ? 'zip' : 'tar.gz'
-  return { file: `node-v${version}-${osPart}-${p.arch}.${ext}`, ext }
-}
