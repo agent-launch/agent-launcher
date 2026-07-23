@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { useT } from '@/i18n'
+import { ProfileConnectionTest } from './ProfileConnectionTest'
 import type {
   AppConfig,
   CliId,
@@ -796,13 +797,26 @@ function ProfileForm({
           />
         </label>
       </div>
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button size="sm" onClick={submit}>
           {initial ? t('common.save') : t('common.add')}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
+        {!isOfficialProvider && (
+          <ProfileConnectionTest
+            cliId={cliId}
+            profile={{
+              name,
+              providerId,
+              baseUrl,
+              apiKey,
+              model: isClaude ? defaultModel : model,
+              defaultModel: isClaude ? defaultModel : undefined
+            }}
+          />
+        )}
       </div>
     </div>
   )

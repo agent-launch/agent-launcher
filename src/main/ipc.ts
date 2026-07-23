@@ -28,6 +28,7 @@ import { ensureSystemConfigImported } from './import-existing-config'
 import { cancelUsageRead, readUsageInWorker } from './usage-runner'
 import { cancelSessionList, listSessionsInWorker } from './sessions-runner'
 import { listInstalledMcp, listInstalledSkills, readInstalledSkill } from './installed-resources'
+import { testProfileConnection } from './profile-connectivity'
 import type {
   AuthLoginMethod,
   CliLinkOptions,
@@ -70,6 +71,9 @@ export function registerIpc(): void {
     synced(id, setActiveProfile(id, pid))
   )
   ipcMain.handle('config:setYolo', (_e, id: CliId, on: boolean) => setYolo(id, on))
+  ipcMain.handle('config:testConnection', (_e, id: CliId, patch: CliProfilePatch) =>
+    testProfileConnection(id, patch)
+  )
   ipcMain.handle('resources:listMcp', (_e, id: CliId) => listInstalledMcp(id))
   ipcMain.handle('resources:listSkills', (_e, id: CliId) => listInstalledSkills(id))
   ipcMain.handle('resources:readSkill', (_e, id: CliId, entryId: string) =>

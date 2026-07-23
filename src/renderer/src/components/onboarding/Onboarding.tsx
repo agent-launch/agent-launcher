@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/Modal";
 import { CLIS } from "@/data/clis";
 import { PROVIDERS_BY_CLI } from "@/data/providers";
 import { CliIcon } from "@/components/CliIcon";
+import { ProfileConnectionTest } from "@/components/config/ProfileConnectionTest";
 import appIcon from "@/assets/app-icon.png";
 import { useT } from "@/i18n";
 import type {
@@ -1007,8 +1008,12 @@ function ConfigStep() {
               className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
             />
           </label>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={save}>{t("onboarding.saveConfig")}</Button>
+            <ProfileConnectionTest
+              cliId={cliId}
+              profile={{ providerId, baseUrl, apiKey, model }}
+            />
             {saved && (
               <span className="text-[13px] text-success">
                 {t("onboarding.saved")}

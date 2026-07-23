@@ -17,6 +17,7 @@ import type {
   CliLinkResult,
   CliUpdateStatus,
   CliProfilePatch,
+  ProfileConnectionResult,
   CleanupCliResult,
   DashboardLaunchResult,
   DetectResult,
@@ -137,6 +138,8 @@ const api = {
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
     setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setYolo', id, on),
+    testConnection: (id: CliId, patch: CliProfilePatch): Promise<ProfileConnectionResult> =>
+      ipcRenderer.invoke('config:testConnection', id, patch),
     nativeFiles: (id: CliId): Promise<NativeFiles | null> =>
       ipcRenderer.invoke('config:nativeFiles', id)
   },

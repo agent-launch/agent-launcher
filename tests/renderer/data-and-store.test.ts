@@ -26,6 +26,7 @@ describe('renderer static data and persisted app store', () => {
     expect(Object.values(messages.en).join('\n')).not.toMatch(/one-click (?:npm )?repair/i)
     expect(Object.keys(PROVIDERS_BY_CLI)).toEqual(ids)
     expect(Object.keys(YOLO_SUPPORT)).toEqual(ids)
+    expect(Object.keys(messages.zh).sort()).toEqual(Object.keys(messages.en).sort())
     expect(PROVIDERS_BY_CLI.codex[0]).toMatchObject({
       id: 'routerlink',
       baseUrl: 'https://router-link.world3.ai/api/v1'

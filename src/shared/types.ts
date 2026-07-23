@@ -131,6 +131,30 @@ export interface CliProfiles {
 /** Patch shape used when creating/editing a profile. */
 export type CliProfilePatch = Partial<Omit<CliProfile, 'id'>>
 
+export type ProfileConnectionCode =
+  | 'ok'
+  | 'invalid_config'
+  | 'invalid_url'
+  | 'unauthorized'
+  | 'forbidden'
+  | 'payment_required'
+  | 'bad_request'
+  | 'unsupported_api'
+  | 'rate_limited'
+  | 'server_error'
+  | 'http_error'
+  | 'invalid_response'
+  | 'backend_mismatch'
+  | 'timeout'
+  | 'network_error'
+
+export interface ProfileConnectionResult {
+  kind: 'generation'
+  ok: boolean
+  code: ProfileConnectionCode
+  status?: number
+}
+
 export interface CliPriceEntry {
   id: string
   name: string
