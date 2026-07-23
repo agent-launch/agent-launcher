@@ -12,17 +12,18 @@ import type {
   AppUpdateDownloadResult,
   AppUpdateStatus,
   CliId,
+  CliLinkOptions,
+  CliLinkProgress,
+  CliLinkResult,
   CliUpdateStatus,
   CliProfilePatch,
+  ProfileConnectionResult,
   CleanupCliResult,
   DashboardLaunchResult,
   DetectResult,
   InstalledMcpEntry,
   InstalledSkillEntry,
   InstalledSkillFile,
-  InstallOptions,
-  InstallProgress,
-  InstallResult,
   NativeFiles,
   SessionDeleteResult,
   SessionInfo,
@@ -137,6 +138,8 @@ const api = {
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
     setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setYolo', id, on),
+    testConnection: (id: CliId, patch: CliProfilePatch): Promise<ProfileConnectionResult> =>
+      ipcRenderer.invoke('config:testConnection', id, patch),
     nativeFiles: (id: CliId): Promise<NativeFiles | null> =>
       ipcRenderer.invoke('config:nativeFiles', id)
   },
@@ -149,17 +152,17 @@ const api = {
     delete: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
       ipcRenderer.invoke('sessions:delete', id, sid)
   },
-  install: {
-    cli: (id: CliId, opts?: InstallOptions): Promise<InstallResult> =>
-      ipcRenderer.invoke('install:cli', id, opts),
-    status: (): Promise<CliUpdateStatus[]> => ipcRenderer.invoke('install:status'),
+  cli: {
+    link: (id: CliId, opts?: CliLinkOptions): Promise<CliLinkResult> =>
+      ipcRenderer.invoke('cli:link', id, opts),
+    status: (): Promise<CliUpdateStatus[]> => ipcRenderer.invoke('cli:status'),
     cleanupCli: (id: CliId, binPath: string): Promise<CleanupCliResult> =>
-      ipcRenderer.invoke('install:cleanupCli', id, binPath),
-    onProgress: (cb: (p: InstallProgress) => void) => {
-      const listener = (_e: unknown, p: InstallProgress) => cb(p)
-      ipcRenderer.on('install:progress', listener)
+      ipcRenderer.invoke('cli:cleanup', id, binPath),
+    onLinkProgress: (cb: (p: CliLinkProgress) => void) => {
+      const listener = (_e: unknown, p: CliLinkProgress) => cb(p)
+      ipcRenderer.on('cli:linkProgress', listener)
       return () => {
-        ipcRenderer.removeListener('install:progress', listener)
+        ipcRenderer.removeListener('cli:linkProgress', listener)
       }
     }
   },

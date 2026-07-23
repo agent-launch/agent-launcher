@@ -8,7 +8,6 @@ import {
 } from '../../src/main/cli-launch-safety'
 import {
   codexPackageVersion,
-  codexUpdateStrategy,
   inspectCodexInstall,
   isExplicitMacSecurityAssessmentFailure
 } from '../../src/main/install/codex-safety'
@@ -142,16 +141,6 @@ describe('Codex macOS launch safety', () => {
     writeFileSync(join(sourceRoot, 'Cargo.toml'), '[workspace.package]\nversion = "0.144.6"\n')
     writeFileSync(sourceBin, '')
     expect(inspectCodexInstall(sourceBin)).toMatchObject({ installKind: 'source-build', version: '0.144.6' })
-  })
-
-  it('routes managed installs to their updater and unmanaged installs to npm reinstall', () => {
-    expect(codexUpdateStrategy('standalone')).toBe('self-update')
-    expect(codexUpdateStrategy('npm')).toBe('package-manager')
-    expect(codexUpdateStrategy('homebrew-cask')).toBe('package-manager')
-    expect(codexUpdateStrategy('github-release')).toBe('npm-reinstall')
-    expect(codexUpdateStrategy('dotslash')).toBe('npm-reinstall')
-    expect(codexUpdateStrategy('source-build')).toBe('npm-reinstall')
-    expect(codexUpdateStrategy('app-bundled')).toBe('npm-reinstall')
   })
 
   it('distinguishes an explicit revoked-certificate verdict from a normal CLI rejection', () => {

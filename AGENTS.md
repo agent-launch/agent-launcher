@@ -4,7 +4,7 @@ This file provides guidance to coding agents (Codex, opencode, etc.) when workin
 
 ## What this is
 
-AgentLauncher is an Electron desktop app that **installs, configures, and runs** five coding-agent CLIs — Claude Code, Codex, opencode, Pi, and Hermes Agent — for users who don't use the command line. New npm-backed CLI installs are global system installs; Hermes uses its official installer. The app materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
+AgentLauncher is an Electron desktop app that **configures and runs** five coding-agent CLIs — Claude Code, Codex, opencode, Pi, and Hermes Agent — for users who don't use the command line. The app detects and links existing system CLIs but does not install, reinstall, or update them. It materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
 
 ## Commands
 
@@ -17,7 +17,7 @@ pnpm verify           # typecheck + test typecheck + Vitest
 pnpm package          # build + electron-builder (current OS); also package:mac/win/linux
 ```
 
-`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, install, sessions, native config, codex, chat, transcript) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
+`tests/**/*.test.ts` run under Vitest. `scripts/smoke-*.ts` are standalone manual smoke checks (config, CLI linking, sessions, native config, codex, chat, transcript) that import directly from `src/main/*`; they are run ad hoc against a real network/sandbox. Use `pnpm verify` as the normal correctness gate after edits, or `pnpm typecheck` for a quicker pass.
 
 Package manager is **pnpm** (see `packageManager` in `package.json` and dependency settings in `pnpm-workspace.yaml`). The native module `@lydell/node-pty` and `sql.js` (ships a `.wasm`) drive the asar/build config in `electron-builder.yml`.
 
@@ -29,7 +29,7 @@ All renderer↔main communication goes through `src/preload/index.ts`, which exp
 
 ### App data and legacy managed installs
 
-`src/main/sandbox.ts` defines `~/.agent-launcher/` for Agent Launcher state and compatibility with old app-managed installs. The managed-install feature is deprecated: do not add new installation flows under `paths.cliInstall`, bundled Node, or the private npm cache. New Claude, Codex, opencode, and Pi installs use the detected system npm; Hermes uses its official installer. Existing legacy installs remain readable so users can migrate without losing config.
+`src/main/sandbox.ts` defines `~/.agent-launcher/` for Agent Launcher state and compatibility with old app-managed installs. The managed-install feature is deprecated: do not add installation flows under `paths.cliInstall`, bundled Node, the private npm cache, the system npm, or official installers. Existing legacy installs remain readable so users can migrate without losing config.
 
 ### How a CLI gets configured (two mechanisms, often both)
 
@@ -40,14 +40,9 @@ A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI confi
 
 `readNativeFiles` produces **masked** copies for the UI (`resolvedEnvPreview` does the same for smoke checks/tests); secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
 
-### Install layer (`src/main/install/`)
+### CLI discovery and linking (`src/main/install/`)
 
-Two active strategies, per `CliMeta.install`:
-
-- **npm-global** (Claude Code, Codex, opencode, Pi): install with the detected system npm and link the resulting global command.
-- **official** (Hermes Agent): run its official installer and link the resulting command.
-
-Legacy `source: "sandbox"` records are supported only for reading/running and migration. Reinstall or repair migrates them to the active system strategy.
+The app detects existing system commands, lets users choose among duplicate paths, and records the selected command. It never invokes npm, package-manager updates, or official CLI installers. Legacy `source: "sandbox"` records remain supported only for reading and running.
 
 `platform.ts` holds all the OS/arch → package-key/triple mapping quirks (win32→"windows"/"win", musl on linux, etc.). `detect.ts` reports environment facts to the wizard and cross-checks recorded `binPath`s still exist on disk.
 
@@ -61,7 +56,7 @@ Reads each CLI's **own** on-disk conversation history so users can resume — ea
 
 ### Renderer
 
-React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run install wizard) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`, ported from cc-switch) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).
+React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run detection, linking, and configuration) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`, ported from cc-switch) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).
 
 ## Adding a new CLI
 

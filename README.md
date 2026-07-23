@@ -1,7 +1,7 @@
 <div align="center">
   <img src="src/renderer/src/assets/app-icon.png" width="112" alt="Agent Launcher icon">
   <h1>Agent Launcher</h1>
-  <p>Install, configure, and run coding-agent CLIs from one desktop app.</p>
+  <p>Configure and run your existing coding-agent CLIs from one desktop app.</p>
   <p>
     <a href="https://github.com/matrixlabs/agent-launcher/actions/workflows/ci.yml"><img src="https://github.com/matrixlabs/agent-launcher/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
     <a href="https://github.com/matrixlabs/agent-launcher/releases"><img src="https://img.shields.io/github/v/release/matrixlabs/agent-launcher?display_name=tag" alt="Latest release"></a>
@@ -9,7 +9,7 @@
   </p>
 </div>
 
-Agent Launcher is a local desktop workspace for coding-agent CLIs. It handles installation, account and provider configuration, native config files, sessions, usage, MCP servers, Skills, terminals, and updates through a graphical interface, so using an agent does not require managing Node.js, environment variables, or CLI config files by hand.
+Agent Launcher is a local desktop workspace for coding-agent CLIs. It links CLIs already installed on your system and handles account and provider configuration, native config files, sessions, usage, MCP servers, Skills, and terminals through a graphical interface. CLI installation and upgrades remain under your control through each project's official process.
 
 ![Agent Launcher workspace](docs/images/agent-launcher-workspace.jpg)
 
@@ -26,13 +26,13 @@ Agent Launcher is a local desktop workspace for coding-agent CLIs. It handles in
 
 ## Supported Agents
 
-| Agent | Installation | Configuration and runtime |
+| Agent | CLI source | Configuration and runtime |
 | --- | --- | --- |
-| [Claude Code](https://www.anthropic.com/claude-code) | Sandboxed native binary or an existing system install | Official account or Anthropic-compatible API profiles |
-| [Codex CLI](https://github.com/openai/codex) | Sandboxed native binary or an existing system install | ChatGPT account or OpenAI-compatible API profiles |
-| [OpenCode](https://opencode.ai/) | Sandboxed native binary or an existing system install | OpenAI-compatible providers |
-| [Pi](https://github.com/badlogic/pi-mono) | Sandboxed portable Node.js runtime or an existing system install | OpenAI-compatible providers |
-| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Official system-managed install | Existing account or OpenAI-compatible providers |
+| [Claude Code](https://www.anthropic.com/claude-code) | Existing system installation | Official account or Anthropic-compatible API profiles |
+| [Codex CLI](https://github.com/openai/codex) | Existing system installation | ChatGPT account or OpenAI-compatible API profiles |
+| [OpenCode](https://opencode.ai/) | Existing system installation | OpenAI-compatible providers |
+| [Pi](https://github.com/badlogic/pi-mono) | Existing system installation | OpenAI-compatible providers |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) | Existing system installation | Existing account or OpenAI-compatible providers |
 
 ## Install
 
@@ -42,21 +42,15 @@ Download the appropriate package from [GitHub Releases](https://github.com/matri
 - Windows: NSIS installer
 - Linux: AppImage
 
-On first launch, Agent Launcher can detect existing CLIs on your `PATH`, link to a system install, or install supported agents into its own sandbox.
+On first launch, Agent Launcher detects existing CLIs and links the selected system commands. Missing CLIs must be installed separately by following each project's official documentation.
 
 ## Features
 
-### Guided setup and installation
+### Guided setup and CLI linking
 
-The first-run wizard checks the local environment, detects existing agent binaries, installs missing sandbox-managed agents, and walks through account or API configuration. Claude Code and Codex CLI can use official login flows; supported agents can also use provider presets or custom compatible endpoints.
+The first-run wizard checks the local environment, detects and links existing agent binaries, and walks through account or API configuration. Missing CLIs link to their official installation documentation. Claude Code and Codex CLI can use official login flows; supported agents can also use provider presets or custom compatible endpoints.
 
-For sandbox installs, Agent Launcher downloads the correct native binary package for your OS and CPU. Pi is installed as a Node app using a portable Node.js runtime that lives inside the sandbox. Hermes Agent stays system-managed.
-
-### Isolated agent environments
-
-Sandbox-managed binaries, portable Node.js, npm cache, credentials, and redirected CLI config directories stay under `~/.agent-launcher/`. Agent Launcher does not modify global npm settings, does not read or rewrite `~/.npmrc`, and does not replace existing CLI installations.
-
-System-installed agents are used only when you select or link them. In that mode, the CLI keeps using its normal system-managed config home and history.
+Agent Launcher does not download, install, reinstall, or update agent CLIs. Existing legacy managed installations remain readable for compatibility, while newly linked CLIs continue using their normal system-managed config homes and history.
 
 ### Workspace, terminal, chat, and sessions
 
@@ -86,7 +80,7 @@ Supported MCP config styles include Codex TOML, Claude-style JSON `mcpServers`, 
 
 ![Installed Skills](docs/images/agent-launcher-skills.jpg)
 
-Installed Skills are displayed from the selected agent's managed skill roots. You can filter by name, source, or path, and open a Skill to inspect its `SKILL.md` content from inside the app. Agent Launcher can also search and install Skills from [skills.sh](https://skills.sh/) for supported agents.
+Installed Skills are displayed from the selected agent's managed skill roots. You can filter by name, source, or path, and open a Skill to inspect its `SKILL.md` content from inside the app.
 
 ### Usage dashboard
 
@@ -98,7 +92,7 @@ The Usage tab summarizes local agent activity across token totals, request count
 
 CLI-specific permission bypass settings are exposed only when the underlying agent supports them. For example, Codex and Claude Code have different auto-approve flags, and Pi does not expose one.
 
-The Settings area can check installed CLI versions, update individual agents without changing their selected install source, and check GitHub Releases for supported app updates.
+The Settings area can compare installed CLI versions with current releases and check GitHub Releases for Agent Launcher updates. CLI upgrades are performed outside the app.
 
 ### Themes and localization
 
@@ -106,11 +100,11 @@ Agent Launcher supports light, dark, and system themes. The app UI is localized 
 
 ## How Agent Launcher Works
 
-Agent Launcher is an Electron app with a React renderer and a TypeScript main process. The renderer talks to the main process only through the typed preload bridge. The main process owns filesystem access, installation, config writing, PTY sessions, usage scans, and update checks.
+Agent Launcher is an Electron app with a React renderer and a TypeScript main process. The renderer talks to the main process only through the typed preload bridge. The main process owns filesystem access, CLI detection and linking, config writing, PTY sessions, usage scans, and update checks.
 
 Agent configuration is applied in two layers:
 
-- Environment variables point each sandbox-managed CLI at its isolated config directory and selected provider endpoint.
+- Environment variables apply the selected provider endpoint when a CLI is launched. Legacy managed installations may still use redirected config directories.
 - Native config files are written for CLIs that require file-based configuration in addition to, or instead of, environment variables.
 
 This keeps the visible UI simple while still matching each CLI's real runtime expectations.
@@ -121,7 +115,7 @@ Release builds are available for macOS, Windows, and Linux. The installer format
 
 ## Privacy and Security
 
-Agent Launcher is local-first, but not offline-only. Installations and updates may contact npm, official Node.js downloads, GitHub Releases, and skills.sh. Running an agent sends requests to the official provider or relay endpoint selected in that agent's active profile.
+Agent Launcher is local-first, but not offline-only. CLI version checks may contact npm or PyPI, and Agent Launcher updates may contact GitHub Releases. Running an agent sends requests to the official provider or relay endpoint selected in that agent's active profile.
 
 API keys are deliberately stored as plaintext in `~/.agent-launcher/config.json` and, when required, in sandboxed CLI-native config files. Secrets are masked in the interface, but the files remain readable by your local user account. Never attach real config directories, unredacted logs, or screenshots containing credentials to a public issue.
 

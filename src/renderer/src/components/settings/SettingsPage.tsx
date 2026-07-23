@@ -752,7 +752,7 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
   const refreshStatuses = async () => {
     setChecking(true)
     try {
-      setStatuses(await window.api.install.status())
+      setStatuses(await window.api.cli.status())
     } finally {
       setChecking(false)
     }

@@ -14,14 +14,14 @@ import { Modal } from "@/components/ui/Modal";
 import { CLIS } from "@/data/clis";
 import { PROVIDERS_BY_CLI } from "@/data/providers";
 import { CliIcon } from "@/components/CliIcon";
+import { ProfileConnectionTest } from "@/components/config/ProfileConnectionTest";
 import appIcon from "@/assets/app-icon.png";
 import { useT } from "@/i18n";
 import type {
   AuthStatus,
   CliId,
+  CliLinkProgress,
   DetectResult,
-  InstallAction,
-  InstallProgress,
   InstallSource,
   SystemCliCandidate,
   SystemCliDetection,
@@ -30,7 +30,7 @@ import type {
 const STEP_KEYS = [
   "onboarding.step.welcome",
   "onboarding.step.detect",
-  "onboarding.step.install",
+  "onboarding.step.link",
   "onboarding.step.config",
   "onboarding.step.run",
 ] as const;
@@ -99,7 +99,7 @@ export function Onboarding() {
         <section className={`flex-1 overflow-y-auto px-10 pb-8 ${isMac ? "pt-14" : "pt-8"}`}>
           {step === 0 && <Welcome />}
           {step === 1 && <DetectStep />}
-          {step === 2 && <InstallStep />}
+          {step === 2 && <LinkStep />}
           {step === 3 && <ConfigStep />}
           {step === 4 && <Done />}
         </section>
@@ -249,9 +249,8 @@ function DetectStep() {
 }
 
 interface CliInstallUi {
-  phase?: InstallProgress["phase"];
+  phase?: CliLinkProgress["phase"];
   message?: string;
-  fraction?: number;
   version?: string;
   source?: InstallSource;
   binPath?: string;
@@ -277,9 +276,7 @@ function useCliPathManager(onChanged: () => Promise<void> | void) {
     setUi: InstallUiSetter,
   ) => {
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }));
-    const r = await window.api.install.cli(id, {
-      source: "system",
-      action: "link",
+    const r = await window.api.cli.link(id, {
       binPath: candidate.path,
     });
     setUi((p) => ({
@@ -288,7 +285,7 @@ function useCliPathManager(onChanged: () => Promise<void> | void) {
         ? {
             busy: false,
             phase: "done",
-            message: t("onboarding.installDone"),
+            message: t("onboarding.linkDone"),
             version: r.version,
             source: r.source,
             binPath: r.binPath,
@@ -302,7 +299,7 @@ function useCliPathManager(onChanged: () => Promise<void> | void) {
     if (!cleanupTarget) return;
     setCleanupBusy(true);
     setCleanupError(null);
-    const r = await window.api.install.cleanupCli(
+    const r = await window.api.cli.cleanupCli(
       cleanupTarget.cliId,
       cleanupTarget.candidate.path,
     );
@@ -477,7 +474,7 @@ function CliPathManager({
   );
 }
 
-function InstallStep() {
+function LinkStep() {
   const t = useT();
   const [ui, setUi] = useState<Record<string, CliInstallUi>>({});
   const [systemClis, setSystemClis] = useState<
@@ -522,9 +519,11 @@ function InstallStep() {
               inst?.source === "system" &&
               (detected?.status === "stale" || detected?.macosSecurityRisk);
             const shouldAutoLink = autoLinks.includes(id);
+            const usableLegacyInstall =
+              inst?.installed && inst.source === "sandbox";
             if (
               inst?.installed &&
-              inst.source === "system" &&
+              (inst.source === "system" || usableLegacyInstall) &&
               !staleSystemInstall &&
               !shouldAutoLink &&
               !next[id]?.busy
@@ -533,7 +532,7 @@ function InstallStep() {
                 phase: "done",
                 message: t("settings.cliStatus.installed"),
                 version: inst.version,
-                source: inst.source ?? "system",
+                source: inst.source,
                 binPath: inst.binPath,
               };
             } else if (shouldAutoLink && !next[id]?.busy) {
@@ -554,7 +553,7 @@ function InstallStep() {
         autoLinkStarted.current = true;
         for (const id of autoLinks) {
           if (cancelled) return;
-          await installOne(id, "link", result.systemClis?.[id]?.selectedPath);
+          await linkOne(id, result.systemClis?.[id]?.selectedPath);
         }
       },
     );
@@ -564,37 +563,28 @@ function InstallStep() {
   }, []);
 
   useEffect(() => {
-    return window.api.install.onProgress((p) => {
+    return window.api.cli.onLinkProgress((p) => {
       setUi((prev) => ({
         ...prev,
         [p.cliId]: {
           ...prev[p.cliId],
           phase: p.phase,
           message: p.message,
-          fraction: p.fraction,
         },
       }));
     });
   }, []);
 
-  const installOne = async (
-    id: CliId,
-    action?: InstallAction,
-    binPath?: string,
-  ) => {
+  const linkOne = async (id: CliId, binPath?: string) => {
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }));
-    const r = await window.api.install.cli(id, {
-      source: "system",
-      action,
-      binPath,
-    });
+    const r = await window.api.cli.link(id, { binPath });
     setUi((p) => ({
       ...p,
       [id]: r.ok
         ? {
             busy: false,
             phase: "done",
-            message: r.warning ?? t("onboarding.installDone"),
+            message: r.warning ?? t("onboarding.linkDone"),
             version: r.version,
             source: r.source,
             binPath: r.binPath,
@@ -604,48 +594,17 @@ function InstallStep() {
     await refreshDetection();
   };
 
-  const installAll = async () => {
-    for (const c of CLIS) {
-      const id = c.id as CliId;
-      const s = ui[id] ?? {};
-      if (s.phase === "done") continue;
-      if (systemClis[id]?.status === "linked") continue;
-      if (systemClis[id]?.macosSecurityRisk) {
-        // Risky binaries require a manual uninstall/update and must never be
-        // repaired or launched as part of the bulk action.
-        continue;
-      }
-      await installOne(id, installAction(id));
-    }
-  };
-
-  const installAction = (id: CliId): InstallAction => {
-    const s = ui[id] ?? {};
-    const detected = systemClis[id];
-    if (s.phase === "error") return "repair";
-    if (detected?.installed) return "link";
-    if (detected?.status === "available") return "link";
-    return "install";
-  };
-
-  const actionLabel = (id: CliId, busy?: boolean) => {
-    if (busy) return t("onboarding.installBusy");
-    const action = installAction(id);
-    if (action === "link") return t("onboarding.useSystemBtn");
-    return t("onboarding.installBtn");
-  };
-
   return (
     <StepShell
-      title={t("onboarding.installTitle")}
-      desc={t("onboarding.installDesc")}
+      title={t("onboarding.linkTitle")}
+      desc={t("onboarding.linkDesc")}
     >
       <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-border-weak bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)]">
-        <div className="min-w-0 truncate text-[12px] text-text-base">
-          {t("onboarding.systemManageDesc")}
+        <div className="min-w-0 text-[12px] leading-relaxed text-text-base">
+          {t("onboarding.linkManageDesc")}
         </div>
-        <Button className="shrink-0" size="sm" onClick={installAll}>
-          {t("onboarding.installAll")}
+        <Button className="shrink-0" size="sm" onClick={refreshDetection}>
+          {t("onboarding.refreshDetection")}
         </Button>
       </div>
       <div className="space-y-2">
@@ -655,6 +614,11 @@ function InstallStep() {
           const detected = systemClis[id];
           const hasMacSecurityRisk = !!detected?.macosSecurityRisk;
           const isLinked = s.phase === "done" || detected?.status === "linked";
+          const canLink =
+            !hasMacSecurityRisk &&
+            !isLinked &&
+            !!detected?.installed &&
+            !!detected.selectedPath;
           const macSecurityWarning = hasMacSecurityRisk
             ? t(
                 id === "codex"
@@ -703,13 +667,11 @@ function InstallStep() {
                       )}
                     </span>
                   ) : s.busy ? (
-                    `${s.message ?? t("onboarding.installing")}${s.fraction != null ? ` ${Math.round(s.fraction * 100)}%` : ""}`
-                  ) : detected?.status === "available" ? (
+                    s.message ?? t("onboarding.linking")
+                  ) : detected?.installed ? (
                     t("onboarding.systemAvailable")
-                  ) : c.install === "official" ? (
-                    t("onboarding.systemInstallMissing")
                   ) : (
-                    t("onboarding.npmSystemMissing")
+                    t("onboarding.systemMissing")
                   )}
                 </div>
                 {(s.binPath || detected?.selectedPath) && (
@@ -719,7 +681,7 @@ function InstallStep() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {hasMacSecurityRisk || isLinked ? (
+                {!canLink ? (
                   <ButtonLink
                     size="sm"
                     variant="secondary"
@@ -735,9 +697,11 @@ function InstallStep() {
                     size="sm"
                     variant="secondary"
                     disabled={s.busy}
-                    onClick={() => installOne(id, installAction(id))}
+                    onClick={() => linkOne(id, detected?.selectedPath)}
                   >
-                    {actionLabel(id, s.busy)}
+                    {s.busy
+                      ? t("onboarding.linkingBusy")
+                      : t("onboarding.useSystemBtn")}
                   </Button>
                 )}
               </div>
@@ -1044,8 +1008,12 @@ function ConfigStep() {
               className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
             />
           </label>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button onClick={save}>{t("onboarding.saveConfig")}</Button>
+            <ProfileConnectionTest
+              cliId={cliId}
+              profile={{ providerId, baseUrl, apiKey, model }}
+            />
             {saved && (
               <span className="text-[13px] text-success">
                 {t("onboarding.saved")}

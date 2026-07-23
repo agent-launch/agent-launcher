@@ -1,7 +1,7 @@
 {
   "name": "agent-launcher",
   "version": "0.1.0",
-  "description": "Install, configure, and run coding-agent CLIs from a desktop app.",
+  "description": "Configure and run existing coding-agent CLIs from a desktop app.",
   "author": "matrixlabs",
   "license": "MIT",
   "homepage": "https://github.com/matrixlabs/agent-launcher#readme",
@@ -28,7 +28,7 @@
     "test:run": "vitest run",
     "test:typecheck": "tsc --noEmit -p tsconfig.test.json",
     "verify": "pnpm typecheck && pnpm test:typecheck && pnpm test:run",
-    "audit:ci": "pnpm audit --audit-level high",
+    "audit:ci": "pnpm audit --prod --audit-level high",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",

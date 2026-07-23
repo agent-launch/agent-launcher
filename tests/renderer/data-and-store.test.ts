@@ -10,18 +10,12 @@ describe('renderer static data and persisted app store', () => {
     const ids = CLIS.map((cli) => cli.id as CliId)
 
     expect(ids).toEqual(['claude-code', 'codex', 'opencode', 'pi', 'gemini', 'hermes'])
-    expect(CLIS.slice(0, 5).map((cli) => cli.install)).toEqual([
-      'npm-global',
-      'npm-global',
-      'npm-global',
-      'npm-global',
-      'npm-global'
-    ])
-    expect(CLIS.at(-1)?.install).toBe('official')
     expect(CLIS.every((cli) => cli.installDocsUrl.startsWith('https://'))).toBe(true)
     expect(new Set(CLIS.map((cli) => cli.installDocsUrl)).size).toBe(CLIS.length)
     expect(Object.values(messages.zh).join('\n')).not.toContain('安装到沙盒')
     expect(Object.values(messages.en).join('\n').toLowerCase()).not.toContain('install to sandbox')
+    expect(Object.values(messages.zh).join('\n')).not.toMatch(/自动安装|安装缺失项|将使用.+安装/)
+    expect(Object.values(messages.en).join('\n')).not.toMatch(/install missing|will be installed|we'll install/i)
     expect(messages.en['onboarding.codexManualUpdateWarning']).toBe(
       "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Uninstall it, then follow the official installation docs to install version 0.135.0 or later."
     )
@@ -32,6 +26,7 @@ describe('renderer static data and persisted app store', () => {
     expect(Object.values(messages.en).join('\n')).not.toMatch(/one-click (?:npm )?repair/i)
     expect(Object.keys(PROVIDERS_BY_CLI)).toEqual(ids)
     expect(Object.keys(YOLO_SUPPORT)).toEqual(ids)
+    expect(Object.keys(messages.zh).sort()).toEqual(Object.keys(messages.en).sort())
     expect(PROVIDERS_BY_CLI.codex[0]).toMatchObject({
       id: 'routerlink',
       baseUrl: 'https://router-link.world3.ai/api/v1'
