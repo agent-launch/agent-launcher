@@ -803,29 +803,30 @@ function ConfigStep() {
 
   const save = async () => {
     const p = providers.find((x) => x.id === providerId);
+    const isOfficialProvider = p?.category === "official";
     const nextBaseUrl = baseUrl.trim();
-    const nextApiKey = apiKey.trim();
+    const nextApiKey = isOfficialProvider ? "" : apiKey.trim();
     const nextModel = model.trim();
 
-    if (!nextBaseUrl) {
+    if (!isOfficialProvider && !nextBaseUrl) {
       toast.error(t("config.baseUrlRequiredToast"));
       return;
     }
 
-    if (!nextApiKey) {
+    if (!isOfficialProvider && !nextApiKey) {
       toast.error(t("config.apiKeyRequiredToast"));
       return;
     }
 
     // Relay profiles must name the model explicitly — we never pick a default.
-    if (!nextModel) {
+    if (!isOfficialProvider && !nextModel) {
       toast.error(t("config.modelRequiredToast"));
       return;
     }
     const cfg = await window.api.config.addProfile(cliId, {
       name: p?.name ?? t("category.custom"),
       providerId,
-      baseUrl: nextBaseUrl,
+      baseUrl: isOfficialProvider ? "" : nextBaseUrl,
       apiKey: nextApiKey,
       model: nextModel,
     });
