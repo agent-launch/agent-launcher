@@ -4,7 +4,7 @@ import { detectPlatform } from './platform'
 import type { DetectItem, DetectResult } from '@shared/types'
 import { detectSystemCli } from './installer'
 
-const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes'] as const
+const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
 
 function detectWslCodex(): Promise<string | undefined> {
   if (process.platform !== 'win32') return Promise.resolve(undefined)

@@ -9,7 +9,7 @@ describe('renderer static data and persisted app store', () => {
     const { messages } = await import('../../src/renderer/src/i18n/messages')
     const ids = CLIS.map((cli) => cli.id as CliId)
 
-    expect(ids).toEqual(['claude-code', 'codex', 'opencode', 'pi', 'hermes'])
+    expect(ids).toEqual(['claude-code', 'codex', 'opencode', 'pi', 'gemini', 'hermes'])
     expect(CLIS.every((cli) => cli.installDocsUrl.startsWith('https://'))).toBe(true)
     expect(new Set(CLIS.map((cli) => cli.installDocsUrl)).size).toBe(CLIS.length)
     expect(Object.values(messages.zh).join('\n')).not.toContain('安装到沙盒')

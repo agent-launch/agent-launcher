@@ -1,6 +1,6 @@
 // Shared IPC contract types — imported by both main and renderer.
 
-export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes'
+export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes' | 'gemini'
 
 export type InstallSource = 'sandbox' | 'system'
 export type CodexInstallKind =
