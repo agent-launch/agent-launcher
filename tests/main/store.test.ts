@@ -16,7 +16,7 @@ describe('main store', () => {
       expect(cfg.clis.opencode.authMode).toBe('api')
       expect(cfg.clis.pi.authMode).toBe('api')
       expect(cfg.clis.hermes.authMode).toBe('api')
-      expect(cfg.clis.gemini.authMode).toBe('official')
+      expect(cfg.clis.gemini.authMode).toBe('api')
       expect(cfg.resources.codex).toEqual({ prices: [], mcpServers: [], skills: [] })
     })
   })

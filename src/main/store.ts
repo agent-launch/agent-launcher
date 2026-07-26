@@ -19,7 +19,11 @@ import type {
 
 const SCHEMA = 4
 const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini']
-const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex', 'gemini'])
+// gemini-cli dropped free-tier Google-account sign-in on 2026-06-18 (Google
+// pushed individuals to Antigravity CLI instead), so gemini can no longer
+// default to — or offer — "official" OAuth here; API-key/relay is now the
+// only auth path that actually works for it.
+const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex'])
 const OPENAI_COMPATIBLE_CLIS = new Set<CliId>(['codex', 'opencode', 'pi', 'hermes'])
 const OFFICIAL_PROFILE_ID = 'official'
 const ROUTERLINK_OPENAI_BASE_URL = 'https://router-link.world3.ai/api/v1'
@@ -31,7 +35,6 @@ function defaultAuthMode(id: CliId): AuthMode {
 
 function officialProfileName(id: CliId): string {
   if (id === 'codex') return 'OpenAI Official'
-  if (id === 'gemini') return 'Google Official'
   return 'Claude Official'
 }
 
