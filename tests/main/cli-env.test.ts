@@ -36,7 +36,8 @@ describe('CLI environment builder', () => {
         expect(claudeEnv.ANTHROPIC_AUTH_TOKEN).toBe('sk-claude-1234')
         expect(claudeEnv.ANTHROPIC_MODEL).toBe('sonnet')
         expect(claudeEnv.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('haiku')
-        expect(claudeEnv.PATH?.split(delimiter)[0]).toBe(join(paths.node, 'bin'))
+        const nodeBinDir = process.platform === 'win32' ? paths.node : join(paths.node, 'bin')
+        expect(claudeEnv.PATH?.split(delimiter)[0]).toBe(nodeBinDir)
         expect(resolvedEnvPreview('claude-code')).toContainEqual({
           key: 'ANTHROPIC_AUTH_TOKEN',
           value: 'sk-…1234',

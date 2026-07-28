@@ -21,6 +21,8 @@ jobs:
     permissions:
       actions: read
       contents: write
+      # Required: without github_token input, the action exchanges an OIDC
+      # token for its app token and fails hard when id-token is missing.
       id-token: write
       issues: write
       pull-requests: write
@@ -31,7 +33,7 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude Code
-        uses: anthropics/claude-code-action@c96dd0a84e0232ab86947fca5fe34f1caae8792f # v1
+        uses: anthropics/claude-code-action@c3d45e8e941e1b2ad7b278c57482d9c5bf1f35b3 # v1.0.99
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_args: |

@@ -51,7 +51,7 @@ Agent Launcher 是一个本地桌面编程 Agent 工作区。它会检测并关�
 
 每个 Agent 可以保存多套服务商配置。配置变更后，Agent Launcher 会同步该 CLI 所需的环境变量和原生配置文件。连通性测试会发送一次最小真实模型请求，确认接口、密钥、模型、网络和账号状态。
 
-原生配置预览会在界面中遮盖密钥。支持的目标包括 Claude Code 设置、Codex `config.toml` 和 `auth.json`、OpenCode `opencode.json`、Pi 模型和设置、Gemini 配置以及 Hermes Agent 配置文件。
+原生配置预览会在界面中遮盖密钥。支持的目标包括 Claude Code 设置、Codex `config.toml` 和 `auth.json`、OpenCode `opencode.json`、Pi 模型和设置以及 Hermes Agent 配置文件。Gemini CLI 仅通过环境变量配置，相关内容显示在环境变量预览中。
 
 ### 会话、MCP、Skills 和用量
 
@@ -95,7 +95,7 @@ CLI 始终由用户以及它的官方安装器或包管理器负责。这样可�
 <details>
 <summary>支持哪些环境变量覆盖？</summary>
 
-下游构建可以通过 `AGENT_LAUNCHER_UPDATE_OWNER`、`AGENT_LAUNCHER_UPDATE_REPO` 和 `AGENT_LAUNCHER_UPDATE_POLICY_URL` 重定向更新检查。对应 CLI 使用时，`CODEX_HOME`、`GEMINI_CLI_HOME`、`HERMES_HOME` 以及 XDG 配置和数据目录变量也会被尊重。启动进程时，当前启用的 API 配置会有意覆盖对应服务商的认证变量。
+下游构建可以通过 `AGENT_LAUNCHER_UPDATE_OWNER`、`AGENT_LAUNCHER_UPDATE_REPO` 和 `AGENT_LAUNCHER_UPDATE_POLICY_URL` 重定向更新检查。`CODEX_HOME`、`GEMINI_CLI_HOME`、`HERMES_HOME` 以及 XDG 配置和数据目录变量会原样传递给启动的 CLI；配置文件同步会遵循 `HERMES_HOME`、`GEMINI_CLI_HOME` 和 `XDG_CONFIG_HOME`，但 Codex 的配置始终写入 `~/.codex`（即使设置了 `CODEX_HOME`）。启动进程时，当前启用的 API 配置会有意覆盖对应服务商的认证变量。
 
 </details>
 

@@ -16,5 +16,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Repository, update, release, and package metadata now point to `WhiteMatrixTech/agent-launcher`.
-
-[Unreleased]: https://github.com/WhiteMatrixTech/agent-launcher/compare/main...HEAD
+- The application id changed from `org.matrixlabs.agentlauncher` to `io.whitematrix.agentlauncher`; existing installs are treated as a new application (Windows keeps the old entry until uninstalled, macOS permissions/preferences tied to the old bundle id reset).

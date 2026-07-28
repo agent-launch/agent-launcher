@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { resolveProjectDirectory } from '../../src/main/workspace-directory'
 
@@ -20,6 +20,13 @@ describe('project directory selection', () => {
     mkdirSync(project)
 
     expect(resolveProjectDirectory(project)).toBe(project)
+    expect(resolveProjectDirectory(`  ${project}  `)).toBe(project)
+  })
+
+  it('rejects relative paths instead of resolving against the process cwd', () => {
+    expect(resolveProjectDirectory('.')).toBeNull()
+    expect(resolveProjectDirectory('src')).toBeNull()
+    expect(resolveProjectDirectory(relative('/', process.cwd()))).toBeNull()
   })
 
   it('rejects empty, missing, and file paths', () => {

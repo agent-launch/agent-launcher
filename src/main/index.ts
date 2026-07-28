@@ -142,6 +142,13 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
+  // A file/folder dropped outside a renderer drop zone would otherwise
+  // navigate the window to file:// and wipe the whole UI state. Same-URL
+  // navigation stays allowed so renderer-initiated reloads keep working.
+  win.webContents.on('will-navigate', (event, url) => {
+    if (url !== win.webContents.getURL()) event.preventDefault()
+  })
+
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']
   if (rendererUrl) {
     win.loadURL(rendererUrl)

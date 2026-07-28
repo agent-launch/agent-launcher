@@ -328,7 +328,9 @@ export function Shell() {
       return
     }
     const directory = await window.api.workspace.validateDirectory(candidate)
-    if (directory) setRecentProjectDir(directory)
+    if (!directory) return
+    setRecentProjectDir(directory)
+    if (installed) void startNewSession(directory)
   }
 
   const backToHistory = () => {

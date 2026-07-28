@@ -51,7 +51,7 @@ Choose or drag in a project folder before starting a session. Agent Launcher rem
 
 Each agent can keep multiple provider profiles. When a profile changes, Agent Launcher synchronizes the environment variables and native config files expected by that CLI. A real minimal model request checks the endpoint, credentials, model, network, and account status before the profile is used.
 
-Native config previews mask secrets in the UI. Supported targets include Claude Code settings, Codex `config.toml` and `auth.json`, OpenCode `opencode.json`, Pi models and settings, Gemini configuration, and Hermes Agent config/env files.
+Native config previews mask secrets in the UI. Supported targets include Claude Code settings, Codex `config.toml` and `auth.json`, OpenCode `opencode.json`, Pi models and settings, and Hermes Agent config/env files. Gemini CLI is configured through environment variables only, which appear in the environment preview instead.
 
 ### Sessions, MCP, Skills, and usage
 
@@ -95,7 +95,7 @@ Release automation signs and verifies artifacts when the repository's signing se
 <details>
 <summary>Which environment overrides are available?</summary>
 
-`AGENT_LAUNCHER_UPDATE_OWNER`, `AGENT_LAUNCHER_UPDATE_REPO`, and `AGENT_LAUNCHER_UPDATE_POLICY_URL` redirect update checks for downstream builds. Standard CLI variables such as `CODEX_HOME`, `GEMINI_CLI_HOME`, `HERMES_HOME`, and XDG data/config variables are respected where the corresponding CLI uses them. Active API profiles intentionally override provider credentials for the launched process.
+`AGENT_LAUNCHER_UPDATE_OWNER`, `AGENT_LAUNCHER_UPDATE_REPO`, and `AGENT_LAUNCHER_UPDATE_POLICY_URL` redirect update checks for downstream builds. Standard CLI variables such as `CODEX_HOME`, `GEMINI_CLI_HOME`, `HERMES_HOME`, and XDG data/config variables pass through to the launched CLI; config-file sync honors `HERMES_HOME`, `GEMINI_CLI_HOME`, and `XDG_CONFIG_HOME`, but always writes Codex files to `~/.codex` even when `CODEX_HOME` is set. Active API profiles intentionally override provider credentials for the launched process.
 
 </details>
 

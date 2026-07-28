@@ -38,7 +38,7 @@ All renderer↔main communication goes through `src/preload/index.ts`, which exp
 A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI config two ways:
 
 1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects relay/auth/model variables. System installs use their normal config homes; redirected config directories remain only for legacy managed installs.
-2. **Native config files** — `src/main/native-config.ts` writes the files some CLIs read instead of (or in addition to) env: Codex `config.toml`+`auth.json`, opencode `opencode.json` (custom `@ai-sdk/openai-compatible` provider), Pi `models.json`. `hasNativeConfig(id)` gates this. **Any profile change in `ipc.ts` re-runs `writeNativeConfig` via the `synced()` wrapper** — keep that invariant when adding config mutations.
+2. **Native config files** — `src/main/native-config.ts` writes the files some CLIs read instead of (or in addition to) env: Claude Code `settings.json` (env block), Codex `config.toml`+`auth.json`, opencode `opencode.json` (custom `@ai-sdk/openai-compatible` provider), Pi `models.json`, Hermes `config.yaml`+`.env`. `hasNativeConfig(id)` gates this; Gemini is env-var only. **Any profile change in `ipc.ts` re-runs `writeNativeConfig` via the `synced()` wrapper** — keep that invariant when adding config mutations.
 
 `readNativeFiles` produces **masked** copies for the UI (`resolvedEnvPreview` does the same for smoke checks/tests); secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
 
@@ -54,7 +54,7 @@ The app detects existing system commands, lets users choose among duplicate path
 
 ### Sessions history (`src/main/sessions-history.ts`)
 
-Reads each CLI's **own** on-disk conversation history so users can resume — each CLI stores it differently: Claude/Codex/Pi use JSONL (different dir layouts and title fields), **opencode uses a SQLite DB read via `sql.js`/WASM**. `resumeArgs()` maps a session id back to the CLI's resume flag. Adding a CLI means adding both a `list*` reader and a `resumeArgs` case.
+Reads each CLI's **own** on-disk conversation history so users can resume — each CLI stores it differently: Claude/Codex/Pi use JSONL (different dir layouts and title fields), Gemini writes JSON log arrays, and **opencode and Hermes use SQLite DBs read via `sql.js`/WASM** (Hermes merged with its JSON session files). `resumeArgs()` maps a session id back to the CLI's resume flag. Adding a CLI means adding both a `list*` reader and a `resumeArgs` case.
 
 ### Renderer
 
