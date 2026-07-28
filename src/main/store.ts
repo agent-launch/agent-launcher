@@ -114,6 +114,22 @@ function dropUnpinnedOfficialProfile(cli: CliProfiles, prefs: CliPrefs | undefin
   }
 }
 
+/** gemini-cli's OAuth support (OFFICIAL_AUTH_CLIS) was removed after Google
+ * dropped free-tier sign-in (2026-06-18). A user who'd previously pinned a
+ * "Google Official" profile would otherwise keep it active with an empty
+ * baseUrl/apiKey and no matching provider card — unlike
+ * dropUnpinnedOfficialProfile, this clears it unconditionally, pinned or not. */
+function dropGeminiOfficialProfile(cli: CliProfiles, prefs: CliPrefs | undefined): void {
+  if (prefs) delete prefs.officialProfilePinned
+  cli.profiles = cli.profiles.filter((profile) => !isOfficialProfile(profile))
+  if (cli.activeProfileId && !cli.profiles.some((profile) => profile.id === cli.activeProfileId)) {
+    cli.activeProfileId = undefined
+  }
+  // A stale stored 'official' authMode would otherwise survive as
+  // syncProfileState's requestedMode fallback once there's no active profile.
+  if (cli.authMode === 'official') cli.authMode = 'api'
+}
+
 function inferInstallSource(state: CliInstallState): InstallSource {
   if (state.source) return state.source
   if (!state.installed) return 'system'
@@ -184,7 +200,8 @@ function normalize(raw: unknown): AppConfig {
       }
     }
     normalizeProfiles(id, base.clis[id])
-    dropUnpinnedOfficialProfile(base.clis[id], base.prefs[id])
+    if (id === 'gemini') dropGeminiOfficialProfile(base.clis[id], base.prefs[id])
+    else dropUnpinnedOfficialProfile(base.clis[id], base.prefs[id])
     syncProfileState(id, base.clis[id])
   }
   return base
@@ -281,6 +298,10 @@ export function setActiveProfile(id: CliId, profileId: string): AppConfig {
 export function setAuthMode(id: CliId, authMode: AuthMode): AppConfig {
   const cfg = loadConfig()
   const cli = cfg.clis[id]
+  // Ignore requests to switch a CLI without official-auth support into
+  // 'official' — it would otherwise stick as a pinned, profile-less mode
+  // with nothing for buildCliEnv to inject (see dropGeminiOfficialProfile).
+  if (authMode === 'official' && !OFFICIAL_AUTH_CLIS.has(id)) return cfg
   if (authMode === 'official') {
     cfg.prefs[id] = { ...cfg.prefs[id], officialProfilePinned: true }
     const profile = ensureOfficialProfile(id, cli)

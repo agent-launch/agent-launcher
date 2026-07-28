@@ -97,8 +97,12 @@ function cliVars(cliId: CliId): EnvPair[] {
     if (!isSystemInstall) out.push({ key: 'GEMINI_CLI_HOME', value: configDir })
     // gemini-cli dropped free-tier OAuth login (2026-06-18), so there's no
     // "official" auth mode to defer to here — always inject the relay/key.
-    // GOOGLE_GEMINI_BASE_URL switches gemini-cli's env-based auth detection
-    // to "gateway" mode (checked before GEMINI_API_KEY).
+    // Unresolved caveat: a previously-saved `security.auth.selectedType` in
+    // gemini's settings.json still wins over these env vars, so a system
+    // install that OAuth'd before the cutoff may keep dead-ending even with
+    // a relay profile configured here. GOOGLE_GEMINI_BASE_URL also switches
+    // gemini-cli's env-based auth detection to "gateway" mode (checked
+    // before GEMINI_API_KEY).
     if (p?.baseUrl) out.push({ key: 'GOOGLE_GEMINI_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'GEMINI_API_KEY', value: p.apiKey, secret: true })
   }

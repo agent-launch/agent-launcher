@@ -59,6 +59,32 @@ describe('CLI environment builder', () => {
     })
   })
 
+  it('injects gemini relay env vars even from a legacy on-disk authMode of official', async () => {
+    await withIsolatedHome(async () => {
+      const { dirname } = await import('node:path')
+      const { mkdirSync, writeFileSync } = await import('node:fs')
+      const { paths } = await import('../../src/main/sandbox')
+      mkdirSync(dirname(paths.config), { recursive: true })
+      writeFileSync(
+        paths.config,
+        JSON.stringify({
+          clis: {
+            gemini: {
+              profiles: [{ id: 'p1', name: 'Gemini Relay', providerId: 'custom', baseUrl: 'https://gemini.example/v1', apiKey: 'sk-gemini' }],
+              activeProfileId: 'p1',
+              authMode: 'official'
+            }
+          }
+        })
+      )
+
+      const { buildCliEnv } = await import('../../src/main/cli-env')
+      const geminiEnv = buildCliEnv('gemini')
+      expect(geminiEnv.GOOGLE_GEMINI_BASE_URL).toBe('https://gemini.example/v1')
+      expect(geminiEnv.GEMINI_API_KEY).toBe('sk-gemini')
+    })
+  })
+
   it('keeps system installs on system config locations', async () => {
     await withIsolatedHome(async ({ home }) => {
       const { setInstallState } = await import('../../src/main/store')
