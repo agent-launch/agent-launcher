@@ -96,10 +96,9 @@ export type CleanupCliResult =
   | { ok: false; cliId: CliId; path: string; error: string }
 
 export type DashboardLaunchResult =
-  | { ok: true; cliId: CliId; url: string }
-  | { ok: false; cliId: CliId; error: string }
+  { ok: true; cliId: CliId; url: string } | { ok: false; cliId: CliId; error: string }
 
-/** A single saved provider config (cc-switch style profile). */
+/** A single saved provider configuration. */
 export interface CliProfile {
   id: string
   /** User-facing label, e.g. "AiHubMix · Opus". */
@@ -210,11 +209,7 @@ export type CliMcpPatch = Partial<Omit<CliMcpEntry, 'id'>>
 export type CliSkillPatch = Partial<Omit<CliSkillEntry, 'id'>>
 
 export type InstalledMcpConfigKind =
-  | 'codex-toml'
-  | 'codex-plugin'
-  | 'json-mcp'
-  | 'json-mcp-servers'
-  | 'hermes-yaml'
+  'codex-toml' | 'codex-plugin' | 'json-mcp' | 'json-mcp-servers' | 'hermes-yaml'
 
 export interface InstalledMcpEntry {
   id: string
@@ -332,13 +327,7 @@ export interface AppUpdatePolicy {
 }
 
 export type AppUpdateStatusKind =
-  | 'idle'
-  | 'checking'
-  | 'available'
-  | 'up-to-date'
-  | 'downloading'
-  | 'downloaded'
-  | 'error'
+  'idle' | 'checking' | 'available' | 'up-to-date' | 'downloading' | 'downloaded' | 'error'
 
 export interface AppUpdateStatus {
   status: AppUpdateStatusKind
@@ -354,12 +343,10 @@ export interface AppUpdateStatus {
 }
 
 export type AppUpdateCheckResult =
-  | { ok: true; status: AppUpdateStatus }
-  | { ok: false; status: AppUpdateStatus; error: string }
+  { ok: true; status: AppUpdateStatus } | { ok: false; status: AppUpdateStatus; error: string }
 
 export type AppUpdateDownloadResult =
-  | { ok: true; status: AppUpdateStatus }
-  | { ok: false; status: AppUpdateStatus; error: string }
+  { ok: true; status: AppUpdateStatus } | { ok: false; status: AppUpdateStatus; error: string }
 
 export interface AppUpdateDownloadProgress {
   percent: number

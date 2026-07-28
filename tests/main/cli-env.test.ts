@@ -16,7 +16,11 @@ describe('CLI environment builder', () => {
         process.env.OPENAI_API_KEY = 'leaked-openai'
         process.env.OPENAI_BASE_URL = 'https://leaked.example'
 
-        setInstallState('claude-code', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('claude-code'), 'claude') })
+        setInstallState('claude-code', {
+          installed: true,
+          source: 'sandbox',
+          binPath: join(paths.cliInstall('claude-code'), 'claude')
+        })
         addProfile('claude-code', {
           name: 'Claude Relay',
           baseUrl: 'https://claude.example',
@@ -39,19 +43,37 @@ describe('CLI environment builder', () => {
           secret: true
         })
 
-        setInstallState('codex', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('codex'), 'codex') })
-        addProfile('codex', { name: 'Codex Relay', baseUrl: 'https://codex.example/v1', apiKey: 'sk-codex', model: 'gpt-5' })
+        setInstallState('codex', {
+          installed: true,
+          source: 'sandbox',
+          binPath: join(paths.cliInstall('codex'), 'codex')
+        })
+        addProfile('codex', {
+          name: 'Codex Relay',
+          baseUrl: 'https://codex.example/v1',
+          apiKey: 'sk-codex',
+          model: 'gpt-5'
+        })
         const codexEnv = buildCliEnv('codex')
         expect(codexEnv.OPENAI_API_KEY).toBeUndefined()
         expect(codexEnv.OPENAI_BASE_URL).toBeUndefined()
         expect(codexEnv.CODEX_HOME).toBe(paths.cliConfig('codex'))
 
-        setInstallState('opencode', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('opencode'), 'opencode') })
+        setInstallState('opencode', {
+          installed: true,
+          source: 'sandbox',
+          binPath: join(paths.cliInstall('opencode'), 'opencode')
+        })
         const opencodeEnv = buildCliEnv('opencode')
         expect(opencodeEnv.XDG_CONFIG_HOME).toBe(join(paths.cliConfig('opencode'), 'xdg-config'))
         expect(opencodeEnv.OPENCODE_CONFIG).toBe(join(paths.cliConfig('opencode'), 'opencode.json'))
 
-        setInstallState('pi', { installed: true, source: 'sandbox', binPath: join(paths.node, 'bin', 'node'), nodeEntry: 'pi.js' })
+        setInstallState('pi', {
+          installed: true,
+          source: 'sandbox',
+          binPath: join(paths.node, 'bin', 'node'),
+          nodeEntry: 'pi.js'
+        })
         expect(buildCliEnv('pi').PI_CODING_AGENT_DIR).toBe(paths.cliConfig('pi'))
       } finally {
         process.env = previous
@@ -64,10 +86,18 @@ describe('CLI environment builder', () => {
       const { setInstallState } = await import('../../src/main/store')
       const { buildCliEnv } = await import('../../src/main/cli-env')
 
-      setInstallState('opencode', { installed: true, source: 'system', binPath: '/usr/local/bin/opencode' })
+      setInstallState('opencode', {
+        installed: true,
+        source: 'system',
+        binPath: '/usr/local/bin/opencode'
+      })
       expect(buildCliEnv('opencode').OPENCODE_CONFIG).toBeUndefined()
 
-      setInstallState('hermes', { installed: true, source: 'system', binPath: '/usr/local/bin/hermes' })
+      setInstallState('hermes', {
+        installed: true,
+        source: 'system',
+        binPath: '/usr/local/bin/hermes'
+      })
       expect(buildCliEnv('hermes').HERMES_HOME).toBe(join(home, '.hermes'))
     })
   })

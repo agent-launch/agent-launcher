@@ -10,7 +10,11 @@ describe('native config materialization', () => {
       const { addProfile, setAuthMode, setInstallState } = await import('../../src/main/store')
       const { readNativeFiles, writeNativeConfig } = await import('../../src/main/native-config')
 
-      setInstallState('codex', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('codex'), 'codex') })
+      setInstallState('codex', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.cliInstall('codex'), 'codex')
+      })
       addProfile('codex', {
         name: 'Relay "One"',
         providerId: 'custom',
@@ -18,7 +22,10 @@ describe('native config materialization', () => {
         apiKey: 'sk-1234567890',
         model: 'gpt-5'
       })
-      writeText(join(paths.cliConfig('codex'), 'config.toml'), 'approval_policy = "on-request"\n[profiles.default]\nfoo = "bar"\n')
+      writeText(
+        join(paths.cliConfig('codex'), 'config.toml'),
+        'approval_policy = "on-request"\n[profiles.default]\nfoo = "bar"\n'
+      )
 
       writeNativeConfig('codex')
 
@@ -54,7 +61,11 @@ describe('native config materialization', () => {
       const { addProfile, setAuthMode, setInstallState } = await import('../../src/main/store')
       const { writeNativeConfig } = await import('../../src/main/native-config')
 
-      setInstallState('claude-code', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('claude-code'), 'claude') })
+      setInstallState('claude-code', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.cliInstall('claude-code'), 'claude')
+      })
       addProfile('claude-code', {
         name: 'Claude Relay',
         baseUrl: 'https://claude.example',
@@ -85,7 +96,9 @@ describe('native config materialization', () => {
 
       setAuthMode('claude-code', 'official')
       writeNativeConfig('claude-code')
-      expect(readJson(join(paths.cliConfig('claude-code'), 'settings.json'))).toEqual({ env: { KEEP_ME: '1' } })
+      expect(readJson(join(paths.cliConfig('claude-code'), 'settings.json'))).toEqual({
+        env: { KEEP_ME: '1' }
+      })
     })
   })
 
@@ -95,19 +108,45 @@ describe('native config materialization', () => {
       const { addProfile, setInstallState } = await import('../../src/main/store')
       const { readNativeFiles, writeNativeConfig } = await import('../../src/main/native-config')
 
-      setInstallState('opencode', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('opencode'), 'opencode') })
-      addProfile('opencode', { name: 'Open Relay', baseUrl: 'https://open.example/v1', apiKey: 'sk-open-1234', model: 'gpt-open' })
-      writeJson(join(paths.cliConfig('opencode'), 'opencode.json'), { mcp: { fs: { command: 'node' } } })
+      setInstallState('opencode', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.cliInstall('opencode'), 'opencode')
+      })
+      addProfile('opencode', {
+        name: 'Open Relay',
+        baseUrl: 'https://open.example/v1',
+        apiKey: 'sk-open-1234',
+        model: 'gpt-open'
+      })
+      writeJson(join(paths.cliConfig('opencode'), 'opencode.json'), {
+        mcp: { fs: { command: 'node' } }
+      })
       writeNativeConfig('opencode')
       const opencode = readJson(join(paths.cliConfig('opencode'), 'opencode.json'))
       expect(opencode.mcp.fs.command).toBe('node')
-      expect(opencode.provider.agentlauncher.options).toEqual({ baseURL: 'https://open.example/v1', apiKey: 'sk-open-1234' })
+      expect(opencode.provider.agentlauncher.options).toEqual({
+        baseURL: 'https://open.example/v1',
+        apiKey: 'sk-open-1234'
+      })
       expect(opencode.model).toBe('agentlauncher/gpt-open')
 
-      setInstallState('pi', { installed: true, source: 'sandbox', binPath: join(paths.node, 'bin', 'node'), nodeEntry: 'pi.js' })
-      addProfile('pi', { name: 'Pi Relay', baseUrl: 'https://pi.example/v1', apiKey: 'sk-pi-1234', model: 'gpt-pi' })
+      setInstallState('pi', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.node, 'bin', 'node'),
+        nodeEntry: 'pi.js'
+      })
+      addProfile('pi', {
+        name: 'Pi Relay',
+        baseUrl: 'https://pi.example/v1',
+        apiKey: 'sk-pi-1234',
+        model: 'gpt-pi'
+      })
       writeNativeConfig('pi')
-      expect(readJson(join(paths.cliConfig('pi'), 'models.json')).providers.agentlauncher).toMatchObject({
+      expect(
+        readJson(join(paths.cliConfig('pi'), 'models.json')).providers.agentlauncher
+      ).toMatchObject({
         baseUrl: 'https://pi.example/v1',
         apiKey: 'sk-pi-1234',
         api: 'openai-completions',
@@ -118,17 +157,33 @@ describe('native config materialization', () => {
         defaultModel: 'gpt-pi'
       })
 
-      setInstallState('hermes', { installed: true, source: 'sandbox', binPath: '/usr/local/bin/hermes' })
-      addProfile('hermes', { name: 'Hermes Relay', baseUrl: 'https://hermes.example/v1', apiKey: 'sk-hermes-1234', model: 'gpt-hermes' })
-      writeText(join(paths.cliConfig('hermes'), 'config.yaml'), 'ui:\n  theme: dark\nmodel:\n  provider: old\n  default: old\n')
+      setInstallState('hermes', {
+        installed: true,
+        source: 'sandbox',
+        binPath: '/usr/local/bin/hermes'
+      })
+      addProfile('hermes', {
+        name: 'Hermes Relay',
+        baseUrl: 'https://hermes.example/v1',
+        apiKey: 'sk-hermes-1234',
+        model: 'gpt-hermes'
+      })
+      writeText(
+        join(paths.cliConfig('hermes'), 'config.yaml'),
+        'ui:\n  theme: dark\nmodel:\n  provider: old\n  default: old\n'
+      )
       writeNativeConfig('hermes')
       const hermesConfig = readFileSync(join(paths.cliConfig('hermes'), 'config.yaml'), 'utf8')
       expect(hermesConfig).toContain('ui:\n  theme: dark')
       expect(hermesConfig).toContain('provider: custom')
       expect(hermesConfig).toContain('default: "gpt-hermes"')
       expect(hermesConfig).toContain('base_url: "https://hermes.example/v1"')
-      expect(readFileSync(join(paths.cliConfig('hermes'), '.env'), 'utf8')).toContain('AGENTLAUNCHER_OPENAI_API_KEY=sk-hermes-1234')
-      expect(readNativeFiles('hermes').files.find((file) => file.name === '.env')?.content).toContain('sk-…1234')
+      expect(readFileSync(join(paths.cliConfig('hermes'), '.env'), 'utf8')).toContain(
+        'AGENTLAUNCHER_OPENAI_API_KEY=sk-hermes-1234'
+      )
+      expect(
+        readNativeFiles('hermes').files.find((file) => file.name === '.env')?.content
+      ).toContain('sk-…1234')
     })
   })
 })

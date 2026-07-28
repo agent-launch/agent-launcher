@@ -22,7 +22,10 @@ interface ActiveSessionsTask {
 
 const active = new Map<string, ActiveSessionsTask>()
 
-export function listSessionsInWorker(requestId: string, cliId: CliId): Promise<SessionInfo[] | null> {
+export function listSessionsInWorker(
+  requestId: string,
+  cliId: CliId
+): Promise<SessionInfo[] | null> {
   const safeRequestId = requestId.trim()
   if (!safeRequestId) return Promise.reject(new Error('Missing sessions request id'))
   cancelSessionList(safeRequestId)

@@ -15,8 +15,18 @@ permissions:
 
 jobs:
   verify:
-    name: verify
-    runs-on: ubuntu-22.04
+    name: verify-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-22.04
+          - name: macos
+            os: macos-latest
+          - name: windows
+            os: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,6 +47,33 @@ jobs:
 
       - name: Typecheck and test
         run: pnpm verify
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Check formatting
+        run: pnpm format:check
+
+  audit:
+    name: production-audit
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Audit dependencies
         run: pnpm audit:ci

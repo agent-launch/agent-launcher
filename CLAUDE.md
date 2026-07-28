@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-AgentLauncher is an Electron desktop app that **configures and runs** five coding-agent CLIs — Claude Code, Codex, opencode, Pi, and Hermes Agent — for users who don't use the command line. It detects and links existing system CLIs but does not install, reinstall, or update them. The app materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
+AgentLauncher is an Electron desktop app that **configures and runs** six coding-agent CLIs — Claude Code, Codex, opencode, Pi, Gemini CLI, and Hermes Agent — for users who don't use the command line. It detects and links existing system CLIs but does not install, reinstall, or update them. The app materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
 
 ## Commands
 
@@ -13,6 +13,8 @@ pnpm dev              # run the app in dev (electron-vite, HMR for renderer)
 pnpm build            # typecheck (node + web) then electron-vite build → out/
 pnpm typecheck        # both projects; or typecheck:node / typecheck:web individually
 pnpm test:run         # Vitest unit tests
+pnpm lint             # ESLint; warnings fail CI
+pnpm format:check     # verify Prettier formatting
 pnpm verify           # typecheck + test typecheck + Vitest
 pnpm package          # build + electron-builder (current OS); also package:mac/win/linux
 ```
@@ -56,7 +58,7 @@ Reads each CLI's **own** on-disk conversation history so users can resume — ea
 
 ### Renderer
 
-React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run detection, linking, and configuration) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`, ported from cc-switch) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).
+React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run detection, linking, and configuration) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).
 
 ## Adding a new CLI
 

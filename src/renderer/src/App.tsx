@@ -52,10 +52,10 @@ export default function App() {
   return (
     <div className="relative flex h-full flex-col bg-base">
       <Titlebar showSidebarToggle={!showOnboarding} />
-      <div className="min-h-0 flex-1">{showOnboarding ? <Onboarding /> : info ? <Shell /> : null}</div>
-      {forceUpdate && updateStatus ? (
-        <ForceUpdateOverlay status={updateStatus} />
-      ) : null}
+      <div className="min-h-0 flex-1">
+        {showOnboarding ? <Onboarding /> : info ? <Shell /> : null}
+      </div>
+      {forceUpdate && updateStatus ? <ForceUpdateOverlay status={updateStatus} /> : null}
       <Toaster
         position="bottom-right"
         containerStyle={{ bottom: 18, right: 18 }}
@@ -115,7 +115,13 @@ function ForceUpdateOverlay({ status }: { status: AppUpdateStatus }) {
       <section className="w-full max-w-[520px] rounded-xl border border-border-base bg-stronger/95 p-5 shadow-[var(--shadow-md)]">
         <div className="flex items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-surface-weak text-text-strong">
-            {downloaded ? <RotateCcw size={18} /> : busy ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
+            {downloaded ? (
+              <RotateCcw size={18} />
+            ) : busy ? (
+              <RefreshCw size={18} className="animate-spin" />
+            ) : (
+              <Download size={18} />
+            )}
           </span>
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-[18px] font-semibold text-text-strong">
@@ -142,7 +148,10 @@ function ForceUpdateOverlay({ status }: { status: AppUpdateStatus }) {
               <span>{percent}%</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-surface-weak">
-              <div className="h-full rounded-full bg-text-strong transition-[width]" style={{ width: `${percent}%` }} />
+              <div
+                className="h-full rounded-full bg-text-strong transition-[width]"
+                style={{ width: `${percent}%` }}
+              />
             </div>
           </div>
         ) : null}
@@ -154,12 +163,21 @@ function ForceUpdateOverlay({ status }: { status: AppUpdateStatus }) {
         ) : null}
 
         <div className="mt-5 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => window.api.appUpdate.openReleasePage(latestVersion)}>
+          <Button
+            variant="secondary"
+            onClick={() => window.api.appUpdate.openReleasePage(latestVersion)}
+          >
             <ExternalLink size={14} />
             {t('update.openRelease')}
           </Button>
           <Button onClick={primaryAction} disabled={busy}>
-            {busy ? <RefreshCw size={14} className="animate-spin" /> : downloaded ? <RotateCcw size={14} /> : <Download size={14} />}
+            {busy ? (
+              <RefreshCw size={14} className="animate-spin" />
+            ) : downloaded ? (
+              <RotateCcw size={14} />
+            ) : (
+              <Download size={14} />
+            )}
             {downloaded
               ? t('update.restartNow')
               : canAutoUpdate
@@ -176,7 +194,9 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[96px_1fr] gap-3">
       <span className="text-text-weak">{label}</span>
-      <span className="min-w-0 truncate font-mono text-text-strong" title={value}>{value}</span>
+      <span className="min-w-0 truncate font-mono text-text-strong" title={value}>
+        {value}
+      </span>
     </div>
   )
 }

@@ -1,6 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { addProfile, getPrefs, loadConfig, markSystemConfigImportChecked, setActiveProfile } from './store'
+import {
+  addProfile,
+  getPrefs,
+  loadConfig,
+  markSystemConfigImportChecked,
+  setActiveProfile
+} from './store'
 import { systemCliConfigDir } from './config-paths'
 import type { CliId, CliProfilePatch } from '@shared/types'
 
@@ -8,8 +14,13 @@ const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'g
 
 function hasApiProfile(cliId: CliId): boolean {
   return loadConfig().clis[cliId].profiles.some((profile) => {
-    if (profile.providerId === 'official' && !profile.baseUrl?.trim() && !profile.apiKey?.trim()) return false
-    return Boolean(profile.baseUrl?.trim() || profile.apiKey?.trim() || (profile.providerId && profile.providerId !== 'official'))
+    if (profile.providerId === 'official' && !profile.baseUrl?.trim() && !profile.apiKey?.trim())
+      return false
+    return Boolean(
+      profile.baseUrl?.trim() ||
+      profile.apiKey?.trim() ||
+      (profile.providerId && profile.providerId !== 'official')
+    )
   })
 }
 
@@ -37,7 +48,9 @@ function stringValue(value: unknown): string | undefined {
 }
 
 function objectValue(value: unknown): Record<string, any> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : undefined
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : undefined
 }
 
 function readDotenv(path: string): Record<string, string> {
@@ -50,7 +63,10 @@ function readDotenv(path: string): Record<string, string> {
     const match = trimmed.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/)
     if (!match) continue
     let value = match[2].trim()
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1)
     }
     out[match[1]] = value
@@ -100,7 +116,12 @@ function inferProviderId(baseUrl?: string): string {
   return 'custom'
 }
 
-function importedProfile(name: string, baseUrl?: string, apiKey?: string, model?: string): CliProfilePatch | null {
+function importedProfile(
+  name: string,
+  baseUrl?: string,
+  apiKey?: string,
+  model?: string
+): CliProfilePatch | null {
   if (!baseUrl && !apiKey) return null
   return {
     name,
@@ -196,7 +217,9 @@ function importOpencodeProfile(): CliProfilePatch | null {
   if (!id || !providerObject) return null
   const options = objectValue(providerObject.options)
   const models = objectValue(providerObject.models)
-  const selectedModel = stringValue(config?.model)?.startsWith(`${id}/`) ? stringValue(config?.model)?.slice(id.length + 1) : undefined
+  const selectedModel = stringValue(config?.model)?.startsWith(`${id}/`)
+    ? stringValue(config?.model)?.slice(id.length + 1)
+    : undefined
   const model = selectedModel || Object.keys(models ?? {})[0]
   return importedProfile(
     stringValue(providerObject.name) || 'Local default config',
@@ -228,9 +251,15 @@ function importPiProfile(): CliProfilePatch | null {
 }
 
 function unquoteYaml(value: string): string {
-  const trimmed = value.trim().replace(/\s+#.*$/, '').trim()
+  const trimmed = value
+    .trim()
+    .replace(/\s+#.*$/, '')
+    .trim()
   if (!trimmed) return ''
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
     try {
       return JSON.parse(trimmed)
     } catch {
@@ -246,7 +275,9 @@ function topLevelYamlBlock(content: string, key: string): string {
   let active = false
   for (const line of lines) {
     if (!active) {
-      if (new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*(?:#.*)?$`).test(line)) {
+      if (
+        new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*(?:#.*)?$`).test(line)
+      ) {
         active = true
       }
       continue
@@ -276,7 +307,10 @@ function importHermesProfile(): CliProfilePatch | null {
     env.AGENTLAUNCHER_OPENAI_API_KEY,
     env.OPENAI_API_KEY
   )
-  const model = firstString(yamlBlockValue(modelBlock, 'default'), yamlBlockValue(modelBlock, 'model'))
+  const model = firstString(
+    yamlBlockValue(modelBlock, 'default'),
+    yamlBlockValue(modelBlock, 'model')
+  )
   const provider = yamlBlockValue(modelBlock, 'provider')
   if (!baseUrl && !apiKey && !model && !provider) return null
   return {
@@ -292,7 +326,11 @@ function importHermesProfile(): CliProfilePatch | null {
  * ~/.gemini/.env — same dotenv mechanism as importHermesProfile above. */
 function importGeminiProfile(): CliProfilePatch | null {
   const env = readDotenv(join(systemCliConfigDir('gemini'), '.env'))
-  return importedProfile('Local default config', firstString(env.GOOGLE_GEMINI_BASE_URL), firstString(env.GEMINI_API_KEY))
+  return importedProfile(
+    'Local default config',
+    firstString(env.GOOGLE_GEMINI_BASE_URL),
+    firstString(env.GEMINI_API_KEY)
+  )
 }
 
 function readExistingProfile(cliId: CliId): CliProfilePatch | null {

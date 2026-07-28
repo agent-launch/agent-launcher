@@ -66,9 +66,7 @@ function installApplicationMenu(locale = menuLocale): void {
     },
     {
       label: label.file,
-      submenu: [
-        { role: 'close', label: label.close }
-      ]
+      submenu: [{ role: 'close', label: label.close }]
     },
     {
       label: label.edit,
@@ -98,12 +96,7 @@ function installApplicationMenu(locale = menuLocale): void {
     },
     {
       label: label.window,
-      submenu: [
-        { role: 'minimize' },
-        { role: 'zoom' },
-        { type: 'separator' },
-        { role: 'front' }
-      ]
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
     },
     {
       label: label.help,
@@ -130,7 +123,9 @@ function createWindow(): BrowserWindow {
     frame: isMac,
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     // Windows / Linux: keep native min/max/close controls via the overlay.
-    ...(!isMac ? { titleBarOverlay: { color: '#ffffff00', symbolColor: '#6e6e73', height: 40 } } : {}),
+    ...(!isMac
+      ? { titleBarOverlay: { color: '#ffffff00', symbolColor: '#6e6e73', height: 40 } }
+      : {}),
     ...(isMac ? { trafficLightPosition: { x: 16, y: 8 } } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -186,7 +181,8 @@ app.whenReady().then(() => {
   ipcMain.on('window:toggle-maximize', (e) => {
     const w = BrowserWindow.fromWebContents(e.sender)
     if (!w) return
-    w.isMaximized() ? w.unmaximize() : w.maximize()
+    if (w.isMaximized()) w.unmaximize()
+    else w.maximize()
   })
   ipcMain.on('window:toggle-fullscreen', (e) => {
     const w = BrowserWindow.fromWebContents(e.sender)

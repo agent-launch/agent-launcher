@@ -10,7 +10,9 @@ import { useT } from '@/i18n'
 type MarkdownProps = Parameters<typeof ReactMarkdown>[0]
 
 const remarkPlugins: MarkdownProps['remarkPlugins'] = [remarkGfm]
-const rehypePlugins: MarkdownProps['rehypePlugins'] = [[rehypeHighlight, { detect: true, ignoreMissing: true }]]
+const rehypePlugins: MarkdownProps['rehypePlugins'] = [
+  [rehypeHighlight, { detect: true, ignoreMissing: true }]
+]
 const components: Components = {
   a: ({ node: _node, ...props }) => <a {...props} target="_blank" rel="noreferrer" />,
   pre: CodeBlock
@@ -24,7 +26,11 @@ function textFromNode(node: ReactNode): string {
   return Children.toArray(node).map(textFromNode).join('')
 }
 
-function CodeBlock({ node: _node, children, ...props }: React.ComponentProps<'pre'> & { node?: unknown }) {
+function CodeBlock({
+  node: _node,
+  children,
+  ...props
+}: React.ComponentProps<'pre'> & { node?: unknown }) {
   const t = useT()
   const [copied, setCopied] = useState(false)
   const code = textFromNode(children)
@@ -60,7 +66,13 @@ function CodeBlock({ node: _node, children, ...props }: React.ComponentProps<'pr
  * the `.md` rules in styles/index.css. Links force target=_blank so Electron
  * routes them through setWindowOpenHandler (OS browser) instead of navigating.
  */
-export const Markdown = memo(function Markdown({ children, className = '' }: { children: string; className?: string }) {
+export const Markdown = memo(function Markdown({
+  children,
+  className = ''
+}: {
+  children: string
+  className?: string
+}) {
   return (
     <div className={`md ${className}`}>
       <ReactMarkdown

@@ -2,15 +2,15 @@
   "name": "agent-launcher",
   "version": "0.1.0",
   "description": "Configure and run existing coding-agent CLIs from a desktop app.",
-  "author": "matrixlabs",
+  "author": "WhiteMatrixTech",
   "license": "MIT",
-  "homepage": "https://github.com/matrixlabs/agent-launcher#readme",
+  "homepage": "https://github.com/WhiteMatrixTech/agent-launcher#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matrixlabs/agent-launcher.git"
+    "url": "git+https://github.com/WhiteMatrixTech/agent-launcher.git"
   },
   "bugs": {
-    "url": "https://github.com/matrixlabs/agent-launcher/issues"
+    "url": "https://github.com/WhiteMatrixTech/agent-launcher/issues"
   },
   "packageManager": "pnpm@11.7.0",
   "engines": {
@@ -29,6 +29,10 @@
     "test:typecheck": "tsc --noEmit -p tsconfig.test.json",
     "verify": "pnpm typecheck && pnpm test:typecheck && pnpm test:run",
     "audit:ci": "pnpm audit --prod --audit-level high",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
@@ -53,20 +57,37 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^26.0.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@types/sql.js": "^1.4.11",
+    "@typescript/native": "npm:typescript@~7.0.2",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^42.5.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "tailwindcss": "^4.3.1",
-    "typescript": "~7.0.2",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.65.0",
     "vite": "^7.3.6",
     "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
+    "@lydell/node-pty-linux-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-linux-x64": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-x64": "1.2.0-beta.12"
   }
 }

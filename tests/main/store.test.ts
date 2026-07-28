@@ -10,7 +10,14 @@ describe('main store', () => {
       const cfg = loadConfig()
 
       expect(cfg.schema).toBe(4)
-      expect(Object.keys(cfg.install)).toEqual(['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'])
+      expect(Object.keys(cfg.install)).toEqual([
+        'claude-code',
+        'codex',
+        'opencode',
+        'pi',
+        'hermes',
+        'gemini'
+      ])
       expect(cfg.clis['claude-code'].authMode).toBe('official')
       expect(cfg.clis.codex.authMode).toBe('official')
       expect(cfg.clis.opencode.authMode).toBe('api')
@@ -85,7 +92,8 @@ describe('main store', () => {
 
   it('keeps official-login profiles pinned only when the user requests them', async () => {
     await withIsolatedHome(async () => {
-      const { addProfile, getActiveProfile, getAuthMode, loadConfig, setAuthMode } = await import('../../src/main/store')
+      const { addProfile, getActiveProfile, getAuthMode, loadConfig, setAuthMode } =
+        await import('../../src/main/store')
 
       setAuthMode('codex', 'official')
       expect(getAuthMode('codex')).toBe('official')
@@ -114,7 +122,11 @@ describe('main store', () => {
     await withIsolatedHome(async () => {
       const store = await import('../../src/main/store')
 
-      store.addProfile('opencode', { name: 'OpenRouter', providerId: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1' })
+      store.addProfile('opencode', {
+        name: 'OpenRouter',
+        providerId: 'openrouter',
+        baseUrl: 'https://openrouter.ai/api/v1'
+      })
       const profile = store.getActiveProfile('opencode')
       expect(profile?.name).toBe('OpenRouter')
 
@@ -124,10 +136,18 @@ describe('main store', () => {
       store.setYolo('opencode', true)
       expect(store.getPrefs('opencode').yolo).toBe(true)
 
-      let cfg = store.addPriceEntry('opencode', { provider: 'OpenRouter', model: 'gpt', inputPerMillion: 1 })
+      let cfg = store.addPriceEntry('opencode', {
+        provider: 'OpenRouter',
+        model: 'gpt',
+        inputPerMillion: 1
+      })
       const priceId = cfg.resources.opencode.prices[0].id
       cfg = store.updatePriceEntry('opencode', priceId, { outputPerMillion: 2 })
-      expect(cfg.resources.opencode.prices[0]).toMatchObject({ name: 'Untitled price', currency: 'USD', outputPerMillion: 2 })
+      expect(cfg.resources.opencode.prices[0]).toMatchObject({
+        name: 'Untitled price',
+        currency: 'USD',
+        outputPerMillion: 2
+      })
       cfg = store.deletePriceEntry('opencode', priceId)
       expect(cfg.resources.opencode.prices).toEqual([])
 
@@ -141,7 +161,11 @@ describe('main store', () => {
       cfg = store.addSkillEntry('opencode', { source: 'local' })
       const skillId = cfg.resources.opencode.skills[0].id
       cfg = store.updateSkillEntry('opencode', skillId, { description: 'Useful' })
-      expect(cfg.resources.opencode.skills[0]).toMatchObject({ name: 'Untitled Skill', enabled: true, description: 'Useful' })
+      expect(cfg.resources.opencode.skills[0]).toMatchObject({
+        name: 'Untitled Skill',
+        enabled: true,
+        description: 'Useful'
+      })
       cfg = store.deleteSkillEntry('opencode', skillId)
       expect(cfg.resources.opencode.skills).toEqual([])
 

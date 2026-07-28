@@ -15,7 +15,9 @@ describe('renderer static data and persisted app store', () => {
     expect(Object.values(messages.zh).join('\n')).not.toContain('安装到沙盒')
     expect(Object.values(messages.en).join('\n').toLowerCase()).not.toContain('install to sandbox')
     expect(Object.values(messages.zh).join('\n')).not.toMatch(/自动安装|安装缺失项|将使用.+安装/)
-    expect(Object.values(messages.en).join('\n')).not.toMatch(/install missing|will be installed|we'll install/i)
+    expect(Object.values(messages.en).join('\n')).not.toMatch(
+      /install missing|will be installed|we'll install/i
+    )
     expect(messages.en['onboarding.codexManualUpdateWarning']).toBe(
       "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Uninstall it, then follow the official installation docs to install version 0.135.0 or later."
     )
@@ -31,8 +33,16 @@ describe('renderer static data and persisted app store', () => {
       id: 'routerlink',
       baseUrl: 'https://router-link.world3.ai/api/v1'
     })
-    expect(PROVIDERS_BY_CLI['claude-code'].slice(-3).map((provider) => provider.id)).toEqual(['siliconflow', 'openrouter', 'custom'])
-    expect(PROVIDERS_BY_CLI.codex.slice(-3).map((provider) => provider.id)).toEqual(['siliconflow', 'openrouter', 'custom'])
+    expect(PROVIDERS_BY_CLI['claude-code'].slice(-3).map((provider) => provider.id)).toEqual([
+      'siliconflow',
+      'openrouter',
+      'custom'
+    ])
+    expect(PROVIDERS_BY_CLI.codex.slice(-3).map((provider) => provider.id)).toEqual([
+      'siliconflow',
+      'openrouter',
+      'custom'
+    ])
     expect(PROVIDERS_BY_CLI.pi).toBe(PROVIDERS_BY_CLI.codex)
     expect(PROVIDERS_BY_CLI.hermes).toBe(PROVIDERS_BY_CLI.codex)
     expect(YOLO_SUPPORT.opencode).toMatchObject({ supported: true, note: '--auto' })
@@ -46,7 +56,8 @@ describe('renderer static data and persisted app store', () => {
     vi.stubGlobal('localStorage', storage)
     vi.stubGlobal('window', { localStorage: storage })
     try {
-      const { SIDEBAR_MAX, SIDEBAR_MIN, useAppStore } = await import('../../src/renderer/src/store/app')
+      const { SIDEBAR_MAX, SIDEBAR_MIN, useAppStore } =
+        await import('../../src/renderer/src/store/app')
       const { createJSONStorage } = await import('zustand/middleware')
       const store = useAppStore
       ;(store as any).persist.setOptions({ storage: createJSONStorage(() => storage) })
@@ -76,9 +87,14 @@ describe('renderer static data and persisted app store', () => {
         sidebarCollapsed: true,
         themeMode: 'dark',
         localeMode: 'en',
-        renderTranscript: true
+        renderTranscript: true,
+        recentProjectDir: null
       })
       expect(persisted.state.shellView).toBeUndefined()
+      store.getState().setRecentProjectDir('/work/project')
+      expect(
+        JSON.parse(localStorage.getItem('agent-launcher:app') ?? '{}').state.recentProjectDir
+      ).toBe('/work/project')
     } finally {
       vi.unstubAllGlobals()
       vi.resetModules()

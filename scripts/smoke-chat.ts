@@ -18,8 +18,11 @@ setTimeout(() => {
   console.log('--> sending turn')
   sendChat(id, 'Reply with just the word: ok')
 }, 400)
-setTimeout(() => {
-  stopChat(id)
-  console.log('done')
-  process.exit(0)
-}, Number(process.env.STOP_MS) || 10000)
+setTimeout(
+  () => {
+    stopChat(id)
+    console.log('done')
+    process.exit(0)
+  },
+  Number(process.env.STOP_MS) || 10000
+)

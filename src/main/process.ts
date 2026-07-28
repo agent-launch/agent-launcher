@@ -21,7 +21,10 @@ function windowsBatchLine(file: string, args: string[]): string {
   return ['call', quoteCmdArg(file), ...args.map(quoteCmdArg)].join(' ')
 }
 
-export function windowsShellTarget(file: string, args: string[] = []): { file: string; args: string[] } {
+export function windowsShellTarget(
+  file: string,
+  args: string[] = []
+): { file: string; args: string[] } {
   if (!isWindowsShellScript(file)) return { file, args }
 
   return {
@@ -35,8 +38,16 @@ export function spawnProcess(
   args?: string[],
   options?: SpawnOptionsWithoutStdio
 ): ChildProcessWithoutNullStreams
-export function spawnProcess(file: string, args: string[] | undefined, options: SpawnOptions): ChildProcess
-export function spawnProcess(file: string, args: string[] = [], options: SpawnOptions = {}): ChildProcess {
+export function spawnProcess(
+  file: string,
+  args: string[] | undefined,
+  options: SpawnOptions
+): ChildProcess
+export function spawnProcess(
+  file: string,
+  args: string[] = [],
+  options: SpawnOptions = {}
+): ChildProcess {
   const target = windowsShellTarget(file, args)
   const spawnOptions =
     target.file === file

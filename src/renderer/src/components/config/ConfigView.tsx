@@ -104,19 +104,35 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
               {t('config.backToSessions')}
             </Button>
           )}
-          <h2 className="font-display text-[28px] font-bold leading-tight text-text-strong">{t('config.title')}</h2>
-          <p className="mt-1 text-[13px] leading-relaxed text-text-weak">{t('config.intro', { cliId })}</p>
+          <h2 className="font-display text-[28px] font-bold leading-tight text-text-strong">
+            {t('config.title')}
+          </h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-text-weak">
+            {t('config.intro', { cliId })}
+          </p>
         </div>
       </div>
 
       <div className="mb-5 flex w-fit rounded-md border border-border-weak bg-surface/70 p-0.5 shadow-[0_1px_1px_rgba(0,0,0,0.04)]">
-        <ConfigTabButton active={tab === 'profiles'} icon={<FolderCog size={14} />} onClick={() => setTab('profiles')}>
+        <ConfigTabButton
+          active={tab === 'profiles'}
+          icon={<FolderCog size={14} />}
+          onClick={() => setTab('profiles')}
+        >
           {t('config.tabProfiles')}
         </ConfigTabButton>
-        <ConfigTabButton active={tab === 'mcp'} icon={<Server size={14} />} onClick={() => setTab('mcp')}>
+        <ConfigTabButton
+          active={tab === 'mcp'}
+          icon={<Server size={14} />}
+          onClick={() => setTab('mcp')}
+        >
           {t('config.tabMcp')}
         </ConfigTabButton>
-        <ConfigTabButton active={tab === 'skills'} icon={<Sparkles size={14} />} onClick={() => setTab('skills')}>
+        <ConfigTabButton
+          active={tab === 'skills'}
+          icon={<Sparkles size={14} />}
+          onClick={() => setTab('skills')}
+        >
           {t('config.tabSkills')}
         </ConfigTabButton>
       </div>
@@ -154,7 +170,9 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
                     }
                   }}
                   className={`flex items-center gap-3 rounded-xl border bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)] ${
-                    activeId === p.id ? 'border-border-selected bg-surface shadow-[var(--shadow-card)]' : 'border-border-weak'
+                    activeId === p.id
+                      ? 'border-border-selected bg-surface shadow-[var(--shadow-card)]'
+                      : 'border-border-weak'
                   } cursor-pointer transition-[background,border-color,box-shadow] hover:border-border-selected/70 hover:bg-surface`}
                 >
                   <button
@@ -169,7 +187,10 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
                     title={t('config.setActive')}
                   >
                     {activeId === p.id && (
-                      <span className="size-2.5 rounded-full" style={{ background: 'var(--accent)' }} />
+                      <span
+                        className="size-2.5 rounded-full"
+                        style={{ background: 'var(--accent)' }}
+                      />
                     )}
                   </button>
                   <div className="min-w-0 flex-1">
@@ -227,7 +248,11 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
             </Button>
           )}
 
-          <Modal open={!!deletingProfile} onClose={() => setDeleteId(null)} title={t('config.deleteProfileTitle')}>
+          <Modal
+            open={!!deletingProfile}
+            onClose={() => setDeleteId(null)}
+            title={t('config.deleteProfileTitle')}
+          >
             <p className="text-[13px] leading-relaxed text-text-weak">
               {t('config.deleteProfileMessage', { name: deletingProfile?.name ?? '' })}
             </p>
@@ -250,7 +275,9 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
           {nativeFiles && nativeFiles.files.length > 0 && (
             <div className="mt-8">
               <div className="mb-2">
-                <h3 className="text-[14px] font-medium text-text-strong">{t('config.nativeFiles')}</h3>
+                <h3 className="text-[14px] font-medium text-text-strong">
+                  {t('config.nativeFiles')}
+                </h3>
               </div>
               <p className="mb-3 text-[12px] text-text-weak">{t('config.nativeFilesDesc')}</p>
               <div className="space-y-3">
@@ -263,12 +290,8 @@ export function ConfigView({ cliId, onBack }: { cliId: CliId; onBack?: () => voi
         </>
       )}
 
-      {tab === 'mcp' && (
-        <McpPanel entries={mcpEntries} />
-      )}
-      {tab === 'skills' && (
-        <SkillsPanel cliId={cliId} entries={skillEntries} />
-      )}
+      {tab === 'mcp' && <McpPanel entries={mcpEntries} />}
+      {tab === 'skills' && <SkillsPanel cliId={cliId} entries={skillEntries} />}
     </div>
   )
 }
@@ -375,8 +398,8 @@ function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
     const q = filter.trim().toLowerCase()
     if (!q) return ordered
     return ordered.filter((entry) =>
-      [entry.name, entry.command, entry.args, entry.url, entry.env, entry.configPath].some((value) =>
-        value?.toLowerCase().includes(q)
+      [entry.name, entry.command, entry.args, entry.url, entry.env, entry.configPath].some(
+        (value) => value?.toLowerCase().includes(q)
       )
     )
   }, [ordered, filter])
@@ -384,7 +407,11 @@ function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
   return (
     <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
       <PanelHeader title={t('config.mcpTitle')} desc={t('config.mcpDesc')} />
-      <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localMcpSearchPlaceholder')} />
+      <LocalSearch
+        value={filter}
+        onChange={setFilter}
+        placeholder={t('config.localMcpSearchPlaceholder')}
+      />
       {entries.length === 0 ? (
         <EmptyPanel>{t('config.noMcp')}</EmptyPanel>
       ) : filtered.length === 0 ? (
@@ -396,10 +423,22 @@ function McpPanel({ entries }: { entries: InstalledMcpEntry[] }) {
               key={entry.id}
               icon={<Server size={15} />}
               title={entry.name}
-              detail={entry.transport === 'stdio' ? [entry.command, entry.args].filter(Boolean).join(' ') || '-' : entry.url || '-'}
+              detail={
+                entry.transport === 'stdio'
+                  ? [entry.command, entry.args].filter(Boolean).join(' ') || '-'
+                  : entry.url || '-'
+              }
               meta={entry.readOnly ? t('config.mcpPlugin') : entry.transport.toUpperCase()}
               notes={entry.configPath}
-              statusLabel={entry.readOnly ? undefined : entry.supportsEnabled ? (entry.enabled ? t('config.enabled') : t('config.disabled')) : undefined}
+              statusLabel={
+                entry.readOnly
+                  ? undefined
+                  : entry.supportsEnabled
+                    ? entry.enabled
+                      ? t('config.enabled')
+                      : t('config.disabled')
+                    : undefined
+              }
               statusTone={entry.enabled ? 'success' : 'muted'}
             />
           ))}
@@ -465,7 +504,9 @@ function SkillsPanel({ cliId, entries }: { cliId: CliId; entries: InstalledSkill
         </Button>
         <div className="mb-4">
           <h3 className="text-[14px] font-medium text-text-strong">{selected.name}</h3>
-          <p className="mt-1 truncate font-mono text-[11px] text-text-weak">{skillFile?.path ?? selected.path}</p>
+          <p className="mt-1 truncate font-mono text-[11px] text-text-weak">
+            {skillFile?.path ?? selected.path}
+          </p>
         </div>
         {loadingSource ? (
           <div className="rounded-xl border border-border-weak bg-surface/72 px-4 py-8 text-center text-[13px] text-text-weak">
@@ -484,11 +525,12 @@ function SkillsPanel({ cliId, entries }: { cliId: CliId; entries: InstalledSkill
 
   return (
     <section className="rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-4">
-      <PanelHeader
-        title={t('config.skillsTitle')}
-        desc={t('config.skillsDesc')}
+      <PanelHeader title={t('config.skillsTitle')} desc={t('config.skillsDesc')} />
+      <LocalSearch
+        value={filter}
+        onChange={setFilter}
+        placeholder={t('config.localSkillSearchPlaceholder')}
       />
-      <LocalSearch value={filter} onChange={setFilter} placeholder={t('config.localSkillSearchPlaceholder')} />
       {entries.length === 0 ? (
         <EmptyPanel>{t('config.noSkills')}</EmptyPanel>
       ) : filtered.length === 0 ? (
@@ -544,7 +586,9 @@ function ResourceRow({
         onClick()
       }}
       className={`rounded-xl border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-3 py-3 ${
-        onClick ? 'cursor-pointer transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]' : ''
+        onClick
+          ? 'cursor-pointer transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]'
+          : ''
       }`}
     >
       <div className="flex items-start gap-3">
@@ -554,11 +598,15 @@ function ResourceRow({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium text-text-strong">
             {title}
-            <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-text-weak">{meta}</span>
+            <span className="rounded-full bg-surface-weak px-2 py-0.5 text-[11px] text-text-weak">
+              {meta}
+            </span>
             {statusLabel && (
               <span
                 className={`rounded-full px-2 py-0.5 text-[11px] ${
-                  statusTone === 'success' ? 'bg-success/10 text-success' : 'bg-surface-weak text-text-weak'
+                  statusTone === 'success'
+                    ? 'bg-success/10 text-success'
+                    : 'bg-surface-weak text-text-weak'
                 }`}
               >
                 {statusLabel}
@@ -628,13 +676,15 @@ function ProfileForm({
     [providerId, providers]
   )
   const isOfficialProvider = selectedProvider?.category === 'official'
-  const officialApiKeyPlaceholder = cliId === 'codex'
-    ? t('config.codexOfficialNoApiKey')
-    : t('config.officialNoApiKey')
+  const officialApiKeyPlaceholder =
+    cliId === 'codex' ? t('config.codexOfficialNoApiKey') : t('config.officialNoApiKey')
   const providerOptions = useMemo(
     () => [
       { value: '', label: t('config.selectPlaceholder') },
-      ...providers.map((p) => ({ value: p.id, label: `${p.name} · ${t('category.' + p.category)}` }))
+      ...providers.map((p) => ({
+        value: p.id,
+        label: `${p.name} · ${t('category.' + p.category)}`
+      }))
     ],
     [providers, t]
   )
@@ -664,9 +714,9 @@ function ProfileForm({
     const hasPresetProvider = Boolean(nextProviderId && nextProviderId !== 'custom')
     const hasManualConfig = Boolean(
       nextBaseUrl ||
-        nextApiKey ||
-        nextModel ||
-        (isClaude && (nextDefaultModel || nextOpusModel || nextSonnetModel || nextHaikuModel))
+      nextApiKey ||
+      nextModel ||
+      (isClaude && (nextDefaultModel || nextOpusModel || nextSonnetModel || nextHaikuModel))
     )
 
     if (!isOfficialProvider && !nextBaseUrl) {
@@ -792,7 +842,9 @@ function ProfileForm({
             onChange={(e) => setApiKey(e.target.value)}
             type="password"
             disabled={isOfficialProvider}
-            placeholder={isOfficialProvider ? officialApiKeyPlaceholder : t('config.apiKeyPlaceholder')}
+            placeholder={
+              isOfficialProvider ? officialApiKeyPlaceholder : t('config.apiKeyPlaceholder')
+            }
             className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2 text-[13px] text-text-strong outline-none focus:border-border-selected disabled:bg-surface-muted disabled:text-text-muted"
           />
         </label>

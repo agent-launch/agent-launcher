@@ -8,3 +8,13 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
+
+supportedArchitectures:
+  os:
+    - current
+    - darwin
+    - linux
+    - win32
+  cpu:
+    - x64
+    - arm64

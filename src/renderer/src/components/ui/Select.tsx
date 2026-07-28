@@ -26,7 +26,10 @@ export function Select<T extends string>({
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const selectedIndex = Math.max(0, options.findIndex((option) => option.value === value))
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((option) => option.value === value)
+  )
   const selected = options[selectedIndex] ?? options[0]
 
   useEffect(() => {

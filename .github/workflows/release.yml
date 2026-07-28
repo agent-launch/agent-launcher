@@ -80,12 +80,47 @@ jobs:
         env:
           ELECTRON_BUILDER_PUBLISH: never
           GH_TOKEN: ${{ github.token }}
-          CSC_LINK: ${{ matrix.name == 'macos' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.name == 'macos' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          CSC_LINK: ${{ matrix.name == 'macos' && secrets.MAC_CSC_LINK || matrix.name == 'windows' && secrets.WIN_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.name == 'macos' && secrets.MAC_CSC_KEY_PASSWORD || matrix.name == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ (matrix.name == 'macos' && secrets.MAC_CSC_LINK != '') || (matrix.name == 'windows' && secrets.WIN_CSC_LINK != '') }}
           APPLE_ID: ${{ matrix.name == 'macos' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.name == 'macos' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ matrix.name == 'macos' && secrets.APPLE_TEAM_ID || '' }}
         run: pnpm ${{ matrix.package_script }}
+
+      - name: Verify macOS signing and notarization
+        if: matrix.name == 'macos'
+        shell: bash
+        env:
+          SIGNING_CONFIGURED: ${{ secrets.MAC_CSC_LINK != '' }}
+        run: |
+          if [[ "$SIGNING_CONFIGURED" != "true" ]]; then
+            echo "macOS signing secrets are not configured; artifacts are explicitly unsigned."
+            exit 0
+          fi
+          while IFS= read -r -d '' bundle; do
+            codesign --verify --deep --strict --verbose=2 "$bundle"
+          done < <(find release -type d -name '*.app' -print0)
+          for image in release/*.dmg; do
+            xcrun stapler validate "$image"
+          done
+
+      - name: Verify Windows signature
+        if: matrix.name == 'windows'
+        shell: pwsh
+        env:
+          SIGNING_CONFIGURED: ${{ secrets.WIN_CSC_LINK != '' }}
+        run: |
+          if ($env:SIGNING_CONFIGURED -ne 'true') {
+            Write-Host 'Windows signing secrets are not configured; artifacts are explicitly unsigned.'
+            exit 0
+          }
+          Get-ChildItem release -Filter *.exe | ForEach-Object {
+            $signature = Get-AuthenticodeSignature $_.FullName
+            if ($signature.Status -ne 'Valid') {
+              throw "Invalid Authenticode signature for $($_.Name): $($signature.Status)"
+            }
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

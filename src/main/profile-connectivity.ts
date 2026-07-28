@@ -27,9 +27,7 @@ function normalizeModelName(model: string): string {
   return model.replace(/\[.*?\]$/g, '')
 }
 
-function result(
-  value: Omit<ProfileConnectionResult, 'kind'>
-): ProfileConnectionResult {
+function result(value: Omit<ProfileConnectionResult, 'kind'>): ProfileConnectionResult {
   return { kind: 'generation', ...value }
 }
 
@@ -38,9 +36,14 @@ function generationUrl(cliId: CliId, baseUrl: string): URL | null {
     const url = new URL(baseUrl)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
     const basePath = url.pathname.replace(/\/+$/, '')
-    const suffix = cliId === 'claude-code'
-      ? basePath.endsWith('/v1') ? '/messages' : '/v1/messages'
-      : cliId === 'codex' ? '/responses' : '/chat/completions'
+    const suffix =
+      cliId === 'claude-code'
+        ? basePath.endsWith('/v1')
+          ? '/messages'
+          : '/v1/messages'
+        : cliId === 'codex'
+          ? '/responses'
+          : '/chat/completions'
     url.pathname = `${basePath}${suffix}` || suffix
     url.search = ''
     url.hash = ''
@@ -98,7 +101,11 @@ async function errorDetail(response: Response): Promise<string | undefined> {
       if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
         const record = payload as Record<string, unknown>
         const error = record.error
-        if (error && typeof error === 'object' && typeof (error as Record<string, unknown>).message === 'string') {
+        if (
+          error &&
+          typeof error === 'object' &&
+          typeof (error as Record<string, unknown>).message === 'string'
+        ) {
           message = (error as Record<string, unknown>).message as string
         } else if (typeof error === 'string') {
           message = error
@@ -137,7 +144,9 @@ export async function testProfileConnection(
 ): Promise<ProfileConnectionResult> {
   const baseUrl = profile.baseUrl?.trim()
   const apiKey = profile.apiKey?.trim()
-  const model = (cliId === 'claude-code' ? profile.defaultModel || profile.model : profile.model)?.trim()
+  const model = (
+    cliId === 'claude-code' ? profile.defaultModel || profile.model : profile.model
+  )?.trim()
   if (!baseUrl || !apiKey || !model) return result({ ok: false, code: 'invalid_config' })
 
   const url = generationUrl(cliId, baseUrl)

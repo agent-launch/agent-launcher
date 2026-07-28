@@ -46,5 +46,4 @@ describe('platform and process helpers', () => {
       }
     })
   })
-
 })

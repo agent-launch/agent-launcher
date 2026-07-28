@@ -81,7 +81,11 @@ export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boo
         {
           title: t('menu.view'),
           items: [
-            { label: t('menu.reload'), icon: <RefreshCw size={15} />, action: () => window.location.reload() },
+            {
+              label: t('menu.reload'),
+              icon: <RefreshCw size={15} />,
+              action: () => window.location.reload()
+            },
             {
               label: t('menu.fullscreen'),
               icon: <Maximize2 size={15} />,
@@ -194,7 +198,10 @@ export function Titlebar({ showSidebarToggle = true }: { showSidebarToggle?: boo
             style={{ left: menuLeft }}
           >
             {menuGroups[openMenu].map((group, groupIndex) => (
-              <div key={`${openMenu}-${groupIndex}`} className={groupIndex > 0 ? 'mt-1 border-t border-border-weak pt-1' : ''}>
+              <div
+                key={`${openMenu}-${groupIndex}`}
+                className={groupIndex > 0 ? 'mt-1 border-t border-border-weak pt-1' : ''}
+              >
                 {group.title && (
                   <div className="px-2.5 pb-1 pt-1 text-[12px] font-medium text-text-muted">
                     {group.title}

@@ -13,7 +13,10 @@ interface EmbeddedTerminalEnvOptions {
   platform?: NodeJS.Platform
 }
 
-function versionAtLeast(version: string | undefined, minimum: [number, number, number]): boolean | undefined {
+function versionAtLeast(
+  version: string | undefined,
+  minimum: [number, number, number]
+): boolean | undefined {
   const match = version?.match(/(?:^|\D)(\d+)\.(\d+)\.(\d+)/)
   if (!match) return undefined
 

@@ -4,7 +4,8 @@ const os = require('node:os')
 const path = require('node:path')
 
 function platformExecutableName() {
-  const platform = process.env.ELECTRON_INSTALL_PLATFORM || process.env.npm_config_platform || os.platform()
+  const platform =
+    process.env.ELECTRON_INSTALL_PLATFORM || process.env.npm_config_platform || os.platform()
   switch (platform) {
     case 'darwin':
     case 'mas':

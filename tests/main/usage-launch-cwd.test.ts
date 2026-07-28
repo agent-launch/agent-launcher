@@ -13,9 +13,21 @@ describe('usage scanning and launch cwd resolution', () => {
       const codexId = '22222222-3333-4444-5555-666666666666'
       const piFile = join(paths.cliConfig('pi'), 'sessions', 'repo', 'pi-usage.jsonl')
 
-      setInstallState('claude-code', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('claude-code'), 'claude') })
-      setInstallState('codex', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('codex'), 'codex') })
-      setInstallState('pi', { installed: true, source: 'sandbox', binPath: join(paths.cliInstall('pi'), 'pi') })
+      setInstallState('claude-code', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.cliInstall('claude-code'), 'claude')
+      })
+      setInstallState('codex', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.cliInstall('codex'), 'codex')
+      })
+      setInstallState('pi', {
+        installed: true,
+        source: 'sandbox',
+        binPath: join(paths.cliInstall('pi'), 'pi')
+      })
 
       addPriceEntry('claude-code', {
         name: 'Claude Sonnet',
@@ -70,33 +82,48 @@ describe('usage scanning and launch cwd resolution', () => {
         }
       ])
 
-      writeJsonl(join(paths.cliConfig('codex'), 'sessions', '2026', '07', '08', `rollout-${codexId}.jsonl`), [
-        { type: 'session_meta', timestamp: now, payload: { session_id: codexId, cwd: '/repo' } },
-        { type: 'event_msg', timestamp: now, payload: { type: 'user_message', message: 'Codex usage session' } },
-        { type: 'turn_context', timestamp: now, payload: { model: 'gpt-5-2026-01-01' } },
-        {
-          type: 'event_msg',
-          timestamp: now,
-          payload: {
-            type: 'token_count',
-            info: {
-              model: 'gpt-5-2026-01-01',
-              total_token_usage: { input_tokens: 500, cached_input_tokens: 100, output_tokens: 50 }
+      writeJsonl(
+        join(paths.cliConfig('codex'), 'sessions', '2026', '07', '08', `rollout-${codexId}.jsonl`),
+        [
+          { type: 'session_meta', timestamp: now, payload: { session_id: codexId, cwd: '/repo' } },
+          {
+            type: 'event_msg',
+            timestamp: now,
+            payload: { type: 'user_message', message: 'Codex usage session' }
+          },
+          { type: 'turn_context', timestamp: now, payload: { model: 'gpt-5-2026-01-01' } },
+          {
+            type: 'event_msg',
+            timestamp: now,
+            payload: {
+              type: 'token_count',
+              info: {
+                model: 'gpt-5-2026-01-01',
+                total_token_usage: {
+                  input_tokens: 500,
+                  cached_input_tokens: 100,
+                  output_tokens: 50
+                }
+              }
+            }
+          },
+          {
+            type: 'event_msg',
+            timestamp: now,
+            payload: {
+              type: 'token_count',
+              info: {
+                model: 'gpt-5-2026-01-01',
+                total_token_usage: {
+                  input_tokens: 900,
+                  cached_input_tokens: 150,
+                  output_tokens: 90
+                }
+              }
             }
           }
-        },
-        {
-          type: 'event_msg',
-          timestamp: now,
-          payload: {
-            type: 'token_count',
-            info: {
-              model: 'gpt-5-2026-01-01',
-              total_token_usage: { input_tokens: 900, cached_input_tokens: 150, output_tokens: 90 }
-            }
-          }
-        }
-      ])
+        ]
+      )
 
       writeJsonl(piFile, [
         { type: 'session', id: 'pi-usage', cwd: '/repo', name: 'Pi usage session' },
@@ -155,7 +182,11 @@ describe('usage scanning and launch cwd resolution', () => {
         sessionCount: 1,
         cost: { totalCost: 0.123 }
       })
-      expect(result.byModel.map((item) => item.model)).toEqual(['claude-3-5-sonnet', 'gpt-5', 'gpt-pi'])
+      expect(result.byModel.map((item) => item.model)).toEqual([
+        'claude-3-5-sonnet',
+        'gpt-5',
+        'gpt-pi'
+      ])
       expect(result.daily).toHaveLength(7)
       expect(result.daily.at(-1)?.tokens.totalTokens).toBe(2721)
     })
