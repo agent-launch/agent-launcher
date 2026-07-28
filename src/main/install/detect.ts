@@ -36,9 +36,7 @@ function displayDetectionDetail(d: Awaited<ReturnType<typeof detectSystemCli>>):
       d.cliId === 'codex'
         ? 'Manual update required: uninstall Codex and install version 0.135.0 or later'
         : 'Manual update required: uninstall this CLI and install a current version'
-    return d.selectedPath
-      ? `${message} · ${d.selectedPath}`
-      : message
+    return d.selectedPath ? `${message} · ${d.selectedPath}` : message
   }
   if (d.status === 'linked' && d.selectedPath) return d.selectedPath
   return d.detail
@@ -50,7 +48,10 @@ export async function detectEnvironment(): Promise<DetectResult> {
   const [detections, wslCodexPath] = await Promise.all([
     Promise.all(
       CLI_IDS.map((id) =>
-        detectSystemCli(id, cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined)
+        detectSystemCli(
+          id,
+          cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined
+        )
       )
     ),
     detectWslCodex()
@@ -62,7 +63,9 @@ export async function detectEnvironment(): Promise<DetectResult> {
       codexDetection.detail = `Codex was detected inside WSL at ${wslCodexPath}; install a native Windows version to use it here`
     }
   }
-  const systemClis = Object.fromEntries(detections.map((d) => [d.cliId, d])) as DetectResult['systemClis']
+  const systemClis = Object.fromEntries(
+    detections.map((d) => [d.cliId, d])
+  ) as DetectResult['systemClis']
   for (const detection of detections) {
     const install = cfg.install[detection.cliId]
     if (install.source !== 'system') continue

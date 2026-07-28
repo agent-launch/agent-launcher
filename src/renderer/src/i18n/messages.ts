@@ -44,6 +44,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.history': '历史会话',
     'shell.refresh': '刷新',
     'shell.openTerminal': 'Open Terminal',
+    'shell.selectProject': '选择项目',
     'shell.openDashboard': '启动并打开 Dashboard',
     'shell.openingDashboard': '启动中…',
     'shell.dashboardReady': 'Dashboard 已启动：',
@@ -129,18 +130,21 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.usage.more': '多',
     'settings.usage.empty': '还没有可解析的用量记录。',
     'settings.usage.byAgent': '按 Agent 汇总',
-    'settings.usage.byAgentDesc': '请求和 token 按近 30 天用量统计；会话数与左侧对话列表使用同一套本地历史读取。',
+    'settings.usage.byAgentDesc':
+      '请求和 token 按近 30 天用量统计；会话数与左侧对话列表使用同一套本地历史读取。',
     'settings.usage.partial': '有 {count} 个来源读取失败，其余数据已显示。',
     'settings.usage.tokenValue': '{count} token',
     'settings.usage.tokenUnit': 'token',
     'settings.usage.agentMeta': '{requests} 请求 · {sessions} 会话',
     'settings.usage.dayTooltipWithRequests': '{date}：{tokens} token · {requests} 请求',
-    'settings.aboutDesc': 'Agent Launcher 是一个本地桌面工具，用来配置和启动常用 coding agent CLI。',
+    'settings.aboutDesc':
+      'Agent Launcher 是一个本地桌面工具，用来配置和启动常用 coding agent CLI。',
     'settings.aboutVersion': '版本',
     'settings.aboutPlatform': '平台',
     'settings.aboutConfigPath': '配置文件',
     'settings.appUpdate.title': 'Agent Launcher 更新',
-    'settings.appUpdate.desc': '从 GitHub Releases 检查应用版本；支持的安装包可直接下载并重启安装。',
+    'settings.appUpdate.desc':
+      '从 GitHub Releases 检查应用版本；支持的安装包可直接下载并重启安装。',
     'settings.appUpdate.check': '检查更新',
     'settings.appUpdate.checking': '检查中…',
     'settings.appUpdate.unchecked': '未检查',
@@ -158,7 +162,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.appUpdate.force': '强制更新',
     'settings.appUpdate.minVersion': '最低版本',
     'settings.cliStatus.title': 'Agent CLI 版本',
-    'settings.cliStatus.desc': '这里只检测各 CLI 的当前版本和最新版本，不会安装、重装或更新 CLI。缺失或升级请查看各项目官方文档。',
+    'settings.cliStatus.desc':
+      '这里只检测各 CLI 的当前版本和最新版本，不会安装、重装或更新 CLI。缺失或升级请查看各项目官方文档。',
     'settings.cliStatus.check': '刷新版本',
     'settings.cliStatus.checking': '检查中…',
     'settings.cliStatus.unchecked': '未检查',
@@ -244,7 +249,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- onboarding: link ----
     'onboarding.linkTitle': '关联已安装的 CLI',
-    'onboarding.linkDesc': 'Agent Launcher 只关联系统中已有的 CLI，不会下载、安装、重装或更新 CLI。',
+    'onboarding.linkDesc':
+      'Agent Launcher 只关联系统中已有的 CLI，不会下载、安装、重装或更新 CLI。',
     'onboarding.installed': '已安装{version}',
     'onboarding.systemLinked': '使用系统版本{version}',
     'onboarding.linking': '关联中',
@@ -255,8 +261,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.refreshDetection': '重新检测',
     'onboarding.systemAvailable': '检测到系统版本，可直接使用',
     'onboarding.systemMissing': '未检测到系统版本，请查看官方安装文档',
-    'onboarding.macSecurityManualUpdateWarning': 'macOS 已拦截该系统命令，Agent Launcher 不会启动或替你更新它。请卸载后按官方安装文档安装当前版本。',
-    'onboarding.codexManualUpdateWarning': '你的 Codex CLI 版本过旧，macOS 会将其标记为已损坏并拒绝打开。请卸载后按官方安装文档安装 0.135.0 或更高版本。',
+    'onboarding.macSecurityManualUpdateWarning':
+      'macOS 已拦截该系统命令，Agent Launcher 不会启动或替你更新它。请卸载后按官方安装文档安装当前版本。',
+    'onboarding.codexManualUpdateWarning':
+      '你的 Codex CLI 版本过旧，macOS 会将其标记为已损坏并拒绝打开。请卸载后按官方安装文档安装 0.135.0 或更高版本。',
     'onboarding.officialInstallDocs': '官方安装文档',
     'onboarding.currentPath': '默认路径：{path}',
     'onboarding.managePaths': '管理 {count} 个路径',
@@ -270,7 +278,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.versionLabel': '版本',
     'onboarding.versionUnknown': '版本未知',
     'onboarding.cleanupTitle': '移至备份',
-    'onboarding.cleanupDesc': '清理会把该命令移动到 Agent Launcher 的备份目录，不会直接永久删除。若它属于 Homebrew、npm、nvm 或其他包管理器，后续也可以用原工具重新安装。',
+    'onboarding.cleanupDesc':
+      '清理会把该命令移动到 Agent Launcher 的备份目录，不会直接永久删除。若它属于 Homebrew、npm、nvm 或其他包管理器，后续也可以用原工具重新安装。',
     'onboarding.cleanupConfirm': '移动到备份',
     'onboarding.cleanupBusy': '清理中…',
 
@@ -292,8 +301,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.authBadgeOfficial': '官方订阅',
     'onboarding.authCardClaude': 'Claude 官方账号',
     'onboarding.authCardCodex': 'ChatGPT 账号',
-    'onboarding.authClaudeHint': '使用 Claude Pro / Max / Team / Enterprise 账号登录。不要选择 Console/API 计费路径。',
-    'onboarding.authCodexHint': '使用 ChatGPT 账号授权 Codex。若浏览器登录不可用，可以使用设备码登录。',
+    'onboarding.authClaudeHint':
+      '使用 Claude Pro / Max / Team / Enterprise 账号登录。不要选择 Console/API 计费路径。',
+    'onboarding.authCodexHint':
+      '使用 ChatGPT 账号授权 Codex。若浏览器登录不可用，可以使用设备码登录。',
     'onboarding.authWaiting': '等待 CLI 输出…',
     'onboarding.authInputPlaceholder': '如需输入验证码或回车确认，粘贴在这里',
     'onboarding.authSend': '发送',
@@ -421,6 +432,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.history': 'History',
     'shell.refresh': 'Refresh',
     'shell.openTerminal': 'Open Terminal',
+    'shell.selectProject': 'Select project',
     'shell.openDashboard': 'Start Dashboard',
     'shell.openingDashboard': 'Starting…',
     'shell.dashboardReady': 'Dashboard is running:',
@@ -439,7 +451,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'shell.deleteSession': 'Delete session',
     'shell.deleteSessionTitle': 'Delete session',
     'shell.deleteSessionMessage': 'Delete “{name}”?',
-    'shell.deleteSessionHint': 'This removes the CLI session record saved on this Mac. It cannot be undone.',
+    'shell.deleteSessionHint':
+      'This removes the CLI session record saved on this Mac. It cannot be undone.',
     'shell.deleteSessionConfirm': 'Delete',
     'shell.deleteSessionDeleting': 'Deleting…',
     'shell.deleteSessionFailed': 'Failed to delete session: {error}',
@@ -468,13 +481,15 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.yolo.danger': 'Risky',
     'settings.yolo.desc':
       'When on, the CLI auto-approves every action (running commands, editing files, etc.) without asking each time. Convenient but risky — only enable it for projects you trust. Set per CLI.',
-    'settings.yolo.unsupported': 'This CLI never prompts for approval; tools always run without a switch',
+    'settings.yolo.unsupported':
+      'This CLI never prompts for approval; tools always run without a switch',
     'settings.yolo.notSupported': 'Unsupported',
     'settings.renderTranscript': 'Chat in the UI (not the terminal)',
     'settings.renderTranscriptDesc':
       'When on, clicking a past session opens it in the app (with full history, ready to continue); when off, clicking resumes it straight in the terminal.',
     'settings.usage.title': 'Usage',
-    'settings.usage.desc': 'Reads token usage, request counts, and session totals from local CLI histories.',
+    'settings.usage.desc':
+      'Reads token usage, request counts, and session totals from local CLI histories.',
     'settings.usage.loading': 'Reading usage…',
     'settings.usage.failed': 'Failed to read usage: {error}',
     'settings.usage.refresh': 'Refresh',
@@ -506,18 +521,21 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.usage.more': 'More',
     'settings.usage.empty': 'No parsable usage records yet.',
     'settings.usage.byAgent': 'By agent',
-    'settings.usage.byAgentDesc': 'Requests and tokens use the last 30 days; session counts use the same local history reader as the conversation list.',
+    'settings.usage.byAgentDesc':
+      'Requests and tokens use the last 30 days; session counts use the same local history reader as the conversation list.',
     'settings.usage.partial': '{count} sources failed to read; the rest is shown.',
     'settings.usage.tokenValue': '{count} tokens',
     'settings.usage.tokenUnit': 'tokens',
     'settings.usage.agentMeta': '{requests} req · {sessions} sessions',
     'settings.usage.dayTooltipWithRequests': '{date}: {tokens} tokens · {requests} requests',
-    'settings.aboutDesc': 'Agent Launcher is a local desktop tool for configuring and launching coding agent CLIs.',
+    'settings.aboutDesc':
+      'Agent Launcher is a local desktop tool for configuring and launching coding agent CLIs.',
     'settings.aboutVersion': 'Version',
     'settings.aboutPlatform': 'Platform',
     'settings.aboutConfigPath': 'Config file',
     'settings.appUpdate.title': 'Agent Launcher updates',
-    'settings.appUpdate.desc': 'Checks GitHub Releases for app updates; supported packages can download and restart in place.',
+    'settings.appUpdate.desc':
+      'Checks GitHub Releases for app updates; supported packages can download and restart in place.',
     'settings.appUpdate.check': 'Check updates',
     'settings.appUpdate.checking': 'Checking…',
     'settings.appUpdate.unchecked': 'Not checked',
@@ -536,7 +554,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.appUpdate.minVersion': 'Minimum',
     'settings.cliStatus.title': 'Agent CLI versions',
     'settings.cliStatus.desc':
-      'This page only compares installed and latest CLI versions. It does not install, reinstall, or update CLIs. Use each project\'s official documentation when a CLI is missing or needs an upgrade.',
+      "This page only compares installed and latest CLI versions. It does not install, reinstall, or update CLIs. Use each project's official documentation when a CLI is missing or needs an upgrade.",
     'settings.cliStatus.check': 'Refresh versions',
     'settings.cliStatus.checking': 'Checking…',
     'settings.cliStatus.unchecked': 'Not checked',
@@ -557,7 +575,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
 
     // ---- app update ----
     'update.force.title': 'Agent Launcher update required',
-    'update.force.desc': 'This version is below the remote policy requirement. Please update to continue.',
+    'update.force.desc':
+      'This version is below the remote policy requirement. Please update to continue.',
     'update.currentVersion': 'Current',
     'update.latestVersion': 'Latest',
     'update.minVersion': 'Minimum',
@@ -635,8 +654,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.refreshDetection': 'Detect again',
     'onboarding.systemAvailable': 'System CLI detected and ready to link',
     'onboarding.systemMissing': 'System CLI not detected; see the official installation docs',
-    'onboarding.macSecurityManualUpdateWarning': 'macOS has blocked this system command, so Agent Launcher will neither launch nor update it. Uninstall it, then follow the official installation docs to install a current version.',
-    'onboarding.codexManualUpdateWarning': "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Uninstall it, then follow the official installation docs to install version 0.135.0 or later.",
+    'onboarding.macSecurityManualUpdateWarning':
+      'macOS has blocked this system command, so Agent Launcher will neither launch nor update it. Uninstall it, then follow the official installation docs to install a current version.',
+    'onboarding.codexManualUpdateWarning':
+      "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Uninstall it, then follow the official installation docs to install version 0.135.0 or later.",
     'onboarding.officialInstallDocs': 'Official install docs',
     'onboarding.currentPath': 'Default path: {path}',
     'onboarding.managePaths': 'Manage {count} paths',
@@ -645,7 +666,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.usePath': 'Set default',
     'onboarding.usePathHint': 'Use this path by default when Agent Launcher starts this CLI',
     'onboarding.cleanupPath': 'Remove',
-    'onboarding.cleanupPathHint': 'Move this command into backup storage so it is no longer detected',
+    'onboarding.cleanupPathHint':
+      'Move this command into backup storage so it is no longer detected',
     'onboarding.selectedPath': 'Current',
     'onboarding.versionLabel': 'Version',
     'onboarding.versionUnknown': 'Unknown version',
@@ -662,7 +684,8 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.saveConfig': 'Save config',
     'onboarding.saved': 'Saved ✓',
     'onboarding.authOfficial': 'Official account',
-    'onboarding.authNotInstalled': 'CLI not detected. Follow the official documentation and complete linking first.',
+    'onboarding.authNotInstalled':
+      'CLI not detected. Follow the official documentation and complete linking first.',
     'onboarding.authLoggedIn': 'Official account connected',
     'onboarding.authNotLoggedIn': 'No official login detected',
     'onboarding.authCheck': 'Check',
@@ -673,8 +696,10 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.authBadgeOfficial': 'Official',
     'onboarding.authCardClaude': 'Claude account',
     'onboarding.authCardCodex': 'ChatGPT account',
-    'onboarding.authClaudeHint': 'Use a Claude Pro / Max / Team / Enterprise account. Do not choose the Console/API billing path.',
-    'onboarding.authCodexHint': 'Authorize Codex with your ChatGPT account. Use device-code login if browser login is unavailable.',
+    'onboarding.authClaudeHint':
+      'Use a Claude Pro / Max / Team / Enterprise account. Do not choose the Console/API billing path.',
+    'onboarding.authCodexHint':
+      'Authorize Codex with your ChatGPT account. Use device-code login if browser login is unavailable.',
     'onboarding.authWaiting': 'Waiting for CLI output…',
     'onboarding.authInputPlaceholder': 'Paste a code or confirmation input here if needed',
     'onboarding.authSend': 'Send',
@@ -701,8 +726,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.deleteProfileTitle': 'Delete config',
     'config.deleteProfileMessage': 'Delete “{name}”? This cannot be undone.',
     'config.nativeFiles': 'Native config files',
-    'config.nativeFilesDesc':
-      'These native config files are rewritten when you switch configs:',
+    'config.nativeFilesDesc': 'These native config files are rewritten when you switch configs:',
     'config.selectPlaceholder': '— Select —',
     'config.provider': 'Relay',
     'config.profileName': 'Config name',
@@ -727,20 +751,24 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.emptyProfileToast': 'Choose a relay or fill in Base URL / API Key / Model first',
     'config.connection.test': 'Test connection',
     'config.connection.testing': 'Testing…',
-    'config.connection.costNotice': 'Sends one real model request and may use a small number of tokens',
+    'config.connection.costNotice':
+      'Sends one real model request and may use a small number of tokens',
     'config.connection.ok': 'Connected',
     'config.connection.invalid_config': 'Enter a Base URL, API Key, and model',
     'config.connection.invalid_url': 'The Base URL is invalid',
     'config.connection.unauthorized': 'The API Key is invalid',
     'config.connection.forbidden': 'This key does not have access',
     'config.connection.payment_required': 'The account needs credit or payment',
-    'config.connection.bad_request': 'The request was rejected. Check the model name and API compatibility',
+    'config.connection.bad_request':
+      'The request was rejected. Check the model name and API compatibility',
     'config.connection.unsupported_api': 'The generation endpoint or model does not exist',
     'config.connection.rate_limited': 'Too many requests. Try again shortly',
     'config.connection.server_error': 'The service is temporarily unavailable',
     'config.connection.http_error': 'The service returned an unexpected status',
-    'config.connection.invalid_response': 'The service returned an unrecognized generation response',
-    'config.connection.backend_mismatch': 'The connection test service is outdated. Restart the app and try again',
+    'config.connection.invalid_response':
+      'The service returned an unrecognized generation response',
+    'config.connection.backend_mismatch':
+      'The connection test service is outdated. Restart the app and try again',
     'config.connection.timeout': 'Connection timed out',
     'config.connection.network_error': 'Network, DNS, or TLS connection failed',
     'config.mcpTitle': 'MCP servers',

@@ -17,7 +17,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 function platformOpenCommand(url: string): { command: string; args: string[] } {
   if (process.platform === 'darwin') return { command: '/usr/bin/open', args: [url] }
-  if (process.platform === 'win32') return { command: 'cmd.exe', args: ['/d', '/s', '/c', 'start', '""', url] }
+  if (process.platform === 'win32')
+    return { command: 'cmd.exe', args: ['/d', '/s', '/c', 'start', '""', url] }
   return { command: 'xdg-open', args: [url] }
 }
 
@@ -75,7 +76,8 @@ async function openDashboardUrl(cliId: CliId): Promise<DashboardLaunchResult> {
   } catch (electronError) {
     const systemOpenError = await runOpenCommand(HERMES_DASHBOARD_URL)
     if (systemOpenError) {
-      const electronOpenError = electronError instanceof Error ? electronError.message : String(electronError)
+      const electronOpenError =
+        electronError instanceof Error ? electronError.message : String(electronError)
       return {
         ok: false,
         cliId,
@@ -90,9 +92,14 @@ let pendingLaunch: Promise<DashboardLaunchResult> | null = null
 
 export function launchDashboard(cliId: CliId): Promise<DashboardLaunchResult> {
   if (cliId !== 'hermes') {
-    return Promise.resolve({ ok: false, cliId, error: 'Dashboard is only available for Hermes Agent' })
+    return Promise.resolve({
+      ok: false,
+      cliId,
+      error: 'Dashboard is only available for Hermes Agent'
+    })
   }
-  if (!pendingLaunch) pendingLaunch = launchHermesDashboard(cliId).finally(() => (pendingLaunch = null))
+  if (!pendingLaunch)
+    pendingLaunch = launchHermesDashboard(cliId).finally(() => (pendingLaunch = null))
   return pendingLaunch
 }
 
@@ -132,12 +139,21 @@ async function launchHermesDashboard(cliId: CliId): Promise<DashboardLaunchResul
         return { ok: false, cliId, error: `Hermes Dashboard failed to start: ${spawnError}` }
       }
       if (earlyExitMessage && Date.now() - earlyExitAt > DASHBOARD_EARLY_EXIT_GRACE_MS) {
-        return { ok: false, cliId, error: `Hermes Dashboard exited after startup (${earlyExitMessage})` }
+        return {
+          ok: false,
+          cliId,
+          error: `Hermes Dashboard exited after startup (${earlyExitMessage})`
+        }
       }
       await sleep(Math.min(DASHBOARD_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now())))
     }
 
-    return { ok: false, cliId, error: 'Hermes Dashboard startup timed out. Try again later or inspect the hermes dashboard output in a terminal.' }
+    return {
+      ok: false,
+      cliId,
+      error:
+        'Hermes Dashboard startup timed out. Try again later or inspect the hermes dashboard output in a terminal.'
+    }
   } catch (error) {
     return { ok: false, cliId, error: error instanceof Error ? error.message : String(error) }
   }

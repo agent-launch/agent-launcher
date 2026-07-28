@@ -6,8 +6,8 @@ import type { CliId, NativeFiles } from '@shared/types'
 
 /**
  * Some CLIs aren't configured purely by env vars — they read config FILES from
- * their home dir. We materialize those from the active profile (the way
- * cc-switch does) so launching them actually uses the chosen relay:
+ * their home dir. We materialize those from the active profile so launching
+ * them actually uses the chosen relay:
  *   - Claude:  settings.json env
  *   - Codex:    config.toml
  *   - opencode: opencode.json (custom provider via @ai-sdk/openai-compatible)
@@ -15,7 +15,13 @@ import type { CliId, NativeFiles } from '@shared/types'
  *   - Hermes:   config.yaml + .env (custom OpenAI-compatible provider)
  */
 export function hasNativeConfig(cliId: CliId): boolean {
-  return cliId === 'claude-code' || cliId === 'codex' || cliId === 'opencode' || cliId === 'pi' || cliId === 'hermes'
+  return (
+    cliId === 'claude-code' ||
+    cliId === 'codex' ||
+    cliId === 'opencode' ||
+    cliId === 'pi' ||
+    cliId === 'hermes'
+  )
 }
 
 const PROVIDER_ID = 'agentlauncher'
@@ -45,7 +51,9 @@ function envString(value: string): string {
 }
 
 function objectValue(value: unknown): Record<string, any> {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : {}
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {}
 }
 
 function stripCodexManagedBlock(content: string): string {
@@ -85,7 +93,9 @@ function removeTopLevelTomlScalar(content: string, key: string): string {
 function removeTomlScalarValue(content: string, key: string, value: string): string {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const escapedValue = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return content.replace(new RegExp(`^${escapedKey}\\s*=\\s*${escapedValue}\\s*\\n?`, 'm'), '').trimEnd()
+  return content
+    .replace(new RegExp(`^${escapedKey}\\s*=\\s*${escapedValue}\\s*\\n?`, 'm'), '')
+    .trimEnd()
 }
 
 function tomlString(value: string): string {
@@ -237,7 +247,14 @@ const HERMES_MANAGED_END = '# <<< AgentLauncher managed model <<<'
 const HERMES_ENV_MANAGED_START = '# >>> AgentLauncher managed env >>>'
 const HERMES_ENV_MANAGED_END = '# <<< AgentLauncher managed env <<<'
 const HERMES_MANAGED_API_KEY = 'AGENTLAUNCHER_OPENAI_API_KEY'
-const HERMES_MANAGED_MODEL_KEYS = new Set(['provider', 'default', 'model', 'base_url', 'api_key', 'api_mode'])
+const HERMES_MANAGED_MODEL_KEYS = new Set([
+  'provider',
+  'default',
+  'model',
+  'base_url',
+  'api_key',
+  'api_mode'
+])
 
 function stripManagedBlock(content: string, startMarker: string, endMarker: string): string {
   const start = content.indexOf(startMarker)
@@ -268,8 +285,7 @@ function hermesManagedModelLines(): string[] {
     p?.apiKey?.trim() ? `  api_key: ${yamlString(`\${${HERMES_MANAGED_API_KEY}}`)}` : null,
     baseUrl ? '  api_mode: chat_completions' : null,
     `  ${HERMES_MANAGED_END}`
-  ]
-    .filter((line): line is string => line !== null)
+  ].filter((line): line is string => line !== null)
 }
 
 function mergeHermesYaml(existing: string): string {
@@ -371,7 +387,9 @@ function mergedClaudeSettings(existing: Record<string, any>): Record<string, any
       : {}
   return {
     ...existing,
-    env: patch.env ? { ...clearClaudeManagedEnv(existingEnv), ...patch.env } : clearClaudeManagedEnv(existingEnv)
+    env: patch.env
+      ? { ...clearClaudeManagedEnv(existingEnv), ...patch.env }
+      : clearClaudeManagedEnv(existingEnv)
   }
 }
 
@@ -450,7 +468,8 @@ function mask(content: string): string {
     )
     .replace(
       /^(\s*(?:api_key|openai_api_key|OPENAI_API_KEY|AGENTLAUNCHER_OPENAI_API_KEY)\s*:\s*["']?)([^"'\n#]+)(["']?.*)$/gim,
-      (_m, a, key: string, c) => `${a}${key ? `${key.trim().slice(0, 3)}…${key.trim().slice(-4)}` : ''}${c}`
+      (_m, a, key: string, c) =>
+        `${a}${key ? `${key.trim().slice(0, 3)}…${key.trim().slice(-4)}` : ''}${c}`
     )
     .replace(
       /^((?:OPENAI_API_KEY|AGENTLAUNCHER_OPENAI_API_KEY)=)(.+)$/gim,
@@ -463,36 +482,50 @@ export function readNativeFiles(cliId: CliId): NativeFiles {
   const dir = cliConfigDir(cliId)
   const names: Record<string, string> =
     cliId === 'claude-code'
-      ? { 'settings.json': JSON.stringify(mergedClaudeSettings(readJsonObject(join(dir, 'settings.json'))), null, 2) }
-      : cliId === 'codex'
       ? {
-          'config.toml': (() => {
-            const full = join(dir, 'config.toml')
-            const existing = existsSync(full) ? readFileSync(full, 'utf8') : ''
-            return mergeCodexToml(existing) || '(Official login mode; no custom provider)'
-          })(),
-          'auth.json': (() => {
-            const next = codexAuthForActiveProfile(readJsonObject(join(dir, 'auth.json')))
-            return next ? JSON.stringify(next, null, 2) : '(auth.json not written)'
-          })()
+          'settings.json': JSON.stringify(
+            mergedClaudeSettings(readJsonObject(join(dir, 'settings.json'))),
+            null,
+            2
+          )
         }
-      : cliId === 'opencode'
-        ? { 'opencode.json': opencodeJson() }
-        : cliId === 'pi'
-          ? { 'models.json': piModelsJson(), 'settings.json': JSON.stringify(piSettingsPatch(), null, 2) }
-          : cliId === 'hermes'
+      : cliId === 'codex'
+        ? {
+            'config.toml': (() => {
+              const full = join(dir, 'config.toml')
+              const existing = existsSync(full) ? readFileSync(full, 'utf8') : ''
+              return mergeCodexToml(existing) || '(Official login mode; no custom provider)'
+            })(),
+            'auth.json': (() => {
+              const next = codexAuthForActiveProfile(readJsonObject(join(dir, 'auth.json')))
+              return next ? JSON.stringify(next, null, 2) : '(auth.json not written)'
+            })()
+          }
+        : cliId === 'opencode'
+          ? { 'opencode.json': opencodeJson() }
+          : cliId === 'pi'
             ? {
-                'config.yaml': (() => {
-                  const full = join(dir, 'config.yaml')
-                  const existing = existsSync(full) ? readFileSync(full, 'utf8') : ''
-                  return mergeHermesYaml(existing)
-                })(),
-                '.env': hermesEnvPreview()
+                'models.json': piModelsJson(),
+                'settings.json': JSON.stringify(piSettingsPatch(), null, 2)
               }
-          : {}
+            : cliId === 'hermes'
+              ? {
+                  'config.yaml': (() => {
+                    const full = join(dir, 'config.yaml')
+                    const existing = existsSync(full) ? readFileSync(full, 'utf8') : ''
+                    return mergeHermesYaml(existing)
+                  })(),
+                  '.env': hermesEnvPreview()
+                }
+              : {}
   const files = Object.entries(names).map(([name, generated]) => {
     const full = join(dir, name)
-    const content = cliId === 'codex' || cliId === 'hermes' ? generated : existsSync(full) ? readFileSync(full, 'utf8') : generated
+    const content =
+      cliId === 'codex' || cliId === 'hermes'
+        ? generated
+        : existsSync(full)
+          ? readFileSync(full, 'utf8')
+          : generated
     return { name, content: mask(content) }
   })
   return { dir, files }

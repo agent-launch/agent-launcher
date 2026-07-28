@@ -7,7 +7,15 @@ import type { CliId, CliProfile, EnvPair } from '@shared/types'
 
 function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (process.platform === 'win32') return env
-  const common = [join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+  const common = [
+    join(homedir(), '.local', 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin'
+  ]
   const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
   const seen = new Set(existing)
   env.PATH = [...existing, ...common.filter((dir) => !seen.has(dir))].join(delimiter)
@@ -110,9 +118,7 @@ function cliVars(cliId: CliId): EnvPair[] {
 /** Masked env pairs for display (secrets shown as sk-…last4). */
 export function resolvedEnvPreview(cliId: CliId): EnvPair[] {
   return cliVars(cliId).map((e) =>
-    e.secret
-      ? { ...e, value: e.value ? `${e.value.slice(0, 3)}…${e.value.slice(-4)}` : '' }
-      : e
+    e.secret ? { ...e, value: e.value ? `${e.value.slice(0, 3)}…${e.value.slice(-4)}` : '' } : e
   )
 }
 

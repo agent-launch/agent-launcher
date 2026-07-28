@@ -3,11 +3,7 @@ import toast from 'react-hot-toast'
 import { LoaderCircle, Wifi } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useT } from '@/i18n'
-import type {
-  CliId,
-  CliProfilePatch,
-  ProfileConnectionResult
-} from '@shared/types'
+import type { CliId, CliProfilePatch, ProfileConnectionResult } from '@shared/types'
 
 export function ProfileConnectionTest({
   cliId,
@@ -59,9 +55,11 @@ export function ProfileConnectionTest({
     try {
       const next = await window.api.config.testConnection(cliId, profile)
       if (requestRef.current === requestId) {
-        showResult(next.kind === 'generation'
-          ? next
-          : { kind: 'generation', ok: false, code: 'backend_mismatch' })
+        showResult(
+          next.kind === 'generation'
+            ? next
+            : { kind: 'generation', ok: false, code: 'backend_mismatch' }
+        )
       }
     } catch {
       if (requestRef.current === requestId) {

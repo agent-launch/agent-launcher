@@ -9,7 +9,13 @@ import { assertCliLaunchAllowed } from './cli-launch-safety'
 import { resolveLaunchCwd } from './launch-cwd'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
 import { spawnProcess } from './process'
-import type { ChatEvent, ChatStartOptions, CliId, TranscriptPart, TranscriptRole } from '@shared/types'
+import type {
+  ChatEvent,
+  ChatStartOptions,
+  CliId,
+  TranscriptPart,
+  TranscriptRole
+} from '@shared/types'
 
 /**
  * In-UI chat driver. Runs a coding-agent CLI in its programmatic mode and
@@ -83,7 +89,19 @@ function toolDetail(input: unknown): string | undefined {
   if (typeof input === 'string') return input.slice(0, 140)
   if (typeof input === 'object') {
     const o = input as Record<string, unknown>
-    for (const k of ['file_path', 'filePath', 'filepath', 'path', 'command', 'cmd', 'pattern', 'url', 'query', 'prompt', 'description']) {
+    for (const k of [
+      'file_path',
+      'filePath',
+      'filepath',
+      'path',
+      'command',
+      'cmd',
+      'pattern',
+      'url',
+      'query',
+      'prompt',
+      'description'
+    ]) {
       if (typeof o[k] === 'string') return (o[k] as string).slice(0, 140)
     }
     try {
@@ -160,7 +178,12 @@ function handleCodex(s: ChatState, id: string, o: Record<string, any>): void {
         result: extractToolResultText(it.output ?? it.result),
         status: it.status === 'failed' ? 'error' : 'completed',
         isError: it.status === 'failed',
-        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+        id:
+          typeof it.call_id === 'string'
+            ? it.call_id
+            : typeof it.id === 'string'
+              ? it.id
+              : undefined
       })
     } else if (it.type === 'file_change') {
       emitPart(s, id, 'assistant', {
@@ -171,7 +194,12 @@ function handleCodex(s: ChatState, id: string, o: Record<string, any>): void {
         result: extractToolResultText(it.output ?? it.result),
         status: it.status === 'failed' ? 'error' : 'completed',
         isError: it.status === 'failed',
-        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+        id:
+          typeof it.call_id === 'string'
+            ? it.call_id
+            : typeof it.id === 'string'
+              ? it.id
+              : undefined
       })
     } else if (it.type === 'mcp_tool_call') {
       emitPart(s, id, 'assistant', {
@@ -182,7 +210,12 @@ function handleCodex(s: ChatState, id: string, o: Record<string, any>): void {
         result: extractToolResultText(it.output ?? it.result),
         status: it.status === 'failed' ? 'error' : 'completed',
         isError: it.status === 'failed',
-        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+        id:
+          typeof it.call_id === 'string'
+            ? it.call_id
+            : typeof it.id === 'string'
+              ? it.id
+              : undefined
       })
     } else if (it.type === 'web_search') {
       emitPart(s, id, 'assistant', {
@@ -193,7 +226,12 @@ function handleCodex(s: ChatState, id: string, o: Record<string, any>): void {
         result: extractToolResultText(it.output ?? it.result),
         status: it.status === 'failed' ? 'error' : 'completed',
         isError: it.status === 'failed',
-        id: typeof it.call_id === 'string' ? it.call_id : typeof it.id === 'string' ? it.id : undefined
+        id:
+          typeof it.call_id === 'string'
+            ? it.call_id
+            : typeof it.id === 'string'
+              ? it.id
+              : undefined
       })
     }
     return
@@ -224,7 +262,8 @@ function handleCodex(s: ChatState, id: string, o: Record<string, any>): void {
       return
     }
   }
-  if (o.type === 'turn.failed') send(s.wc, id, { type: 'error', message: String(o.error?.message ?? 'turn failed') })
+  if (o.type === 'turn.failed')
+    send(s.wc, id, { type: 'error', message: String(o.error?.message ?? 'turn failed') })
   else if (o.type === 'error' && o.message && !String(o.message).startsWith('Reconnecting'))
     send(s.wc, id, { type: 'error', message: String(o.message) })
 }
@@ -248,7 +287,12 @@ function handlePi(s: ChatState, id: string, o: Record<string, any>): void {
             tool: b.name ?? b.tool ?? 'tool',
             detail: toolDetail(b.input ?? b.arguments),
             input: stringifyToolPayload(b.input ?? b.arguments),
-            id: typeof b.id === 'string' ? b.id : typeof b.tool_use_id === 'string' ? b.tool_use_id : undefined,
+            id:
+              typeof b.id === 'string'
+                ? b.id
+                : typeof b.tool_use_id === 'string'
+                  ? b.tool_use_id
+                  : undefined,
             status: 'running'
           })
         else if (b.type === 'tool_result')
@@ -258,7 +302,12 @@ function handlePi(s: ChatState, id: string, o: Record<string, any>): void {
             result: extractToolResultText(b.content ?? b.output ?? b.result),
             isError: b.is_error === true,
             status: b.is_error === true ? 'error' : 'completed',
-            id: typeof b.tool_use_id === 'string' ? b.tool_use_id : typeof b.id === 'string' ? b.id : undefined
+            id:
+              typeof b.tool_use_id === 'string'
+                ? b.tool_use_id
+                : typeof b.id === 'string'
+                  ? b.id
+                  : undefined
           })
       }
   }
@@ -268,28 +317,35 @@ function handleOpencode(s: ChatState, id: string, o: Record<string, any>): void 
   if (typeof o.sessionID === 'string') setSession(s, id, o.sessionID)
   if (o.type === 'message.part.updated' && o.part) {
     const p = o.part
-    if (p.type === 'text' && p.text) emitPart(s, id, 'assistant', { kind: 'text', text: p.text, id: p.id })
+    if (p.type === 'text' && p.text)
+      emitPart(s, id, 'assistant', { kind: 'text', text: p.text, id: p.id })
     else if (p.type === 'reasoning' && p.text)
       emitPart(s, id, 'assistant', { kind: 'thinking', text: p.text, id: p.id })
     else if (p.type === 'tool')
       emitPart(s, id, 'assistant', {
         kind: 'tool',
         tool: p.tool || 'tool',
-        detail: toolDetail(p.state?.input) ?? (typeof p.state?.title === 'string' ? p.state.title : undefined),
+        detail:
+          toolDetail(p.state?.input) ??
+          (typeof p.state?.title === 'string' ? p.state.title : undefined),
         input: stringifyToolPayload(p.state?.input),
         result: extractToolResultText(p.state?.output ?? p.state?.result),
         isError: p.state?.status === 'error' || p.state?.status === 'failed',
-        status: p.state?.status === 'completed'
-          ? 'completed'
-          : p.state?.status === 'error' || p.state?.status === 'failed'
-            ? 'error'
-            : 'running',
+        status:
+          p.state?.status === 'completed'
+            ? 'completed'
+            : p.state?.status === 'error' || p.state?.status === 'failed'
+              ? 'error'
+              : 'running',
         id: p.id
       })
     return
   }
   if ((o.type === 'session.error' || o.type === 'error') && o.error)
-    send(s.wc, id, { type: 'error', message: String(o.error?.data?.message ?? o.error?.message ?? 'error') })
+    send(s.wc, id, {
+      type: 'error',
+      message: String(o.error?.data?.message ?? o.error?.message ?? 'error')
+    })
 }
 
 function handleLine(s: ChatState, id: string, o: Record<string, any>): void {
@@ -326,7 +382,15 @@ function turnTarget(s: ChatState, text: string): { file: string; args: string[] 
   const bin = install.binPath as string
   if (s.cliId === 'codex') {
     const base = s.sessionId ? ['exec', 'resume', s.sessionId, text] : ['exec', text]
-    return { file: bin, args: [...base, '--json', '--skip-git-repo-check', '--dangerously-bypass-approvals-and-sandbox'] }
+    return {
+      file: bin,
+      args: [
+        ...base,
+        '--json',
+        '--skip-git-repo-check',
+        '--dangerously-bypass-approvals-and-sandbox'
+      ]
+    }
   }
   if (s.cliId === 'opencode') {
     const sess = s.sessionId ? ['--session', s.sessionId] : []
@@ -334,7 +398,8 @@ function turnTarget(s: ChatState, text: string): { file: string; args: string[] 
   }
   const sess = s.sessionId ? ['--session', s.sessionId] : []
   const profile = getActiveProfile('pi')
-  const modelArgs = profile?.baseUrl && profile.model ? ['--model', `agentlauncher/${profile.model}`] : []
+  const modelArgs =
+    profile?.baseUrl && profile.model ? ['--model', `agentlauncher/${profile.model}`] : []
   if (install.source === 'system') {
     return { file: bin, args: ['--mode', 'json', '-p', text, ...sess, ...modelArgs] }
   }
@@ -349,7 +414,10 @@ function spawnTurn(s: ChatState, id: string, text: string): void {
   s.buf = ''
   s.sawText = false
   s.stderr = ''
-  const proc = spawnProcess(file, args, { cwd: s.cwd, env: buildCliEnv(s.cliId) as NodeJS.ProcessEnv })
+  const proc = spawnProcess(file, args, {
+    cwd: s.cwd,
+    env: buildCliEnv(s.cliId) as NodeJS.ProcessEnv
+  })
   s.turn = proc
   // Prompt is passed as an argv; close stdin so the CLI doesn't block reading it
   // (codex exec waits for stdin EOF otherwise).
@@ -362,7 +430,10 @@ function spawnTurn(s: ChatState, id: string, text: string): void {
     s.turn = undefined
     // If the turn produced no visible output, surface a trimmed stderr as the error.
     if (!s.sawText && s.stderr.trim()) {
-      send(s.wc, id, { type: 'error', message: s.stderr.trim().split('\n').slice(-3).join('\n').slice(0, 400) })
+      send(s.wc, id, {
+        type: 'error',
+        message: s.stderr.trim().split('\n').slice(-3).join('\n').slice(0, 400)
+      })
     }
     send(s.wc, id, { type: 'turn-end' })
   })
@@ -383,7 +454,15 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
   }
 
   const id = `chat-${++seq}`
-  const s: ChatState = { cliId: opts.cliId, wc, cwd, sessionId: opts.resumeId, buf: '', sawText: false, stderr: '' }
+  const s: ChatState = {
+    cliId: opts.cliId,
+    wc,
+    cwd,
+    sessionId: opts.resumeId,
+    buf: '',
+    sawText: false,
+    stderr: ''
+  }
   chats.set(id, s)
 
   if (PERSISTENT.has(opts.cliId)) {
@@ -398,7 +477,10 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
     ]
     if (opts.resumeId) args.push('--resume', opts.resumeId)
     else args.push('--session-id', randomUUID())
-    const proc = spawnProcess(install.binPath, args, { cwd, env: buildCliEnv(opts.cliId) as NodeJS.ProcessEnv })
+    const proc = spawnProcess(install.binPath, args, {
+      cwd,
+      env: buildCliEnv(opts.cliId) as NodeJS.ProcessEnv
+    })
     s.persistent = proc
     attachParser(s, id, proc.stdout!)
     proc.stderr!.setEncoding('utf8')

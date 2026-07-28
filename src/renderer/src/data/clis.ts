@@ -68,7 +68,7 @@ export const CLIS: CliMeta[] = [
   }
 ]
 
-// Provider/relay catalog now lives in ./providers.ts (ported from cc-switch).
+// Provider and relay presets live in ./providers.ts.
 
 /** Whether each CLI supports a "YOLO" (auto-approve all) toggle, and the flag. */
 export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> = {

@@ -3,7 +3,9 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { vi } from 'vitest'
 
-export async function withIsolatedHome<T>(run: (ctx: { home: string }) => Promise<T> | T): Promise<T> {
+export async function withIsolatedHome<T>(
+  run: (ctx: { home: string }) => Promise<T> | T
+): Promise<T> {
   const home = mkdtempSync(join(tmpdir(), 'agent-launcher-test-'))
   const isolatedEnv = {
     XDG_CONFIG_HOME: join(home, '.config'),

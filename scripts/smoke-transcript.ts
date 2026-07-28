@@ -3,7 +3,7 @@
 // prints a compact view. Run: npx tsx scripts/smoke-transcript.ts [claude-code|codex]
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from 'node:fs'
+import { mkdirSync, copyFileSync, readdirSync, statSync } from 'node:fs'
 import { paths } from '../src/main/sandbox'
 import { readTranscript } from '../src/main/sessions-history'
 import type { CliId } from '../src/shared/types'
@@ -45,16 +45,23 @@ async function main() {
   if (which === 'claude-code') {
     const src = newest(join(homedir(), '.claude', 'projects'), (n) => n.endsWith('.jsonl'))
     if (!src) return console.log('no real claude sessions found')
-    const id = src.replace(/\.jsonl$/, '').split('/').pop()!
+    const id = src
+      .replace(/\.jsonl$/, '')
+      .split('/')
+      .pop()!
     const dest = join(paths.cliConfig('claude-code'), 'projects', 'smoke')
     mkdirSync(dest, { recursive: true })
     copyFileSync(src, join(dest, `${id}.jsonl`))
     console.log('claude id:', id)
     dump('claude-code', (await readTranscript('claude-code', id)).messages)
   } else if (which === 'codex') {
-    const src = newest(join(homedir(), '.codex', 'sessions'), (n) => n.startsWith('rollout-') && n.endsWith('.jsonl'))
+    const src = newest(
+      join(homedir(), '.codex', 'sessions'),
+      (n) => n.startsWith('rollout-') && n.endsWith('.jsonl')
+    )
     if (!src) return console.log('no real codex sessions found')
-    const uuid = src.match(/([0-9a-f-]{36})\.jsonl$/)?.[1]!
+    const uuid = src.match(/([0-9a-f-]{36})\.jsonl$/)?.[1]
+    if (!uuid) throw new Error(`Could not read a Codex session id from ${src}`)
     const dest = join(paths.cliConfig('codex'), 'sessions', 'smoke')
     mkdirSync(dest, { recursive: true })
     copyFileSync(src, join(dest, src.split('/').pop()!))

@@ -32,6 +32,8 @@ export function windowsBuildNumber(release: string): number | undefined {
 /** Whether this Windows build should run node-pty's bundled ConPTY. */
 export function useBundledConpty(buildNumber: number | undefined): boolean {
   return (
-    buildNumber !== undefined && buildNumber >= BUNDLED_CONPTY_MIN_BUILD && buildNumber < WINDOWS_11_BUILD
+    buildNumber !== undefined &&
+    buildNumber >= BUNDLED_CONPTY_MIN_BUILD &&
+    buildNumber < WINDOWS_11_BUILD
   )
 }

@@ -1,4 +1,4 @@
-appId: org.matrixlabs.agentlauncher
+appId: io.whitematrix.agentlauncher
 productName: Agent Launcher
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 directories:
@@ -6,19 +6,25 @@ directories:
   buildResources: build
 files:
   - out/**
-  - "!**/*.map"
+  - '!**/*.map'
 asarUnpack:
   # sql.js ships a .wasm that must be a real file on disk (not inside asar).
-  - "**/node_modules/sql.js/dist/sql-wasm.wasm"
+  - '**/node_modules/sql.js/dist/sql-wasm.wasm'
   # @lydell/node-pty loads a platform-specific .node binary from a sibling
   # package; it must live outside the asar to be dlopen-able at runtime.
-  - "**/node_modules/@lydell/node-pty-*/**"
+  - '**/node_modules/@lydell/node-pty-*/**'
 mac:
   icon: build/icon.icns
   category: public.app-category.developer-tools
   target:
-    - dmg
-    - zip
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
 win:
   icon: build/icon.ico
   target:
@@ -30,6 +36,6 @@ linux:
   category: Development
 publish:
   provider: github
-  owner: matrixlabs
+  owner: WhiteMatrixTech
   repo: agent-launcher
   releaseType: release

@@ -72,7 +72,10 @@ function splitArgs(value?: string): string[] {
   if (!value?.trim()) return []
   const matches = value.match(/"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|\S+/g) ?? []
   return matches.map((part) => {
-    if ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith("'") && part.endsWith("'"))) {
+    if (
+      (part.startsWith('"') && part.endsWith('"')) ||
+      (part.startsWith("'") && part.endsWith("'"))
+    ) {
       return part.slice(1, -1).replace(/\\"/g, '"').replace(/\\'/g, "'")
     }
     return part
@@ -100,13 +103,17 @@ function stringifyEnv(value: unknown): string | undefined {
     .join('\n')
 }
 
-function commandAndArgs(value: unknown, fallbackArgs: unknown): { command?: string; args?: string } {
+function commandAndArgs(
+  value: unknown,
+  fallbackArgs: unknown
+): { command?: string; args?: string } {
   if (Array.isArray(value)) {
     const items = value.map((item) => String(item))
     return { command: items[0], args: items.slice(1).join(' ') || undefined }
   }
   if (typeof value === 'string') {
-    if (Array.isArray(fallbackArgs)) return { command: value, args: fallbackArgs.map((item) => String(item)).join(' ') }
+    if (Array.isArray(fallbackArgs))
+      return { command: value, args: fallbackArgs.map((item) => String(item)).join(' ') }
     return { command: value }
   }
   return {}
@@ -122,11 +129,7 @@ function normalizeMcpEntry(
   if (!isObject(raw)) return null
   const { command, args } = commandAndArgs(raw.command, raw.args)
   const url = typeof raw.url === 'string' ? raw.url : undefined
-  const transport: McpTransport = url
-    ? raw.type === 'sse'
-      ? 'sse'
-      : 'http'
-    : 'stdio'
+  const transport: McpTransport = url ? (raw.type === 'sse' ? 'sse' : 'http') : 'stdio'
   return {
     id: pathId(configPath, name),
     cliId,
@@ -152,7 +155,12 @@ function listJsonMcp(cliId: CliId, path: string, key: 'mcp' | 'mcpServers'): Ins
     .filter((entry): entry is InstalledMcpEntry => Boolean(entry))
 }
 
-function updateJsonMcp(path: string, key: 'mcp' | 'mcpServers', entryId: string, patch: InstalledMcpPatch): void {
+function updateJsonMcp(
+  path: string,
+  key: 'mcp' | 'mcpServers',
+  entryId: string,
+  patch: InstalledMcpPatch
+): void {
   const { name } = parsePathId(entryId)
   const config = readJsonObject(path)
   const servers = isObject(config[key]) ? { ...config[key] } : {}
@@ -169,7 +177,8 @@ function updateJsonMcp(path: string, key: 'mcp' | 'mcpServers', entryId: string,
   if (patch.enabled !== undefined) next.enabled = patch.enabled
   if (patch.command !== undefined || patch.args !== undefined) {
     const command = patch.command?.trim() || String(next.command ?? '')
-    const args = patch.args !== undefined ? splitArgs(patch.args) : Array.isArray(next.args) ? next.args : []
+    const args =
+      patch.args !== undefined ? splitArgs(patch.args) : Array.isArray(next.args) ? next.args : []
     if (key === 'mcp') next.command = [command, ...args].filter(Boolean)
     else {
       next.command = command
@@ -220,7 +229,10 @@ function parseTomlValue(value: string): unknown {
         .map((item) => String(parseTomlValue(item)))
     }
   }
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
     return trimmed.slice(1, -1).replace(/\\"/g, '"')
   }
   if (trimmed === 'true') return true
@@ -234,7 +246,11 @@ function listCodexMcp(cliId: CliId, configPath: string): InstalledMcpEntry[] {
   // dot (e.g. `[mcp_servers.node_repl.env]`) is a TOML subtable, not a server —
   // the old `[^\]]+` captured it as a bogus `node_repl.env` entry. Quoted names
   // may legitimately contain dots (`[mcp_servers."my.server"]`).
-  const sections = [...text.matchAll(/^\[mcp_servers\.([A-Za-z0-9_-]+|"[^"]*")\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
+  const sections = [
+    ...text.matchAll(
+      /^\[mcp_servers\.([A-Za-z0-9_-]+|"[^"]*")\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm
+    )
+  ]
   return sections
     .map((match) => {
       const name = match[1].replace(/^"|"$/g, '')
@@ -267,7 +283,9 @@ function enabledCodexPlugins(configPath: string): string[] {
 function codexMarketplaceSources(configPath: string): Record<string, string> {
   const text = safeRead(configPath)
   const out: Record<string, string> = {}
-  const sections = [...text.matchAll(/^\[marketplaces\.([A-Za-z0-9_.-]+)\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)]
+  const sections = [
+    ...text.matchAll(/^\[marketplaces\.([A-Za-z0-9_.-]+)\]\s*\n([\s\S]*?)(?=^\[|(?![\s\S]))/gm)
+  ]
   for (const match of sections) {
     const key = match[1]
     const body = match[2]
@@ -297,14 +315,21 @@ function listCodexPluginMcp(cliId: CliId, configPath: string): InstalledMcpEntry
     if (!root) continue
     const pluginJsonPath = join(root, 'plugins', name, '.codex-plugin', 'plugin.json')
     const pluginJson = readJsonObject(pluginJsonPath)
-    const mcpServersRef = typeof pluginJson.mcpServers === 'string' ? pluginJson.mcpServers : undefined
+    const mcpServersRef =
+      typeof pluginJson.mcpServers === 'string' ? pluginJson.mcpServers : undefined
     if (!mcpServersRef) continue
     const mcpJsonPath = resolve(join(root, 'plugins', name), mcpServersRef)
     if (!existsSync(mcpJsonPath)) continue
     const mcpJson = readJsonObject(mcpJsonPath)
     const servers = isObject(mcpJson.mcpServers) ? mcpJson.mcpServers : {}
     for (const [serverName, raw] of Object.entries(servers)) {
-      const entry = normalizeMcpEntry(cliId, mcpJsonPath, 'codex-plugin', `${pluginId}/${serverName}`, raw)
+      const entry = normalizeMcpEntry(
+        cliId,
+        mcpJsonPath,
+        'codex-plugin',
+        `${pluginId}/${serverName}`,
+        raw
+      )
       if (!entry) continue
       entry.name = serverName
       entry.readOnly = true
@@ -340,15 +365,25 @@ function codexMcpBlock(name: string, patch: InstalledMcpPatch): string {
   return lines.join('\n')
 }
 
-function updateCodexMcp(configPath: string, entryId: string | undefined, patch: InstalledMcpPatch): void {
+function updateCodexMcp(
+  configPath: string,
+  entryId: string | undefined,
+  patch: InstalledMcpPatch
+): void {
   const name = entryId ? parsePathId(entryId).name : patch.name?.trim()
   const nextName = patch.name?.trim() || name
   if (!nextName) throw new Error('MCP name is required')
-  const existing = entryId ? listCodexMcp('codex', configPath).find((entry) => entry.id === entryId) : undefined
+  const existing = entryId
+    ? listCodexMcp('codex', configPath).find((entry) => entry.id === entryId)
+    : undefined
   const merged: InstalledMcpPatch = { ...existing, ...patch, name: nextName }
   const current = safeRead(configPath)
   const stripped = name ? stripCodexMcpSection(current, name) : current.trimEnd()
-  writeFileSync(configPath, `${stripped.trimEnd()}${stripped.trimEnd() ? '\n\n' : ''}${codexMcpBlock(nextName, merged)}\n`, { mode: 0o600 })
+  writeFileSync(
+    configPath,
+    `${stripped.trimEnd()}${stripped.trimEnd() ? '\n\n' : ''}${codexMcpBlock(nextName, merged)}\n`,
+    { mode: 0o600 }
+  )
 }
 
 function deleteCodexMcp(configPath: string, entryId: string): void {
@@ -364,10 +399,16 @@ function parseYamlScalar(value: string): unknown {
     try {
       return JSON.parse(trimmed)
     } catch {
-      return trimmed.slice(1, -1).split(',').map((item) => String(parseYamlScalar(item)))
+      return trimmed
+        .slice(1, -1)
+        .split(',')
+        .map((item) => String(parseYamlScalar(item)))
     }
   }
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
     return trimmed.slice(1, -1).replace(/\\"/g, '"')
   }
   if (trimmed === 'true') return true
@@ -395,16 +436,16 @@ function parseHermesMcpServers(configPath: string): Record<string, JsonObject> {
   const out: Record<string, JsonObject> = {}
   let current = ''
   for (const line of lines.slice(block.start + 1, block.end)) {
-    const server = line.match(/^  ([A-Za-z0-9_.-]+):\s*$/)
+    const server = line.match(/^ {2}([A-Za-z0-9_.-]+):\s*$/)
     if (server) {
       current = server[1]
       out[current] = {}
       continue
     }
     if (!current) continue
-    const pair = line.match(/^    ([A-Za-z_][A-Za-z0-9_-]*):\s*(.+?)\s*$/)
+    const pair = line.match(/^ {4}([A-Za-z_][A-Za-z0-9_-]*):\s*(.+?)\s*$/)
     if (pair) out[current][pair[1]] = parseYamlScalar(pair[2])
-    const emptyMap = line.match(/^    ([A-Za-z_][A-Za-z0-9_-]*):\s*$/)
+    const emptyMap = line.match(/^ {4}([A-Za-z_][A-Za-z0-9_-]*):\s*$/)
     if (emptyMap) out[current][emptyMap[1]] = {}
   }
   return out
@@ -451,7 +492,11 @@ function writeHermesMcpServers(configPath: string, servers: Record<string, JsonO
   writeFileSync(configPath, `${next.trimEnd()}\n`, { mode: 0o600 })
 }
 
-function updateHermesMcp(configPath: string, entryId: string | undefined, patch: InstalledMcpPatch): void {
+function updateHermesMcp(
+  configPath: string,
+  entryId: string | undefined,
+  patch: InstalledMcpPatch
+): void {
   const oldName = entryId ? parsePathId(entryId).name : patch.name?.trim()
   const nextName = patch.name?.trim() || oldName
   if (!nextName) throw new Error('MCP name is required')
@@ -482,7 +527,9 @@ function deleteHermesMcp(configPath: string, entryId: string): void {
   writeHermesMcpServers(configPath, servers)
 }
 
-function mcpConfigPaths(cliId: CliId): Array<{ path: string; key?: 'mcp' | 'mcpServers'; kind?: 'codex' | 'hermes' }> {
+function mcpConfigPaths(
+  cliId: CliId
+): Array<{ path: string; key?: 'mcp' | 'mcpServers'; kind?: 'codex' | 'hermes' }> {
   const dir = cliId === 'gemini' ? geminiStateDir() : cliConfigDir(cliId)
   if (cliId === 'codex') return [{ path: join(dir, 'config.toml'), kind: 'codex' }]
   // Gemini reads `mcpServers` from its own settings.json only — no project-
@@ -498,7 +545,10 @@ function mcpConfigPaths(cliId: CliId): Array<{ path: string; key?: 'mcp' | 'mcpS
     //     (inside the redirected config dir)
     // It does NOT read `settings.json`'s `mcpServers` or a config-dir
     // `.mcp.json` (that one is project-scoped, read from the cwd).
-    const claudeJson = getInstallSource(cliId) === 'system' ? join(homedir(), '.claude.json') : join(dir, '.claude.json')
+    const claudeJson =
+      getInstallSource(cliId) === 'system'
+        ? join(homedir(), '.claude.json')
+        : join(dir, '.claude.json')
     return [{ path: claudeJson, key: 'mcpServers' }]
   }
   if (cliId === 'hermes') return [{ path: join(dir, 'config.yaml'), kind: 'hermes' }]
@@ -519,7 +569,9 @@ export function listInstalledMcp(cliId: CliId): InstalledMcpEntry[] {
       // name in config.toml's [mcp_servers.*] — that entry carries the real
       // enabled state, so it wins and the bundled copy is hidden.
       const overridden = new Set(tomlEntries.map((entry) => entry.name))
-      out.push(...listCodexPluginMcp(cliId, config.path).filter((entry) => !overridden.has(entry.name)))
+      out.push(
+        ...listCodexPluginMcp(cliId, config.path).filter((entry) => !overridden.has(entry.name))
+      )
     } else if (config.kind === 'hermes') {
       out.push(...listHermesMcp(cliId, config.path))
     } else if (config.key && existsSync(config.path)) {
@@ -534,32 +586,52 @@ export function addInstalledMcp(cliId: CliId, patch: InstalledMcpPatch): Install
   if (!config) throw new Error('MCP configuration is not supported for this agent')
   if (config.kind === 'codex') updateCodexMcp(config.path, undefined, patch)
   else if (config.kind === 'hermes') updateHermesMcp(config.path, undefined, patch)
-  else updateJsonMcp(config.path, config.key ?? 'mcpServers', pathId(config.path, patch.name?.trim() || ''), patch)
+  else
+    updateJsonMcp(
+      config.path,
+      config.key ?? 'mcpServers',
+      pathId(config.path, patch.name?.trim() || ''),
+      patch
+    )
   return listInstalledMcp(cliId)
 }
 
-export function updateInstalledMcp(cliId: CliId, entryId: string, patch: InstalledMcpPatch): InstalledMcpEntry[] {
+export function updateInstalledMcp(
+  cliId: CliId,
+  entryId: string,
+  patch: InstalledMcpPatch
+): InstalledMcpEntry[] {
   const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('MCP server not found')
-  if (entry.readOnly) throw new Error('This MCP server is managed by a plugin and cannot be edited in the app')
+  if (entry.readOnly)
+    throw new Error('This MCP server is managed by a plugin and cannot be edited in the app')
   if (entry.configKind === 'codex-toml') updateCodexMcp(entry.configPath, entryId, patch)
   else if (entry.configKind === 'hermes-yaml') updateHermesMcp(entry.configPath, entryId, patch)
-  else updateJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId, patch)
+  else
+    updateJsonMcp(
+      entry.configPath,
+      entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers',
+      entryId,
+      patch
+    )
   return listInstalledMcp(cliId)
 }
 
 export function deleteInstalledMcp(cliId: CliId, entryId: string): InstalledMcpEntry[] {
   const entry = listInstalledMcp(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('MCP server not found')
-  if (entry.readOnly) throw new Error('This MCP server is managed by a plugin and cannot be deleted in the app')
+  if (entry.readOnly)
+    throw new Error('This MCP server is managed by a plugin and cannot be deleted in the app')
   if (entry.configKind === 'codex-toml') deleteCodexMcp(entry.configPath, entryId)
   else if (entry.configKind === 'hermes-yaml') deleteHermesMcp(entry.configPath, entryId)
-  else deleteJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId)
+  else
+    deleteJsonMcp(entry.configPath, entry.configKind === 'json-mcp' ? 'mcp' : 'mcpServers', entryId)
   return listInstalledMcp(cliId)
 }
 
 function sandboxSkillRoots(cliId: CliId, dir: string): string[] {
-  if (cliId === 'opencode') return [join(dir, 'xdg-config', 'opencode', 'skills'), join(dir, 'skills')]
+  if (cliId === 'opencode')
+    return [join(dir, 'xdg-config', 'opencode', 'skills'), join(dir, 'skills')]
   return [join(dir, 'skills')]
 }
 
@@ -570,7 +642,8 @@ function systemSkillRoots(cliId: CliId, dir: string): string[] {
       join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'opencode', 'skills')
     ]
   }
-  if (cliId === 'hermes') return [join(hermesHomeDir(), 'skills'), join(systemCliConfigDir('hermes'), 'skills')]
+  if (cliId === 'hermes')
+    return [join(hermesHomeDir(), 'skills'), join(systemCliConfigDir('hermes'), 'skills')]
   return [join(systemCliConfigDir(cliId), 'skills')]
 }
 
@@ -657,7 +730,8 @@ export function listInstalledSkills(cliId: CliId): InstalledSkillEntry[] {
 export function readInstalledSkill(cliId: CliId, entryId: string): InstalledSkillFile {
   const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('Skill not found')
-  if (!isInside(entry.path, entry.root)) throw new Error('Skill path is outside the managed directory')
+  if (!isInside(entry.path, entry.root))
+    throw new Error('Skill path is outside the managed directory')
   if (basename(entry.path) !== 'SKILL.md') throw new Error('This file is not SKILL.md')
   return {
     path: entry.path,
@@ -680,10 +754,15 @@ function updateSkillFrontmatter(content: string, patch: InstalledSkillPatch): st
   return `---\n${lines.join('\n')}\n---\n${content.slice(bodyStart).replace(/^\s*/, '')}`
 }
 
-export function updateInstalledSkill(cliId: CliId, entryId: string, patch: InstalledSkillPatch): InstalledSkillEntry[] {
+export function updateInstalledSkill(
+  cliId: CliId,
+  entryId: string,
+  patch: InstalledSkillPatch
+): InstalledSkillEntry[] {
   const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('Skill not found')
-  if (!isInside(entry.path, entry.root)) throw new Error('Skill path is outside the managed directory')
+  if (!isInside(entry.path, entry.root))
+    throw new Error('Skill path is outside the managed directory')
   writeFileSync(entry.path, updateSkillFrontmatter(safeRead(entry.path), patch), { mode: 0o600 })
   return listInstalledSkills(cliId)
 }
@@ -691,8 +770,10 @@ export function updateInstalledSkill(cliId: CliId, entryId: string, patch: Insta
 export function deleteInstalledSkill(cliId: CliId, entryId: string): InstalledSkillEntry[] {
   const entry = listInstalledSkills(cliId).find((item) => item.id === entryId)
   if (!entry) throw new Error('Skill not found')
-  if (!isInside(entry.dir, entry.root)) throw new Error('Skill path is outside the managed directory')
-  if (!existsSync(join(entry.dir, 'SKILL.md'))) throw new Error('This directory does not contain a Skill')
+  if (!isInside(entry.dir, entry.root))
+    throw new Error('Skill path is outside the managed directory')
+  if (!existsSync(join(entry.dir, 'SKILL.md')))
+    throw new Error('This directory does not contain a Skill')
   rmSync(entry.dir, { recursive: true, force: true })
   return listInstalledSkills(cliId)
 }
