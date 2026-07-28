@@ -274,7 +274,7 @@ export function Shell() {
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [activateTab, activeTabId, closeTab, isMac, tabs])
 
-  const start = (mode: 'cli' | 'shell', cwd: string) =>
+  const start = (mode: 'cli' | 'shell', cwd?: string) =>
     openTab({
       cliId: activeCliId,
       kind: 'terminal',
@@ -286,7 +286,7 @@ export function Shell() {
           : t('shell.newSessionTitle', { name: active.name })
     })
 
-  const startChat = (cwd: string) =>
+  const startChat = (cwd?: string) =>
     openTab({
       cliId: activeCliId,
       kind: 'chat',
@@ -300,18 +300,17 @@ export function Shell() {
     return selected
   }
 
-  const projectDirectoryForLaunch = async (): Promise<string | null> => {
-    if (recentProjectDir) {
-      const valid = await window.api.workspace.validateDirectory(recentProjectDir)
-      if (valid) return valid
-      setRecentProjectDir(null)
-    }
-    return selectProjectDirectory()
+  const projectDirectoryForLaunch = async (): Promise<string | undefined> => {
+    if (!recentProjectDir) return undefined
+
+    const valid = await window.api.workspace.validateDirectory(recentProjectDir)
+    if (valid) return valid
+    setRecentProjectDir(null)
+    return undefined
   }
 
   const startNewSession = async (directory?: string) => {
     const cwd = directory ?? (await projectDirectoryForLaunch())
-    if (!cwd) return
     if (renderTranscript && chatSupported) startChat(cwd)
     else start('cli', cwd)
   }
