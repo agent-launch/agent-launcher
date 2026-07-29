@@ -15,6 +15,10 @@ export default defineConfig({
           index: resolve('src/main/index.ts'),
           'usage-worker': resolve('src/main/usage-worker.ts'),
           'sessions-worker': resolve('src/main/sessions-worker.ts')
+        },
+        output: {
+          entryFileNames: '[name].js',
+          chunkFileNames: '[name].js'
         }
       }
     }
@@ -26,7 +30,11 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       rollupOptions: {
-        input: { index: resolve('src/preload/index.ts') }
+        input: { index: resolve('src/preload/index.ts') },
+        output: {
+          entryFileNames: '[name].js',
+          chunkFileNames: '[name].js'
+        }
       }
     }
   },
