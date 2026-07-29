@@ -116,6 +116,24 @@ describe('CLI environment builder', () => {
     })
   })
 
+  it('only injects gemini telemetry env vars when usage tracking is opted in', async () => {
+    await withIsolatedHome(async () => {
+      const { setUsageTrackingEnabled } = await import('../../src/main/store')
+      const { buildCliEnv } = await import('../../src/main/cli-env')
+      const { geminiUsageLogPath } = await import('../../src/main/config-paths')
+
+      const offEnv = buildCliEnv('gemini')
+      expect(offEnv.GEMINI_TELEMETRY_ENABLED).toBeUndefined()
+      expect(offEnv.GEMINI_TELEMETRY_OUTFILE).toBeUndefined()
+
+      setUsageTrackingEnabled('gemini', true)
+      const onEnv = buildCliEnv('gemini')
+      expect(onEnv.GEMINI_TELEMETRY_ENABLED).toBe('true')
+      expect(onEnv.GEMINI_TELEMETRY_TARGET).toBe('local')
+      expect(onEnv.GEMINI_TELEMETRY_OUTFILE).toBe(geminiUsageLogPath())
+    })
+  })
+
   it('keeps system installs on system config locations', async () => {
     await withIsolatedHome(async ({ home }) => {
       const { setInstallState } = await import('../../src/main/store')

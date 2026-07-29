@@ -261,6 +261,12 @@ export interface CliPrefs {
   systemConfigImportChecked?: boolean
   /** Internal: keep a user-created empty official profile visible in config lists. */
   officialProfilePinned?: boolean
+  /** Gemini-only: opt-in to gemini-cli's own local OpenTelemetry file so its
+   * token usage can be read for the Usage page. Off by default — gemini-cli
+   * doesn't record token counts anywhere else on disk, so this is the only
+   * way to populate its usage data, and enabling it changes gemini-cli's own
+   * behavior (writes a local log file on every run). */
+  usageTrackingEnabled?: boolean
 }
 
 export interface AppConfig {

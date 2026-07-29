@@ -344,6 +344,13 @@ export function setYolo(id: CliId, yolo: boolean): AppConfig {
   return saveConfig(cfg)
 }
 
+/** Gemini-only: see CliPrefs.usageTrackingEnabled. */
+export function setUsageTrackingEnabled(id: CliId, enabled: boolean): AppConfig {
+  const cfg = loadConfig()
+  cfg.prefs[id] = { ...cfg.prefs[id], usageTrackingEnabled: enabled }
+  return saveConfig(cfg)
+}
+
 // ---- per-agent resources (pricing / MCP / skills) ----
 
 export function addPriceEntry(id: CliId, patch: CliPricePatch): AppConfig {

@@ -99,6 +99,11 @@ function GeneralSettings() {
     setCfg(next)
   }
 
+  const toggleGeminiUsageTracking = async (on: boolean) => {
+    const next = await window.api.config.setUsageTrackingEnabled('gemini', on)
+    setCfg(next)
+  }
+
   const themeOptions: { value: ThemeMode; label: string }[] = [
     { value: 'system', label: t('settings.theme.system') },
     { value: 'light', label: t('settings.theme.light') },
@@ -179,6 +184,27 @@ function GeneralSettings() {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
+        <h3 className="text-[13px] font-medium text-text-strong">
+          {t('settings.geminiUsageTracking.title')}
+        </h3>
+        <p className="mb-2 mt-1 text-[12px] leading-relaxed text-text-weak">
+          {t('settings.geminiUsageTracking.desc')}
+        </p>
+        <div className="flex items-center gap-2.5 rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] px-2.5 py-1.5">
+          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
+            <CliIcon cliId="gemini" size={13} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] text-text-strong">Gemini CLI</div>
+          </div>
+          <Switch
+            checked={!!cfg?.prefs.gemini?.usageTrackingEnabled}
+            onChange={(value) => toggleGeminiUsageTracking(value)}
+          />
         </div>
       </section>
     </div>

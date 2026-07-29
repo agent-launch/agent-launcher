@@ -6,6 +6,15 @@ import { detectSystemCli } from './installer'
 
 const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
 
+const CLI_LABELS: Record<(typeof CLI_IDS)[number], string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex CLI',
+  opencode: 'OpenCode',
+  pi: 'Pi',
+  hermes: 'Hermes Agent',
+  gemini: 'Gemini CLI'
+}
+
 function detectWslCodex(): Promise<string | undefined> {
   if (process.platform !== 'win32') return Promise.resolve(undefined)
   return new Promise((resolve) => {
@@ -86,16 +95,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   for (const d of detections) {
     items.push({
       key: d.cliId,
-      label:
-        d.cliId === 'claude-code'
-          ? 'Claude Code'
-          : d.cliId === 'codex'
-            ? 'Codex CLI'
-            : d.cliId === 'opencode'
-              ? 'OpenCode'
-              : d.cliId === 'pi'
-                ? 'Pi'
-                : 'Hermes Agent',
+      label: CLI_LABELS[d.cliId],
       present: d.installed,
       detail: d.installed ? displayDetectionDetail(d) : d.detail
     })
