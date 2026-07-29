@@ -2,11 +2,12 @@ export interface CliMeta {
   id: string
   name: string
   vendor: string
-  /** Single-glyph mark used in the sidebar / cards until we wire real icons. */
+  /**
+   * Single-glyph mark used as a fallback for CLIs that do not have a brand
+   * logo wired via CliIcon.tsx (@lobehub/icons).
+   */
   glyph: string
   accent: string
-  /** Env-var prefix the resolved-config preview will surface later. */
-  envPrefix: string
   /** Official instructions for installing and updating this CLI. */
   installDocsUrl: string
 }
@@ -18,7 +19,6 @@ export const CLIS: CliMeta[] = [
     vendor: 'Anthropic',
     glyph: 'C',
     accent: '#d97757',
-    envPrefix: 'ANTHROPIC_*',
     installDocsUrl: 'https://code.claude.com/docs/en/setup'
   },
   {
@@ -27,7 +27,6 @@ export const CLIS: CliMeta[] = [
     vendor: 'OpenAI',
     glyph: 'O',
     accent: '#10a37f',
-    envPrefix: 'OPENAI_*',
     installDocsUrl: 'https://developers.openai.com/codex/cli/'
   },
   {
@@ -36,7 +35,6 @@ export const CLIS: CliMeta[] = [
     vendor: 'SST',
     glyph: 'O',
     accent: '#f2a60d',
-    envPrefix: 'XDG_* / OPENCODE_CONFIG',
     installDocsUrl: 'https://opencode.ai/docs/'
   },
   {
@@ -45,7 +43,6 @@ export const CLIS: CliMeta[] = [
     vendor: 'earendil',
     glyph: 'π',
     accent: '#7c3aed',
-    envPrefix: 'PI_CODING_AGENT_DIR',
     installDocsUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent'
   },
   {
@@ -54,7 +51,6 @@ export const CLIS: CliMeta[] = [
     vendor: 'Google',
     glyph: 'G',
     accent: '#4285f4',
-    envPrefix: 'GEMINI_* / GOOGLE_GEMINI_*',
     installDocsUrl: 'https://github.com/google-gemini/gemini-cli'
   },
   {
@@ -63,7 +59,6 @@ export const CLIS: CliMeta[] = [
     vendor: 'Nous Research',
     glyph: 'H',
     accent: '#d7a900',
-    envPrefix: '~/.hermes / OPENAI_*',
     installDocsUrl: 'https://hermes-agent.nousresearch.com/docs/getting-started/installation/'
   }
 ]
@@ -75,7 +70,7 @@ export const YOLO_SUPPORT: Record<string, { supported: boolean; note: string }> 
   'claude-code': { supported: true, note: '--dangerously-skip-permissions' },
   codex: { supported: true, note: '--dangerously-bypass-approvals-and-sandbox' },
   opencode: { supported: true, note: '--auto' },
-  pi: { supported: false, note: 'Pi never prompts for approval; tools always run automatically' },
+  pi: { supported: false, note: '' },
   gemini: { supported: true, note: '--yolo' },
   hermes: { supported: true, note: '--yolo' }
 }

@@ -36,6 +36,10 @@ function installApplicationMenu(locale = menuLocale): void {
 
   const zh = locale ? locale === 'zh' : app.getLocale().toLowerCase().startsWith('zh')
   const name = app.getName()
+  // NOTE: These labels duplicate the renderer's menu.* i18n table in
+  // src/renderer/src/i18n/messages.ts because main/preload compile under a
+  // separate tsconfig and cannot import from the renderer tree. Keep the two
+  // tables in sync when adding or renaming menu items.
   const label = {
     file: zh ? '文件' : 'File',
     edit: zh ? '编辑' : 'Edit',
@@ -117,7 +121,7 @@ function createWindow(): BrowserWindow {
     show: false,
     title: 'Agent Launcher',
     backgroundColor: '#ffffff',
-    // Netcatty uses native macOS traffic lights with this window shape:
+    // Agent Launcher uses native macOS traffic lights with this window shape:
     // frame + hiddenInset + explicit trafficLightPosition. Keeping the controls
     // native preserves the system hover glyphs and window menu behavior.
     frame: isMac,

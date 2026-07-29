@@ -10,15 +10,13 @@ export interface Provider {
   /** Endpoint pre-filled into the per-CLI base-url env var. */
   baseUrl: string
   websiteUrl?: string
-  note?: string
 }
 
 const CUSTOM: Provider = {
   id: 'custom',
   name: 'Custom',
   category: 'custom',
-  baseUrl: '',
-  note: 'Enter a base URL manually'
+  baseUrl: ''
 }
 
 // Claude uses ANTHROPIC_BASE_URL (often /anthropic paths).
@@ -28,16 +26,14 @@ const CLAUDE: Provider[] = [
     name: 'RouterLink',
     category: 'aggregator',
     baseUrl: 'https://router-link.world3.ai/api',
-    websiteUrl: 'https://router-link-beta.world3.ai',
-    note: 'Anthropic endpoint'
+    websiteUrl: 'https://router-link-beta.world3.ai'
   },
   {
     id: 'official',
     name: 'Claude Official',
     category: 'official',
     baseUrl: '',
-    websiteUrl: 'https://anthropic.com/claude-code',
-    note: 'Direct official connection'
+    websiteUrl: 'https://anthropic.com/claude-code'
   },
   {
     id: 'shengsuanyun',
@@ -175,16 +171,14 @@ const CODEX: Provider[] = [
     name: 'RouterLink',
     category: 'aggregator',
     baseUrl: 'https://router-link.world3.ai/api/v1',
-    websiteUrl: 'https://router-link-beta.world3.ai',
-    note: 'OpenAI-compatible endpoint'
+    websiteUrl: 'https://router-link-beta.world3.ai'
   },
   {
     id: 'official',
     name: 'OpenAI Official',
     category: 'official',
     baseUrl: '',
-    websiteUrl: 'https://chatgpt.com/codex',
-    note: 'Official account login'
+    websiteUrl: 'https://chatgpt.com/codex'
   },
   {
     id: 'deepseek',
@@ -279,8 +273,7 @@ const OPENCODE: Provider[] = [
     name: 'OpenCode Go',
     category: 'third_party',
     baseUrl: 'https://opencode.ai/zen/go/v1',
-    websiteUrl: 'https://opencode.ai/go',
-    note: 'OpenAI-compatible endpoint'
+    websiteUrl: 'https://opencode.ai/go'
   },
   ...CODEX.filter((provider) => provider.id !== 'official')
 ]
