@@ -22,7 +22,10 @@ export function Sidebar({
   const activeCli = useAppStore((s) => s.activeCli)
   const setActiveCli = useAppStore((s) => s.setActiveCli)
   const resetOnboarding = useAppStore((s) => s.resetOnboarding)
-  const width = Math.min(useAppStore((s) => s.sidebarWidth), SIDEBAR_MAX)
+  const width = Math.min(
+    useAppStore((s) => s.sidebarWidth),
+    SIDEBAR_MAX
+  )
   const collapsed = useAppStore((s) => s.sidebarCollapsed)
   const setWidth = useAppStore((s) => s.setSidebarWidth)
   const setCollapsed = useAppStore((s) => s.setSidebarCollapsed)
@@ -118,7 +121,9 @@ export function Sidebar({
             style={{ color: 'var(--sidebar-text-weak)' }}
           >
             <RotateCcw size={12} className="shrink-0" />
-            <span className="min-w-0 truncate whitespace-nowrap">{t('sidebar.rerunOnboarding')}</span>
+            <span className="min-w-0 truncate whitespace-nowrap">
+              {t('sidebar.rerunOnboarding')}
+            </span>
           </button>
         </div>
 

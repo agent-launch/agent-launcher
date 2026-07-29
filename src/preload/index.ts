@@ -1,4 +1,4 @@
-import { clipboard, contextBridge, ipcRenderer } from 'electron'
+import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
 import { release } from 'node:os'
 import {
   BUNDLED_CONPTY_BUILD_NUMBER,
@@ -76,6 +76,13 @@ const api = {
     readText: (): string => clipboard.readText(),
     writeText: (text: string): void => clipboard.writeText(text)
   },
+  workspace: {
+    selectDirectory: (defaultPath?: string): Promise<string | null> =>
+      ipcRenderer.invoke('workspace:selectDirectory', defaultPath),
+    validateDirectory: (candidate?: string): Promise<string | null> =>
+      ipcRenderer.invoke('workspace:validateDirectory', candidate),
+    pathForFile: (file: File): string => webUtils.getPathForFile(file)
+  },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke('app:info'),
     setMenuLocale: (locale: 'zh' | 'en') => ipcRenderer.send('app:set-menu-locale', locale),
@@ -113,10 +120,12 @@ const api = {
   },
   detect: (): Promise<DetectResult> => ipcRenderer.invoke('detect'),
   terminal: {
-    openExternal: (opts: SpawnOptions): Promise<void> => ipcRenderer.invoke('terminal:openExternal', opts)
+    openExternal: (opts: SpawnOptions): Promise<void> =>
+      ipcRenderer.invoke('terminal:openExternal', opts)
   },
   dashboard: {
-    launch: (id: CliId): Promise<DashboardLaunchResult> => ipcRenderer.invoke('dashboard:launch', id)
+    launch: (id: CliId): Promise<DashboardLaunchResult> =>
+      ipcRenderer.invoke('dashboard:launch', id)
   },
   resources: {
     listMcp: (id: CliId): Promise<InstalledMcpEntry[]> =>
@@ -146,7 +155,8 @@ const api = {
   sessions: {
     list: (requestId: string, id: CliId): Promise<SessionInfo[] | null> =>
       ipcRenderer.invoke('sessions:list', requestId, id),
-    cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke('sessions:cancel', requestId),
+    cancel: (requestId: string): Promise<boolean> =>
+      ipcRenderer.invoke('sessions:cancel', requestId),
     transcript: (id: CliId, sid: string): Promise<Transcript> =>
       ipcRenderer.invoke('sessions:transcript', id, sid),
     delete: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
@@ -167,7 +177,11 @@ const api = {
     }
   },
   usage: {
-    read: (requestId: string, rangeDays?: number, summaryDays?: number): Promise<UsageScanResult | null> =>
+    read: (
+      requestId: string,
+      rangeDays?: number,
+      summaryDays?: number
+    ): Promise<UsageScanResult | null> =>
       ipcRenderer.invoke('usage:read', requestId, rangeDays, summaryDays),
     cancel: (requestId: string): Promise<boolean> => ipcRenderer.invoke('usage:cancel', requestId)
   },

@@ -77,10 +77,13 @@ function commonCliPathDirs(): string[] {
 function envForCommand(commandPath: string): NodeJS.ProcessEnv {
   const env = { ...process.env }
   const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
-  const commandDir = isAbsolute(commandPath) || commandPath.includes('/') || commandPath.includes('\\')
-    ? dirname(commandPath)
-    : undefined
-  env.PATH = uniquePaths([commandDir, ...commonCliPathDirs(), ...existing].filter((path): path is string => !!path)).join(delimiter)
+  const commandDir =
+    isAbsolute(commandPath) || commandPath.includes('/') || commandPath.includes('\\')
+      ? dirname(commandPath)
+      : undefined
+  env.PATH = uniquePaths(
+    [commandDir, ...commonCliPathDirs(), ...existing].filter((path): path is string => !!path)
+  ).join(delimiter)
   return env
 }
 
@@ -94,7 +97,9 @@ function npmMeta(spec: string): Promise<NpmDist> {
 
 /** Hermes Agent releases are published on PyPI rather than npm. */
 async function hermesLatestVersion(): Promise<string> {
-  const meta = await fetchJson<{ info?: { version?: string } }>('https://pypi.org/pypi/hermes-agent/json')
+  const meta = await fetchJson<{ info?: { version?: string } }>(
+    'https://pypi.org/pypi/hermes-agent/json'
+  )
   const version = meta.info?.version
   if (!version) throw new Error('PyPI returned no version for hermes-agent')
   return version
@@ -124,7 +129,7 @@ const macSecurityAssessmentCache = new Map<string, { expiresAt: number; risky: b
  * are considered unsafe. */
 async function hasExplicitMacSecurityFailure(target?: string): Promise<boolean> {
   if (process.platform !== 'darwin' || !target || !existsSync(target)) return false
-  let stamp = target
+  let stamp: string
   try {
     const stat = statSync(target)
     stamp = `${target}:${stat.size}:${stat.mtimeMs}`
@@ -180,7 +185,9 @@ function run(cmd: string, args: string[]): Promise<string> {
     p.stderr!.on('data', (d) => (err += decodeProcessOutput(d)))
     p.on('error', reject)
     p.on('close', (code) =>
-      code === 0 ? resolve(out.trim()) : reject(new Error(lastLines(err || out, 8) || `exit ${code}`))
+      code === 0
+        ? resolve(out.trim())
+        : reject(new Error(lastLines(err || out, 8) || `exit ${code}`))
     )
   })
 }
@@ -205,7 +212,8 @@ function pathCandidates(cmd: string): string[] {
 }
 
 function commandNames(cmd: string): string[] {
-  const exts = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';') : ['']
+  const exts =
+    process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';') : ['']
   return process.platform === 'win32' && !/\.[A-Za-z0-9]+$/.test(cmd)
     ? exts.map((ext) => `${cmd}${ext.toLowerCase()}`)
     : [cmd]
@@ -237,7 +245,10 @@ function npmManagedBinDirs(): string[] {
   return uniquePaths([
     ...commonCliPathDirs(),
     ...versionedBinDirs(join(homedir(), '.nvm', 'versions', 'node'), ['bin']),
-    ...versionedBinDirs(join(homedir(), '.local', 'share', 'fnm', 'node-versions'), ['installation', 'bin']),
+    ...versionedBinDirs(join(homedir(), '.local', 'share', 'fnm', 'node-versions'), [
+      'installation',
+      'bin'
+    ]),
     ...versionedBinDirs(join(homedir(), 'Library', 'Application Support', 'fnm', 'node-versions'), [
       'installation',
       'bin'
@@ -245,19 +256,27 @@ function npmManagedBinDirs(): string[] {
     ...versionedBinDirs(join(homedir(), '.local', 'share', 'mise', 'installs', 'node'), ['bin']),
     join(homedir(), '.volta', 'bin'),
     join(homedir(), '.bun', 'bin'),
-    ...[process.env.PNPM_HOME, join(homedir(), 'Library', 'pnpm'), join(homedir(), '.local', 'share', 'pnpm')].filter(
-      (dir): dir is string => !!dir
-    )
+    ...[
+      process.env.PNPM_HOME,
+      join(homedir(), 'Library', 'pnpm'),
+      join(homedir(), '.local', 'share', 'pnpm')
+    ].filter((dir): dir is string => !!dir)
   ])
 }
 
 function codexExtraCandidates(): string[] {
-  const names = process.platform === 'win32' ? ['codex.exe', 'codex.cmd', 'codex.bat', 'codex'] : ['codex']
+  const names =
+    process.platform === 'win32' ? ['codex.exe', 'codex.cmd', 'codex.bat', 'codex'] : ['codex']
   const codexHome = process.env.CODEX_HOME || join(homedir(), '.codex')
   const customInstallDir = process.env.CODEX_INSTALL_DIR
   const visibleDirs =
     process.platform === 'win32'
-      ? [customInstallDir, process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs', 'OpenAI', 'Codex', 'bin') : undefined]
+      ? [
+          customInstallDir,
+          process.env.LOCALAPPDATA
+            ? join(process.env.LOCALAPPDATA, 'Programs', 'OpenAI', 'Codex', 'bin')
+            : undefined
+        ]
       : [customInstallDir, join(homedir(), '.local', 'bin')]
   const standalone = [
     ...names.map((name) => join(codexHome, 'packages', 'standalone', 'current', 'bin', name)),
@@ -319,8 +338,11 @@ function uniquePaths(paths: string[]): string[] {
 }
 
 async function whichAll(cmd: string, id?: CliId): Promise<string[]> {
-  if (isAbsolute(cmd) || cmd.includes('/') || cmd.includes('\\')) return existsSync(cmd) ? [cmd] : []
-  const direct = uniquePaths(commandSearchCandidates(cmd, id).filter((candidate) => existsSync(candidate)))
+  if (isAbsolute(cmd) || cmd.includes('/') || cmd.includes('\\'))
+    return existsSync(cmd) ? [cmd] : []
+  const direct = uniquePaths(
+    commandSearchCandidates(cmd, id).filter((candidate) => existsSync(candidate))
+  )
   const finder = process.platform === 'win32' ? 'where' : 'which'
   const fromFinder = await new Promise<string[]>((resolve) => {
     const args = process.platform === 'win32' ? [cmd] : ['-a', cmd]
@@ -373,7 +395,9 @@ async function systemCandidates(id: CliId): Promise<SystemCliCandidate[]> {
     out.push({
       path,
       realPath,
-      version: macosSecurityRisk ? codexInspection?.version : await systemVersion(id, path, realPath),
+      version: macosSecurityRisk
+        ? codexInspection?.version
+        : await systemVersion(id, path, realPath),
       quarantined: quarantined || undefined,
       macosSecurityRisk: macosSecurityRisk || undefined,
       installKind: codexInspection?.installKind,
@@ -392,13 +416,16 @@ export async function detectSystemCli(
   const configuredExists = !!configuredBinPath && existsSync(configuredBinPath)
   if (configuredExists) {
     const configuredRealPath = await normalizePath(configuredBinPath)
-    const configuredKey = process.platform === 'win32' ? configuredRealPath.toLowerCase() : configuredRealPath
+    const configuredKey =
+      process.platform === 'win32' ? configuredRealPath.toLowerCase() : configuredRealPath
     const hasConfigured = candidates.some((c) => {
-      const key = process.platform === 'win32' ? (c.realPath ?? c.path).toLowerCase() : (c.realPath ?? c.path)
+      const key =
+        process.platform === 'win32' ? (c.realPath ?? c.path).toLowerCase() : (c.realPath ?? c.path)
       return key === configuredKey
     })
     if (!hasConfigured) {
-      const codexInspection = id === 'codex' ? inspectCodexInstall(configuredBinPath, configuredRealPath) : undefined
+      const codexInspection =
+        id === 'codex' ? inspectCodexInstall(configuredBinPath, configuredRealPath) : undefined
       const quarantined = await isMacQuarantined(
         configuredBinPath,
         configuredRealPath,
@@ -453,7 +480,9 @@ export async function detectSystemCli(
             : `${command} was not detected`
 
   const selectedCandidate = selectedPath
-    ? candidates.find((candidate) => candidate.path === selectedPath || candidate.realPath === selectedPath)
+    ? candidates.find(
+        (candidate) => candidate.path === selectedPath || candidate.realPath === selectedPath
+      )
     : undefined
   const quarantined = selectedCandidate?.quarantined
   const macosSecurityRisk = selectedCandidate?.macosSecurityRisk
@@ -497,23 +526,36 @@ export async function cleanupSystemCli(id: CliId, binPath: string): Promise<Clea
       const b = process.platform === 'win32' ? targetRealPath.toLowerCase() : targetRealPath
       return a === b || candidate.path === binPath
     })
-    if (!matched) throw new Error('This path is not a detected CLI candidate; cleanup was cancelled')
+    if (!matched)
+      throw new Error('This path is not a detected CLI candidate; cleanup was cancelled')
 
     const backupPath = backupPathForCli(id, binPath)
     mkdirSync(dirname(backupPath), { recursive: true })
     renameSync(binPath, backupPath)
     return { ok: true, cliId: id, path: binPath, backupPath }
   } catch (e) {
-    return { ok: false, cliId: id, path: binPath, error: e instanceof Error ? e.message : String(e) }
+    return {
+      ok: false,
+      cliId: id,
+      path: binPath,
+      error: e instanceof Error ? e.message : String(e)
+    }
   }
 }
 
-async function linkExistingSystemCli(id: CliId, onProgress: Progress, binPath?: string): Promise<CliLinkResult> {
+async function linkExistingSystemCli(
+  id: CliId,
+  onProgress: Progress,
+  binPath?: string
+): Promise<CliLinkResult> {
   onProgress('link', 'Finding system CLI…')
   const target = SYSTEM_COMMANDS[id]
   const detection = await detectSystemCli(id, binPath)
   const selected = binPath ?? detection.selectedPath
-  if (!selected) throw new Error(`System command ${target} was not found. Install it separately, then detect it again.`)
+  if (!selected)
+    throw new Error(
+      `System command ${target} was not found. Install it separately, then detect it again.`
+    )
   if (!existsSync(selected)) {
     throw new Error(`System command does not exist: ${selected}`)
   }
@@ -540,11 +582,23 @@ async function linkExistingSystemCli(id: CliId, onProgress: Progress, binPath?: 
     detection.duplicate && !binPath
       ? `Detected ${detection.candidates.length} ${target} commands; temporarily using the highest-priority version on PATH`
       : undefined
-  return { ok: true, cliId: id, version, binPath: selected, source: 'system', warning, candidates: detection.candidates }
+  return {
+    ok: true,
+    cliId: id,
+    version,
+    binPath: selected,
+    source: 'system',
+    warning,
+    candidates: detection.candidates
+  }
 }
 
 function parseVersion(text: string): string {
-  return text.match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/)?.[0] ?? text.trim().split(/\s+/).pop() ?? 'system'
+  return (
+    text.match(/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?/)?.[0] ??
+    text.trim().split(/\s+/).pop() ??
+    'system'
+  )
 }
 
 function versionParts(version?: string): number[] | null {
@@ -579,7 +633,12 @@ function cliFilesExist(id: CliId, install: CliInstallState): boolean {
       process.platform === 'win32' ? 'codex-code-mode-host.exe' : 'codex-code-mode-host'
     )
     const rg = join(packageRoot, 'codex-path', process.platform === 'win32' ? 'rg.exe' : 'rg')
-    if (!existsSync(join(packageRoot, 'codex-package.json')) || !existsSync(helper) || !existsSync(rg)) return false
+    if (
+      !existsSync(join(packageRoot, 'codex-package.json')) ||
+      !existsSync(helper) ||
+      !existsSync(rg)
+    )
+      return false
   }
   if (install.nodeEntry) return existsSync(install.nodeEntry)
   if (NODE_NPM_ENTRY_ROOT[id]) {
@@ -634,7 +693,8 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
         let currentVersion = install.version
         if (installed && install.source === 'system' && install.binPath) {
           const realPath = await normalizePath(install.binPath)
-          const inspection = cliId === 'codex' ? inspectCodexInstall(install.binPath, realPath) : undefined
+          const inspection =
+            cliId === 'codex' ? inspectCodexInstall(install.binPath, realPath) : undefined
           const live = await systemVersion(cliId, install.binPath, realPath)
           const nextVersion = versionParts(live) ? live : currentVersion
           if (

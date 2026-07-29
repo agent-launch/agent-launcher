@@ -22,7 +22,11 @@ interface ActiveUsageTask {
 
 const active = new Map<string, ActiveUsageTask>()
 
-export function readUsageInWorker(requestId: string, rangeDays = 365, summaryDays = 30): Promise<UsageScanResult | null> {
+export function readUsageInWorker(
+  requestId: string,
+  rangeDays = 365,
+  summaryDays = 30
+): Promise<UsageScanResult | null> {
   const safeRequestId = requestId.trim()
   if (!safeRequestId) return Promise.reject(new Error('Missing usage request id'))
   cancelUsageRead(safeRequestId)

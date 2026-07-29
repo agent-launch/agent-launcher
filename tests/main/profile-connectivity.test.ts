@@ -11,11 +11,13 @@ describe('profile connectivity test', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{"output":[]}', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(testProfileConnection('codex', {
-      baseUrl: 'https://relay.example/api/v1/',
-      apiKey: 'sk-openai',
-      model: 'gpt-test'
-    })).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
+    await expect(
+      testProfileConnection('codex', {
+        baseUrl: 'https://relay.example/api/v1/',
+        apiKey: 'sk-openai',
+        model: 'gpt-test'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
     expect(fetchMock).toHaveBeenLastCalledWith(
       new URL('https://relay.example/api/v1/responses'),
       expect.objectContaining({
@@ -36,16 +38,19 @@ describe('profile connectivity test', () => {
   })
 
   it('sends real Anthropic Messages and OpenAI Chat Completions requests', async () => {
-    const fetchMock = vi.fn()
+    const fetchMock = vi
+      .fn()
       .mockResolvedValueOnce(new Response('{"content":[]}', { status: 200 }))
       .mockResolvedValueOnce(new Response('{"choices":[]}', { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(testProfileConnection('claude-code', {
-      baseUrl: 'https://relay.example/anthropic',
-      apiKey: 'sk-anthropic',
-      defaultModel: 'claude-test'
-    })).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
+    await expect(
+      testProfileConnection('claude-code', {
+        baseUrl: 'https://relay.example/anthropic',
+        apiKey: 'sk-anthropic',
+        defaultModel: 'claude-test'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
       new URL('https://relay.example/anthropic/v1/messages'),
@@ -60,10 +65,12 @@ describe('profile connectivity test', () => {
         body: JSON.stringify({
           model: 'claude-test',
           max_tokens: 1,
-          system: [{
-            type: 'text',
-            text: 'x-anthropic-billing-header: cc_version=2.1.215; cc_entrypoint=cli;'
-          }],
+          system: [
+            {
+              type: 'text',
+              text: 'x-anthropic-billing-header: cc_version=2.1.215; cc_entrypoint=cli;'
+            }
+          ],
           messages: [{ role: 'user', content: 'Reply with OK.' }]
         })
       })
@@ -71,11 +78,13 @@ describe('profile connectivity test', () => {
     // Bearer-only auth, matching the ANTHROPIC_AUTH_TOKEN env the app injects.
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('x-api-key')
 
-    await expect(testProfileConnection('opencode', {
-      baseUrl: 'https://relay.example/v1',
-      apiKey: 'sk-openai',
-      model: 'chat-test'
-    })).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
+    await expect(
+      testProfileConnection('opencode', {
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'sk-openai',
+        model: 'chat-test'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       new URL('https://relay.example/v1/chat/completions'),
@@ -104,11 +113,13 @@ describe('profile connectivity test', () => {
     [418, 'http_error']
   ] as const)('maps HTTP %s to %s', async (status, code) => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status })))
-    await expect(testProfileConnection('codex', {
-      baseUrl: 'https://relay.example/v1',
-      apiKey: 'secret',
-      model: 'test-model'
-    })).resolves.toEqual({ kind: 'generation', ok: false, code, status })
+    await expect(
+      testProfileConnection('codex', {
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'secret',
+        model: 'test-model'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: false, code, status })
   })
 
   it('normalizes Claude Code model names the same way the CLI does', async () => {
@@ -126,15 +137,24 @@ describe('profile connectivity test', () => {
   })
 
   it('surfaces the server error message on failures', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
-      '{"type": "error", "error": {"type": "ccx2_error", "message": "refused: not a claude-code client (user-agent)"}}',
-      { status: 403 }
-    )))
-    await expect(testProfileConnection('claude-code', {
-      baseUrl: 'https://relay.example',
-      apiKey: 'secret',
-      defaultModel: 'claude-test'
-    })).resolves.toEqual({
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            '{"type": "error", "error": {"type": "ccx2_error", "message": "refused: not a claude-code client (user-agent)"}}',
+            { status: 403 }
+          )
+        )
+    )
+    await expect(
+      testProfileConnection('claude-code', {
+        baseUrl: 'https://relay.example',
+        apiKey: 'secret',
+        defaultModel: 'claude-test'
+      })
+    ).resolves.toEqual({
       kind: 'generation',
       ok: false,
       code: 'forbidden',
@@ -142,12 +162,17 @@ describe('profile connectivity test', () => {
       detail: 'refused: not a claude-code client (user-agent)'
     })
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('plain text failure', { status: 500 })))
-    await expect(testProfileConnection('codex', {
-      baseUrl: 'https://relay.example/v1',
-      apiKey: 'secret',
-      model: 'test-model'
-    })).resolves.toEqual({
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('plain text failure', { status: 500 }))
+    )
+    await expect(
+      testProfileConnection('codex', {
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'secret',
+        model: 'test-model'
+      })
+    ).resolves.toEqual({
       kind: 'generation',
       ok: false,
       code: 'server_error',
@@ -160,46 +185,66 @@ describe('profile connectivity test', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(testProfileConnection('codex', { baseUrl: '', apiKey: '' }))
-      .resolves.toEqual({ kind: 'generation', ok: false, code: 'invalid_config' })
-    await expect(testProfileConnection('codex', {
-      baseUrl: 'file:///tmp/key',
-      apiKey: 'secret',
-      model: 'test-model'
-    }))
-      .resolves.toEqual({ kind: 'generation', ok: false, code: 'invalid_url' })
+    await expect(testProfileConnection('codex', { baseUrl: '', apiKey: '' })).resolves.toEqual({
+      kind: 'generation',
+      ok: false,
+      code: 'invalid_config'
+    })
+    await expect(
+      testProfileConnection('codex', {
+        baseUrl: 'file:///tmp/key',
+        apiKey: 'secret',
+        model: 'test-model'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: false, code: 'invalid_url' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('rejects a successful HTTP response with an incompatible body', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
-    await expect(testProfileConnection('codex', {
-      baseUrl: 'https://relay.example/v1',
-      apiKey: 'secret',
-      model: 'test-model'
-    })).resolves.toEqual({ kind: 'generation', ok: false, code: 'invalid_response', status: 200 })
+    await expect(
+      testProfileConnection('codex', {
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'secret',
+        model: 'test-model'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: false, code: 'invalid_response', status: 200 })
   })
 
   it('distinguishes timeouts from other network errors', async () => {
     vi.useFakeTimers()
-    vi.stubGlobal('fetch', vi.fn((_url, init: RequestInit) => new Promise((_resolve, reject) => {
-      init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
-    })))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () =>
+              reject(new DOMException('Aborted', 'AbortError'))
+            )
+          })
+      )
+    )
 
-    const pending = testProfileConnection('codex', {
-      baseUrl: 'https://relay.example/v1',
-      apiKey: 'secret',
-      model: 'test-model'
-    }, 20)
+    const pending = testProfileConnection(
+      'codex',
+      {
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'secret',
+        model: 'test-model'
+      },
+      20
+    )
     await vi.advanceTimersByTimeAsync(21)
     await expect(pending).resolves.toEqual({ kind: 'generation', ok: false, code: 'timeout' })
 
     vi.useRealTimers()
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('fetch failed')))
-    await expect(testProfileConnection('codex', {
-      baseUrl: 'https://relay.example/v1',
-      apiKey: 'secret',
-      model: 'test-model'
-    })).resolves.toEqual({ kind: 'generation', ok: false, code: 'network_error' })
+    await expect(
+      testProfileConnection('codex', {
+        baseUrl: 'https://relay.example/v1',
+        apiKey: 'secret',
+        model: 'test-model'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: false, code: 'network_error' })
   })
 })

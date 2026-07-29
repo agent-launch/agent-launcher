@@ -1,4 +1,12 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -25,7 +33,10 @@ describe('Codex macOS launch safety', () => {
     const packageRoot = join(root, 'node_modules', '@openai', 'codex')
     const shim = join(packageRoot, 'bin', 'codex.js')
     mkdirSync(join(packageRoot, 'bin'), { recursive: true })
-    writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.144.5' }))
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      JSON.stringify({ name: '@openai/codex', version: '0.144.5' })
+    )
     writeFileSync(shim, '#!/usr/bin/env node\n')
 
     expect(codexPackageVersion(shim)).toBe('0.144.5')
@@ -93,7 +104,11 @@ describe('Codex macOS launch safety', () => {
     mkdirSync(join(standalone, 'bin'), { recursive: true })
     writeFileSync(
       join(standalone, 'codex-package.json'),
-      JSON.stringify({ version: '0.144.6', target: 'aarch64-apple-darwin', entrypoint: 'bin/codex' })
+      JSON.stringify({
+        version: '0.144.6',
+        target: 'aarch64-apple-darwin',
+        entrypoint: 'bin/codex'
+      })
     )
     writeFileSync(standaloneBin, '')
 
@@ -140,13 +155,14 @@ describe('Codex macOS launch safety', () => {
     mkdirSync(join(sourceRoot, 'target', 'release'), { recursive: true })
     writeFileSync(join(sourceRoot, 'Cargo.toml'), '[workspace.package]\nversion = "0.144.6"\n')
     writeFileSync(sourceBin, '')
-    expect(inspectCodexInstall(sourceBin)).toMatchObject({ installKind: 'source-build', version: '0.144.6' })
+    expect(inspectCodexInstall(sourceBin)).toMatchObject({
+      installKind: 'source-build',
+      version: '0.144.6'
+    })
   })
 
   it('distinguishes an explicit revoked-certificate verdict from a normal CLI rejection', () => {
-    expect(
-      isExplicitMacSecurityAssessmentFailure('/tmp/codex: CSSMERR_TP_CERT_REVOKED')
-    ).toBe(true)
+    expect(isExplicitMacSecurityAssessmentFailure('/tmp/codex: CSSMERR_TP_CERT_REVOKED')).toBe(true)
     expect(isExplicitMacSecurityAssessmentFailure('malware was blocked by XProtect')).toBe(true)
     expect(
       isExplicitMacSecurityAssessmentFailure(
@@ -174,7 +190,10 @@ describe('Codex macOS launch safety', () => {
     )
     mkdirSync(dirname(shim), { recursive: true })
     mkdirSync(dirname(native), { recursive: true })
-    writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.130.0' }))
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      JSON.stringify({ name: '@openai/codex', version: '0.130.0' })
+    )
     writeFileSync(shim, '#!/usr/bin/env node\n')
     writeFileSync(native, '')
     const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('darwin')
@@ -201,7 +220,10 @@ describe('Codex macOS launch safety', () => {
     const marker = join(root, 'shim-was-executed')
     mkdirSync(binDir, { recursive: true })
     mkdirSync(join(packageRoot, 'bin'), { recursive: true })
-    writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.144.5' }))
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      JSON.stringify({ name: '@openai/codex', version: '0.144.5' })
+    )
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
     const triple = arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin'
     const native = join(
@@ -278,7 +300,10 @@ describe('Codex macOS launch safety', () => {
     mkdirSync(fakeTools, { recursive: true })
     mkdirSync(dirname(shim), { recursive: true })
     mkdirSync(dirname(native), { recursive: true })
-    writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({ name: '@openai/codex', version: '0.130.0' }))
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      JSON.stringify({ name: '@openai/codex', version: '0.130.0' })
+    )
     writeFileSync(shim, `#!/bin/sh\ntouch ${JSON.stringify(marker)}\n`)
     writeFileSync(native, '')
     writeFileSync(
@@ -337,7 +362,11 @@ describe('Codex macOS launch safety', () => {
     mkdirSync(join(release, 'bin'), { recursive: true })
     writeFileSync(
       join(release, 'codex-package.json'),
-      JSON.stringify({ version: '0.144.6', target: 'aarch64-apple-darwin', entrypoint: 'bin/codex' })
+      JSON.stringify({
+        version: '0.144.6',
+        target: 'aarch64-apple-darwin',
+        entrypoint: 'bin/codex'
+      })
     )
     writeFileSync(bin, `#!/bin/sh\ntouch ${JSON.stringify(marker)}\n`)
     chmodSync(bin, 0o755)

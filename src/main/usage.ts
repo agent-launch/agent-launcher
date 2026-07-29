@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  statSync
-} from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { hermesHomeDir } from './config-paths'
@@ -116,7 +111,9 @@ function readJsonLines(file: string): unknown[] {
 }
 
 function asRecord(value: unknown): Record<string, any> | null {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, any>) : null
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : null
 }
 
 function numberValue(value: unknown): number {
@@ -150,7 +147,8 @@ function tokensOf(entry: UsageEntry): UsageTokenTotals {
   const outputTokens = Math.max(0, Math.round(entry.outputTokens))
   const cacheReadTokens = Math.max(0, Math.round(entry.cacheReadTokens))
   const cacheCreationTokens = Math.max(0, Math.round(entry.cacheCreationTokens))
-  const inputTokens = entry.cliId === 'codex' ? Math.max(0, rawInputTokens - cacheReadTokens) : rawInputTokens
+  const inputTokens =
+    entry.cliId === 'codex' ? Math.max(0, rawInputTokens - cacheReadTokens) : rawInputTokens
   return {
     inputTokens,
     outputTokens,
@@ -178,7 +176,11 @@ function addCost(target: UsageCostTotals, add: UsageCostTotals): void {
 
 function priceMatches(entry: CliPriceEntry, model: string): boolean {
   const priceModel = normalizeModel(entry.model || entry.name)
-  return priceModel === model || Boolean(priceModel && model.includes(priceModel)) || Boolean(model && priceModel.includes(model))
+  return (
+    priceModel === model ||
+    Boolean(priceModel && model.includes(priceModel)) ||
+    Boolean(model && priceModel.includes(model))
+  )
 }
 
 function findPrice(cliId: CliId, model: string): CliPriceEntry | undefined {
@@ -200,7 +202,8 @@ function calculateCost(entry: UsageEntry): UsageCostTotals {
   const inputCost = (billableInput * (price.inputPerMillion ?? 0)) / 1_000_000
   const outputCost = (entry.outputTokens * (price.outputPerMillion ?? 0)) / 1_000_000
   const cacheReadCost = (entry.cacheReadTokens * (price.cacheReadPerMillion ?? 0)) / 1_000_000
-  const cacheCreationCost = (entry.cacheCreationTokens * (price.cacheWritePerMillion ?? 0)) / 1_000_000
+  const cacheCreationCost =
+    (entry.cacheCreationTokens * (price.cacheWritePerMillion ?? 0)) / 1_000_000
   return {
     inputCost,
     outputCost,
@@ -240,40 +243,53 @@ function collectClaudeUsage(): UsageEntry[] {
   collectJsonlRecursive(root, files)
   const entries: UsageEntry[] = []
   for (const file of files) {
-    let sessionId = file.replace(/\.jsonl$/, '').split(/[\\/]/).pop()
+    let sessionId = file
+      .replace(/\.jsonl$/, '')
+      .split(/[\\/]/)
+      .pop()
     const messages = new Map<string, ClaudeUsageCandidate>()
     let index = 0
     for (const raw of readJsonLines(file)) {
       index += 1
       const record = asRecord(raw)
-      if (typeof record?.sessionId === 'string' && record.sessionId.trim()) sessionId = record.sessionId
+      if (typeof record?.sessionId === 'string' && record.sessionId.trim())
+        sessionId = record.sessionId
       const message = asRecord(record?.message)
       const usage = asRecord(message?.usage)
       if (!record || record.type !== 'assistant' || !message || !usage) continue
-      const messageId = typeof message.id === 'string' && message.id.trim()
-        ? message.id
-        : `${file}:${index}`
+      const messageId =
+        typeof message.id === 'string' && message.id.trim() ? message.id : `${file}:${index}`
       const entry: ClaudeUsageCandidate = {
         cliId: 'claude-code',
         sessionId,
         messageId,
         stopReason: typeof message.stop_reason === 'string' ? message.stop_reason : undefined,
         model: normalizeModel(message.model),
-        ts: normalizeTs(record.timestamp ?? record.createdAt ?? record.created_at) ?? statSync(file).mtimeMs,
+        ts:
+          normalizeTs(record.timestamp ?? record.createdAt ?? record.created_at) ??
+          statSync(file).mtimeMs,
         inputTokens: readNumber(usage, ['input_tokens', 'inputTokens']),
         outputTokens: readNumber(usage, ['output_tokens', 'outputTokens']),
         cacheReadTokens: readNumber(usage, ['cache_read_input_tokens', 'cacheReadInputTokens']),
-        cacheCreationTokens: readNumber(usage, ['cache_creation_input_tokens', 'cacheCreationInputTokens'])
+        cacheCreationTokens: readNumber(usage, [
+          'cache_creation_input_tokens',
+          'cacheCreationInputTokens'
+        ])
       }
       if (!hasUsage(entry)) continue
       const existing = messages.get(messageId)
       const sameStopState = Boolean(entry.stopReason) === Boolean(existing?.stopReason)
-      const shouldReplace = !existing ||
+      const shouldReplace =
+        !existing ||
         (Boolean(entry.stopReason) && !existing?.stopReason) ||
         (sameStopState && entry.outputTokens >= existing.outputTokens)
       if (shouldReplace) messages.set(messageId, entry)
     }
-    entries.push(...[...messages.values()].map(({ messageId: _messageId, stopReason: _stopReason, ...entry }) => entry))
+    entries.push(
+      ...[...messages.values()].map(
+        ({ messageId: _messageId, stopReason: _stopReason, ...entry }) => entry
+      )
+    )
   }
   return entries
 }
@@ -289,8 +305,17 @@ function parseCodexTokens(value: unknown): CodexCumulative | null {
   if (!usage) return null
   return {
     input: readNumber(usage, ['input_tokens', 'inputTokens', 'prompt_tokens', 'promptTokens']),
-    cachedInput: readNumber(usage, ['cached_input_tokens', 'cache_read_input_tokens', 'cachedTokens']),
-    output: readNumber(usage, ['output_tokens', 'outputTokens', 'completion_tokens', 'completionTokens'])
+    cachedInput: readNumber(usage, [
+      'cached_input_tokens',
+      'cache_read_input_tokens',
+      'cachedTokens'
+    ]),
+    output: readNumber(usage, [
+      'output_tokens',
+      'outputTokens',
+      'completion_tokens',
+      'completionTokens'
+    ])
   }
 }
 
@@ -309,7 +334,10 @@ function collectCodexUsage(): UsageEntry[] {
   collectJsonlRecursive(root, files)
   const entries: UsageEntry[] = []
   for (const file of files) {
-    let sessionId = file.replace(/\.jsonl$/, '').split(/[\\/]/).pop()
+    let sessionId = file
+      .replace(/\.jsonl$/, '')
+      .split(/[\\/]/)
+      .pop()
     let model = 'unknown'
     let prev: CodexCumulative | null = null
     let index = 0
@@ -365,7 +393,11 @@ function collectPiUsage(): UsageEntry[] {
       if (!record) continue
       if (record.type === 'session' && typeof record.id === 'string') sessionId = record.id
       const message = asRecord(record.message) ?? record
-      const usage = asRecord(message.usage) ?? asRecord(message.tokens) ?? asRecord(record.usage) ?? asRecord(record.tokens)
+      const usage =
+        asRecord(message.usage) ??
+        asRecord(message.tokens) ??
+        asRecord(record.usage) ??
+        asRecord(record.tokens)
       if (!usage) continue
       model = normalizeModel(message.model ?? message.modelID ?? record.model ?? model)
       const cache = asRecord(usage.cache)
@@ -373,11 +405,22 @@ function collectPiUsage(): UsageEntry[] {
         cliId: 'pi',
         sessionId,
         model,
-        ts: normalizeTs(record.timestamp ?? record.createdAt ?? message.createdAt) ?? statSync(file).mtimeMs,
+        ts:
+          normalizeTs(record.timestamp ?? record.createdAt ?? message.createdAt) ??
+          statSync(file).mtimeMs,
         inputTokens: readNumber(usage, ['input_tokens', 'inputTokens', 'input', 'prompt_tokens']),
-        outputTokens: readNumber(usage, ['output_tokens', 'outputTokens', 'output', 'completion_tokens']),
-        cacheReadTokens: readNumber(usage, ['cache_read_input_tokens', 'cacheReadTokens']) || readNumber(cache, ['read']),
-        cacheCreationTokens: readNumber(usage, ['cache_creation_input_tokens', 'cacheWriteTokens']) || readNumber(cache, ['write']),
+        outputTokens: readNumber(usage, [
+          'output_tokens',
+          'outputTokens',
+          'output',
+          'completion_tokens'
+        ]),
+        cacheReadTokens:
+          readNumber(usage, ['cache_read_input_tokens', 'cacheReadTokens']) ||
+          readNumber(cache, ['read']),
+        cacheCreationTokens:
+          readNumber(usage, ['cache_creation_input_tokens', 'cacheWriteTokens']) ||
+          readNumber(cache, ['write']),
         cost: numberValue(message.cost ?? record.cost) || undefined
       }
       if (hasUsage(entry)) entries.push(entry)
@@ -393,7 +436,9 @@ async function collectOpencodeUsage(): Promise<UsageEntry[]> {
   const db = new SQL.Database(readSqliteSnapshot(dbPath))
   const entries: UsageEntry[] = []
   try {
-    const res = db.exec('SELECT id, session_id, data, time_created FROM message ORDER BY time_created')
+    const res = db.exec(
+      'SELECT id, session_id, data, time_created FROM message ORDER BY time_created'
+    )
     if (!res.length) return []
     for (const row of res[0].values) {
       const [id, sessionId, data, timeCreated] = row as [string, string, string, number | string]
@@ -518,12 +563,18 @@ function roundCost(cost: UsageCostTotals): UsageCostTotals {
   }
 }
 
-function buildDailyBuckets(rangeDays: number, startedAt: number, map: Map<string, UsageDailyBucket>): UsageDailyBucket[] {
+function buildDailyBuckets(
+  rangeDays: number,
+  startedAt: number,
+  map: Map<string, UsageDailyBucket>
+): UsageDailyBucket[] {
   const out: UsageDailyBucket[] = []
   for (let i = 0; i < rangeDays; i += 1) {
     const ts = startedAt + i * 86_400_000
     const key = dateKey(ts)
-    out.push(map.get(key) ?? { date: key, requestCount: 0, tokens: emptyTokens(), cost: emptyCost() })
+    out.push(
+      map.get(key) ?? { date: key, requestCount: 0, tokens: emptyTokens(), cost: emptyCost() }
+    )
   }
   return out
 }
@@ -587,7 +638,12 @@ export async function readUsage(rangeDays = 365, summaryDays = 30): Promise<Usag
     const cost = calculateCost(entry)
     const requests = Math.max(1, Math.round(entry.requestCount ?? 1))
     const dayKey = dateKey(entry.ts)
-    const day = daily.get(dayKey) ?? { date: dayKey, requestCount: 0, tokens: emptyTokens(), cost: emptyCost() }
+    const day = daily.get(dayKey) ?? {
+      date: dayKey,
+      requestCount: 0,
+      tokens: emptyTokens(),
+      cost: emptyCost()
+    }
     day.requestCount += requests
     addTokens(day.tokens, tokens)
     addCost(day.cost, cost)
@@ -624,7 +680,6 @@ export async function readUsage(rangeDays = 365, summaryDays = 30): Promise<Usag
     addTokens(model.tokens, tokens)
     addCost(model.cost, cost)
     byModel.set(modelKey, model)
-
   }
 
   return {
@@ -634,17 +689,23 @@ export async function readUsage(rangeDays = 365, summaryDays = 30): Promise<Usag
     startedAt,
     summaryStartedAt,
     endedAt,
-    requestCount: inSummaryRange.reduce((sum, entry) => sum + Math.max(1, Math.round(entry.requestCount ?? 1)), 0),
+    requestCount: inSummaryRange.reduce(
+      (sum, entry) => sum + Math.max(1, Math.round(entry.requestCount ?? 1)),
+      0
+    ),
     sessionCount: CLI_IDS.reduce((sum, cliId) => sum + (listedSessionCounts.get(cliId) ?? 0), 0),
     tokens: totals,
     cost: roundCost(costTotals),
-    byCli: CLI_IDS.map((cliId) => byCli.get(cliId) ?? {
-      cliId,
-      requestCount: 0,
-      sessionCount: listedSessionCounts.get(cliId) ?? 0,
-      tokens: emptyTokens(),
-      cost: emptyCost()
-    }).map((summary) => ({
+    byCli: CLI_IDS.map(
+      (cliId) =>
+        byCli.get(cliId) ?? {
+          cliId,
+          requestCount: 0,
+          sessionCount: listedSessionCounts.get(cliId) ?? 0,
+          tokens: emptyTokens(),
+          cost: emptyCost()
+        }
+    ).map((summary) => ({
       ...summary,
       sessionCount: listedSessionCounts.get(summary.cliId) ?? summary.sessionCount,
       cost: roundCost(summary.cost)

@@ -25,7 +25,8 @@ const variants: Record<Variant, string> = {
   secondary:
     'bg-[var(--button-secondary-base)] text-text-strong border border-border-base ' +
     'hover:border-border-selected hover:bg-surface',
-  ghost: 'border border-transparent text-text-base shadow-none hover:text-text-strong hover:bg-selection'
+  ghost:
+    'border border-transparent text-text-base shadow-none hover:text-text-strong hover:bg-selection'
 }
 
 const sizes: Record<Size, string> = {
@@ -38,6 +39,11 @@ export function Button({ variant = 'primary', size = 'md', className = '', ...re
   return <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest} />
 }
 
-export function ButtonLink({ variant = 'primary', size = 'md', className = '', ...rest }: LinkProps) {
+export function ButtonLink({
+  variant = 'primary',
+  size = 'md',
+  className = '',
+  ...rest
+}: LinkProps) {
   return <a className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...rest} />
 }

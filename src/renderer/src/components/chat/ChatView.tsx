@@ -55,7 +55,10 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
             // original tool name and input summary.
             let parts = last.parts
             const idx = ev.part.id ? parts.findIndex((p) => p.id === ev.part.id) : -1
-            parts = idx >= 0 ? parts.map((p, i) => (i === idx ? mergePart(p, ev.part) : p)) : [...parts, ev.part]
+            parts =
+              idx >= 0
+                ? parts.map((p, i) => (i === idx ? mergePart(p, ev.part) : p))
+                : [...parts, ev.part]
             return [...prev.slice(0, -1), { ...last, parts, ts: last.ts ?? ts }]
           }
           return [...prev, { role: ev.role, parts: [ev.part], ts }]
@@ -92,15 +95,21 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [messages, streaming])
 
-  const submit = useCallback((text: string) => {
-    text = text.trim()
-    if (!text || streaming) return
-    setMessages((prev) => [...prev, { role: 'user', parts: [{ kind: 'text', text }], ts: Date.now() }])
-    setStreaming(true)
-    setError(null)
-    if (handleRef.current) window.api.chat.send(handleRef.current, text)
-    else pendingRef.current = text // process not ready yet — flush on start
-  }, [streaming])
+  const submit = useCallback(
+    (text: string) => {
+      text = text.trim()
+      if (!text || streaming) return
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', parts: [{ kind: 'text', text }], ts: Date.now() }
+      ])
+      setStreaming(true)
+      setError(null)
+      if (handleRef.current) window.api.chat.send(handleRef.current, text)
+      else pendingRef.current = text // process not ready yet — flush on start
+    },
+    [streaming]
+  )
 
   const stop = useCallback(() => {
     if (handleRef.current) window.api.chat.stop(handleRef.current)
@@ -140,7 +149,9 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-[980px] px-7 py-6">
           {loadingHistory && (
-            <div className="py-6 text-center text-[13px] text-text-weak">{t('transcript.loading')}</div>
+            <div className="py-6 text-center text-[13px] text-text-weak">
+              {t('transcript.loading')}
+            </div>
           )}
           {!loadingHistory && messages.length === 0 && !error && (
             <div className="flex min-h-[45vh] items-center justify-center">
@@ -152,7 +163,11 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
               </div>
             </div>
           )}
-          <MessageList messages={messages} assistantName={active?.name ?? cliId} assistantCliId={cliId} />
+          <MessageList
+            messages={messages}
+            assistantName={active?.name ?? cliId}
+            assistantCliId={cliId}
+          />
           {streaming && (
             <div className="mt-7 flex gap-3">
               <span className="grid size-7 shrink-0 place-items-center rounded-md border border-border-weak bg-surface text-text-weak">
@@ -166,7 +181,10 @@ export function ChatView({ cliId, cwd, resumeId, onBack }: Props) {
             </div>
           )}
           {error && (
-            <div className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[12px]" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}>
+            <div
+              className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[12px]"
+              style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+            >
               {error}
             </div>
           )}
@@ -189,7 +207,7 @@ function mergePart(prev: TranscriptPart, next: TranscriptPart): TranscriptPart {
     ...prev,
     ...next,
     text: next.text ?? prev.text,
-    tool: next.tool && next.tool !== 'tool' ? next.tool : prev.tool ?? next.tool,
+    tool: next.tool && next.tool !== 'tool' ? next.tool : (prev.tool ?? next.tool),
     detail: next.detail ?? prev.detail,
     input: next.input ?? prev.input,
     result: next.result ?? prev.result,

@@ -66,13 +66,15 @@ describe('embedded terminal scrollback arguments', () => {
 
   it('leaves primary-screen Pi and non-Windows launches unchanged', () => {
     expect(embeddedTerminalArgs({ cliId: 'pi', version: '0.77.0', platform: 'win32' })).toEqual([])
-    expect(embeddedTerminalArgs({ cliId: 'codex', version: '0.144.6', platform: 'darwin' })).toEqual([])
+    expect(
+      embeddedTerminalArgs({ cliId: 'codex', version: '0.144.6', platform: 'darwin' })
+    ).toEqual([])
   })
 
   it('enables current inline modes when a system-linked version was not recorded', () => {
-    expect(
-      embeddedTerminalArgs({ cliId: 'codex', version: undefined, platform: 'win32' })
-    ).toEqual(['--no-alt-screen'])
+    expect(embeddedTerminalArgs({ cliId: 'codex', version: undefined, platform: 'win32' })).toEqual(
+      ['--no-alt-screen']
+    )
     expect(
       embeddedTerminalArgs({ cliId: 'opencode', version: 'system', platform: 'win32' })
     ).toEqual(['--mini'])

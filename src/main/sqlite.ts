@@ -4,7 +4,8 @@ import initSqlJs, { type SqlJsStatic } from 'sql.js'
 /** Lazily initialized sql.js runtime, shared by every SQLite reader. */
 let sqlPromise: Promise<SqlJsStatic> | null = null
 export function getSql(): Promise<SqlJsStatic> {
-  if (!sqlPromise) sqlPromise = initSqlJs({ locateFile: () => require.resolve('sql.js/dist/sql-wasm.wasm') })
+  if (!sqlPromise)
+    sqlPromise = initSqlJs({ locateFile: () => require.resolve('sql.js/dist/sql-wasm.wasm') })
   return sqlPromise
 }
 

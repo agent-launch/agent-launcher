@@ -37,7 +37,10 @@ async function installedBin(cliId: CliId): Promise<string | undefined> {
   if (blocked) throw new Error(blocked)
   if (install.installed && install.binPath && existsSync(install.binPath)) return install.binPath
 
-  const detection = await detectSystemCli(cliId, install.source === 'system' ? install.binPath : undefined)
+  const detection = await detectSystemCli(
+    cliId,
+    install.source === 'system' ? install.binPath : undefined
+  )
   const selected = detection.selectedPath
   if (!selected || !existsSync(selected)) return undefined
   if (detection.macosSecurityRisk) {
@@ -63,7 +66,10 @@ function send(wc: WebContents, id: string, cliId: CliId, data: string): void {
 function isLoggedIn(code: number | null, text: string): boolean {
   if (/not logged in|not authenticated|not signed in|no .*login|no .*auth/i.test(text)) return false
   if (code === 0) return true
-  return /logged in|authenticated|signed in/i.test(text) && !/not logged in|not authenticated/i.test(text)
+  return (
+    /logged in|authenticated|signed in/i.test(text) &&
+    !/not logged in|not authenticated/i.test(text)
+  )
 }
 
 async function runStatus(cliId: CliId, args: string[]): Promise<AuthStatus> {
@@ -79,7 +85,13 @@ async function runStatus(cliId: CliId, args: string[]): Promise<AuthStatus> {
       error: error instanceof Error ? error.message : String(error)
     }
   }
-  if (!bin) return Promise.resolve({ cliId, supported: !!statusTarget(cliId), installed: false, loggedIn: false })
+  if (!bin)
+    return Promise.resolve({
+      cliId,
+      supported: !!statusTarget(cliId),
+      installed: false,
+      loggedIn: false
+    })
 
   return new Promise((resolve) => {
     let output = ''
@@ -96,7 +108,13 @@ async function runStatus(cliId: CliId, args: string[]): Promise<AuthStatus> {
     )
     proc.on('exit', (code) => {
       const detail = output.trim().split('\n').slice(-3).join('\n')
-      resolve({ cliId, supported: true, installed: true, loggedIn: isLoggedIn(code, output), detail })
+      resolve({
+        cliId,
+        supported: true,
+        installed: true,
+        loggedIn: isLoggedIn(code, output),
+        detail
+      })
     })
   })
 }
@@ -107,7 +125,11 @@ export function authStatus(cliId: CliId): Promise<AuthStatus> {
   return runStatus(cliId, args)
 }
 
-export async function startAuthLogin(wc: WebContents, cliId: CliId, method: AuthLoginMethod): Promise<string> {
+export async function startAuthLogin(
+  wc: WebContents,
+  cliId: CliId,
+  method: AuthLoginMethod
+): Promise<string> {
   const args = authTarget(cliId, method)
   if (!args) throw new Error(`${cliId} does not support official account login`)
   const bin = await installedBin(cliId)

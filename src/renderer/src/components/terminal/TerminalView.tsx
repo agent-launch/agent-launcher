@@ -165,7 +165,11 @@ function isSpaceCell(cell: IBufferCell | undefined): boolean {
   return chars === ' ' || chars === '\u00a0'
 }
 
-function findLineContentEndColumn(line: IBufferLine, startColumn: number, cols: number): number | null {
+function findLineContentEndColumn(
+  line: IBufferLine,
+  startColumn: number,
+  cols: number
+): number | null {
   const maxColumn = Math.min(line.length, cols)
   for (let column = maxColumn - 1; column >= startColumn; column--) {
     const cell = line.getCell(column)
@@ -268,7 +272,13 @@ function installImeTextareaAnchorSync(term: Terminal, cliId: CliId): () => void 
     const rect = screen.getBoundingClientRect()
     const cellWidth = rect.width / term.cols
     const cellHeight = rect.height / term.rows
-    if (!Number.isFinite(cellWidth) || !Number.isFinite(cellHeight) || !(cellWidth > 0) || !(cellHeight > 0)) return
+    if (
+      !Number.isFinite(cellWidth) ||
+      !Number.isFinite(cellHeight) ||
+      !(cellWidth > 0) ||
+      !(cellHeight > 0)
+    )
+      return
 
     const { row, column } = resolveImeAnchor(term, cliId)
     const left = `${column * cellWidth}px`
@@ -296,7 +306,11 @@ function installImeTextareaAnchorSync(term: Terminal, cliId: CliId): () => void 
     }, 0)
   }
 
-  const disposables: IDisposable[] = [term.onCursorMove(sync), term.onRender(sync), term.onResize(sync)]
+  const disposables: IDisposable[] = [
+    term.onCursorMove(sync),
+    term.onRender(sync),
+    term.onResize(sync)
+  ]
   element.addEventListener('keydown', sync, true)
   element.addEventListener('compositionstart', syncSoon)
   element.addEventListener('compositionupdate', syncSoon)
@@ -371,7 +385,8 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       window.api.pty.onExit((id, code) => {
         if (id === ptyId) {
           const shouldWriteExit = onExit?.(code) !== false
-          if (shouldWriteExit) term.write(`\r\n\x1b[90m${tRef.current('terminal.exited', { code })}\x1b[0m\r\n`)
+          if (shouldWriteExit)
+            term.write(`\r\n\x1b[90m${tRef.current('terminal.exited', { code })}\x1b[0m\r\n`)
         }
       })
     )
@@ -436,7 +451,9 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
           term.focus()
         })
         .catch((e: Error) => {
-          term.write(`\r\n\x1b[31m${tRef.current('terminal.launchFailed', { error: e.message })}\x1b[0m\r\n`)
+          term.write(
+            `\r\n\x1b[31m${tRef.current('terminal.launchFailed', { error: e.message })}\x1b[0m\r\n`
+          )
         })
     }, 0)
 
@@ -460,6 +477,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       host.replaceChildren()
       termRef.current = null
     }
+    // The terminal lifecycle is keyed by sessionKey; changing callback identities must not recreate the PTY.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionKey])
 
@@ -469,7 +487,10 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       if (term) term.options.theme = terminalTheme(cliId)
     }
     const observer = new MutationObserver(applyTheme)
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme']
+    })
     applyTheme()
     return () => observer.disconnect()
   }, [cliId])

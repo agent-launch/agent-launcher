@@ -101,7 +101,8 @@ function resolveTarget(
     }
     return { file: install.binPath, args: [install.nodeEntry, ...extra] }
   }
-  const session = opts.cliId === 'claude-code' && !opts.resumeId ? ['--session-id', randomUUID()] : []
+  const session =
+    opts.cliId === 'claude-code' && !opts.resumeId ? ['--session-id', randomUUID()] : []
   const extra: string[] = [...embeddedArgs, ...(resume ?? []), ...session, ...yolo]
   if (opts.cliId === 'pi') {
     const profile = getActiveProfile('pi')
@@ -124,7 +125,8 @@ function quotePs(value: string): string {
 
 function launchEnvEntries(env: NodeJS.ProcessEnv): Array<[string, string]> {
   return Object.entries(env).filter(
-    (entry): entry is [string, string] => /^[A-Za-z_][A-Za-z0-9_]*$/.test(entry[0]) && typeof entry[1] === 'string'
+    (entry): entry is [string, string] =>
+      /^[A-Za-z_][A-Za-z0-9_]*$/.test(entry[0]) && typeof entry[1] === 'string'
   )
 }
 
@@ -165,10 +167,24 @@ export function openExternalAgent(opts: SpawnOptions): void {
         'Read-Host "Press Enter to close"'
       ].join('\r\n')
     )
-    spawn('cmd.exe', ['/c', 'start', '', 'powershell.exe', '-NoExit', '-ExecutionPolicy', 'Bypass', '-File', script], {
-      detached: true,
-      stdio: 'ignore'
-    }).unref()
+    spawn(
+      'cmd.exe',
+      [
+        '/c',
+        'start',
+        '',
+        'powershell.exe',
+        '-NoExit',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        script
+      ],
+      {
+        detached: true,
+        stdio: 'ignore'
+      }
+    ).unref()
     return
   }
 
@@ -191,10 +207,17 @@ export function openExternalAgent(opts: SpawnOptions): void {
   if (process.platform === 'darwin') {
     spawn('open', ['-a', 'Terminal', script], { detached: true, stdio: 'ignore' }).unref()
   } else {
-    spawn('sh', ['-lc', `x-terminal-emulator -e ${quoteSh(script)} || gnome-terminal -- ${quoteSh(script)} || konsole -e ${quoteSh(script)} || xterm -e ${quoteSh(script)}`], {
-      detached: true,
-      stdio: 'ignore'
-    }).unref()
+    spawn(
+      'sh',
+      [
+        '-lc',
+        `x-terminal-emulator -e ${quoteSh(script)} || gnome-terminal -- ${quoteSh(script)} || konsole -e ${quoteSh(script)} || xterm -e ${quoteSh(script)}`
+      ],
+      {
+        detached: true,
+        stdio: 'ignore'
+      }
+    ).unref()
   }
 }
 

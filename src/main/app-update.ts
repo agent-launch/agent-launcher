@@ -9,7 +9,7 @@ import type {
   AppUpdateStatus
 } from '@shared/types'
 
-const GITHUB_OWNER = process.env.AGENT_LAUNCHER_UPDATE_OWNER || 'matrixlabs'
+const GITHUB_OWNER = process.env.AGENT_LAUNCHER_UPDATE_OWNER || 'WhiteMatrixTech'
 const GITHUB_REPO = process.env.AGENT_LAUNCHER_UPDATE_REPO || 'agent-launcher'
 const RELEASES_URL = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases`
 const RELEASES_API_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
@@ -43,7 +43,10 @@ function getAutoUpdater(): typeof import('electron-updater').autoUpdater | null 
     autoUpdater = mod.autoUpdater
   } catch (err) {
     autoUpdater = null
-    console.warn('[AppUpdate] electron-updater unavailable:', err instanceof Error ? err.message : err)
+    console.warn(
+      '[AppUpdate] electron-updater unavailable:',
+      err instanceof Error ? err.message : err
+    )
   }
   return autoUpdater
 }
@@ -134,11 +137,14 @@ async function fetchLatestRelease(): Promise<AppUpdateRelease | undefined> {
     notes: stringField(data.body),
     url: stringField(data.html_url) ?? releaseUrl(tagName),
     publishedAt: stringField(data.published_at),
-    assets: assets.filter(isRecord).map((asset) => ({
-      name: stringField(asset.name) ?? '',
-      url: stringField(asset.browser_download_url) ?? '',
-      size: typeof asset.size === 'number' ? asset.size : undefined
-    })).filter((asset) => asset.name && asset.url)
+    assets: assets
+      .filter(isRecord)
+      .map((asset) => ({
+        name: stringField(asset.name) ?? '',
+        url: stringField(asset.browser_download_url) ?? '',
+        size: typeof asset.size === 'number' ? asset.size : undefined
+      }))
+      .filter((asset) => asset.name && asset.url)
   }
 }
 
@@ -151,7 +157,8 @@ function normalizePolicy(data: unknown, latest?: AppUpdateRelease): AppUpdatePol
   const latestVersion = stringField(data.latestVersion) ?? latest?.version
   const forceFlag = data.force === true || data.forceUpdate === true || data.mandatory === true
   const mustForceByVersion = !!minVersion && compareVersions(app.getVersion(), minVersion) < 0
-  const mustForceByLatest = forceFlag && !!latestVersion && compareVersions(app.getVersion(), latestVersion) < 0
+  const mustForceByLatest =
+    forceFlag && !!latestVersion && compareVersions(app.getVersion(), latestVersion) < 0
 
   return {
     force: mustForceByVersion || mustForceByLatest || (forceFlag && !minVersion && !latestVersion),
@@ -173,7 +180,10 @@ async function fetchPolicy(latest?: AppUpdateRelease): Promise<AppUpdatePolicy> 
 
 function releaseFromUpdateInfo(info: UpdateInfo): AppUpdateRelease {
   const releaseNotes = Array.isArray(info.releaseNotes)
-    ? info.releaseNotes.map((item) => (typeof item === 'string' ? item : item.note)).filter(Boolean).join('\n\n')
+    ? info.releaseNotes
+        .map((item) => (typeof item === 'string' ? item : item.note))
+        .filter(Boolean)
+        .join('\n\n')
     : typeof info.releaseNotes === 'string'
       ? info.releaseNotes
       : undefined
@@ -221,7 +231,11 @@ function registerUpdaterEvents(): void {
     broadcast('appUpdate:download-progress', payload)
   })
   updater.on('update-downloaded', (info) => {
-    snapshot({ status: 'downloaded', latestRelease: status.latestRelease ?? releaseFromUpdateInfo(info), percent: 100 })
+    snapshot({
+      status: 'downloaded',
+      latestRelease: status.latestRelease ?? releaseFromUpdateInfo(info),
+      percent: 100
+    })
     emitStatus()
   })
   updater.on('error', (err) => {
@@ -238,7 +252,9 @@ export function registerAppUpdateIpc(): void {
     cancelAutoCheck()
     return checkForAppUpdate()
   })
-  ipcMain.handle('appUpdate:download', async (): Promise<AppUpdateDownloadResult> => downloadAppUpdate())
+  ipcMain.handle('appUpdate:download', async (): Promise<AppUpdateDownloadResult> =>
+    downloadAppUpdate()
+  )
   ipcMain.handle('appUpdate:install', () => {
     const updater = getAutoUpdater()
     if (!updater) return
@@ -278,17 +294,22 @@ async function checkForAppUpdate(opts: { silent?: boolean } = {}): Promise<AppUp
     if (!latestReleaseResult.ok) {
       console.warn(
         '[AppUpdate] release check failed:',
-        latestReleaseResult.error instanceof Error ? latestReleaseResult.error.message : latestReleaseResult.error
+        latestReleaseResult.error instanceof Error
+          ? latestReleaseResult.error.message
+          : latestReleaseResult.error
       )
     }
-    const hasReleaseUpdate = !!latestRelease && compareVersions(latestRelease.version, app.getVersion()) > 0
-    const hasPolicyUpdate = !!policy.latestVersion && compareVersions(policy.latestVersion, app.getVersion()) > 0
+    const hasReleaseUpdate =
+      !!latestRelease && compareVersions(latestRelease.version, app.getVersion()) > 0
+    const hasPolicyUpdate =
+      !!policy.latestVersion && compareVersions(policy.latestVersion, app.getVersion()) > 0
     const hasUpdate = hasReleaseUpdate || hasPolicyUpdate
 
     if (!latestReleaseResult.ok && !policy.latestVersion && !policy.force) {
-      const error = latestReleaseResult.error instanceof Error
-        ? latestReleaseResult.error.message
-        : String(latestReleaseResult.error)
+      const error =
+        latestReleaseResult.error instanceof Error
+          ? latestReleaseResult.error.message
+          : String(latestReleaseResult.error)
       const failed = snapshot({ status: 'error', policy, error, checkedAt: Date.now() })
       emitStatus(failed)
       return { ok: false, status: failed, error }
@@ -308,7 +329,10 @@ async function checkForAppUpdate(opts: { silent?: boolean } = {}): Promise<AppUp
       const updater = getAutoUpdater()
       if (updater) {
         const updaterResult = await updater.checkForUpdates().catch((err) => {
-          console.warn('[AppUpdate] updater feed check failed:', err instanceof Error ? err.message : err)
+          console.warn(
+            '[AppUpdate] updater feed check failed:',
+            err instanceof Error ? err.message : err
+          )
           return null
         })
         if (updaterResult?.updateInfo) snapshot({ canAutoDownload: true })
@@ -326,7 +350,8 @@ async function checkForAppUpdate(opts: { silent?: boolean } = {}): Promise<AppUp
 
 async function downloadAppUpdate(): Promise<AppUpdateDownloadResult> {
   if (!isAutoUpdateSupported()) {
-    const error = 'This package format does not support in-app updates. Download the update from GitHub Releases.'
+    const error =
+      'This package format does not support in-app updates. Download the update from GitHub Releases.'
     const next = snapshot({ status: 'error', error })
     return { ok: false, status: next, error }
   }
@@ -342,7 +367,8 @@ async function downloadAppUpdate(): Promise<AppUpdateDownloadResult> {
     if (!status.canAutoDownload) {
       const result = await updater.checkForUpdates().catch(() => null)
       if (!result?.updateInfo) {
-        const error = 'No update metadata was found for this platform. Download the update from GitHub Releases.'
+        const error =
+          'No update metadata was found for this platform. Download the update from GitHub Releases.'
         const next = snapshot({ status: 'error', error, canAutoDownload: false })
         return { ok: false, status: next, error }
       }

@@ -68,8 +68,11 @@ function homebrewVersion(path: string): string | undefined {
   return normalized.match(/\/(?:Caskroom|Cellar)\/codex\/([^/]+)/i)?.[1]
 }
 
-function npmDarwinRuntime(packageRoot: string): Pick<CodexInstallInspection, 'executablePath' | 'runtimeMissing'> {
-  if (process.platform !== 'darwin' || (process.arch !== 'arm64' && process.arch !== 'x64')) return {}
+function npmDarwinRuntime(
+  packageRoot: string
+): Pick<CodexInstallInspection, 'executablePath' | 'runtimeMissing'> {
+  if (process.platform !== 'darwin' || (process.arch !== 'arm64' && process.arch !== 'x64'))
+    return {}
   const platformPackage = `@openai/codex-darwin-${process.arch}`
   const triple = process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin'
   const roots: string[] = []
@@ -87,10 +90,7 @@ function npmDarwinRuntime(packageRoot: string): Pick<CodexInstallInspection, 'ex
   )
 
   const uniqueRoots = [...new Set(roots)]
-  const names = [
-    join('vendor', triple, 'bin', 'codex'),
-    join('vendor', triple, 'codex', 'codex')
-  ]
+  const names = [join('vendor', triple, 'bin', 'codex'), join('vendor', triple, 'codex', 'codex')]
   for (const root of uniqueRoots) {
     for (const name of names) {
       const executablePath = join(root, name)
@@ -126,7 +126,8 @@ function isNativeExecutable(prefix: Buffer | undefined): boolean {
 function dotslashVersion(prefix: Buffer | undefined): string | undefined {
   if (!prefix) return undefined
   const text = prefix.toString('utf8')
-  const looksLikeDotslash = /dotslash/i.test(text) || (/"platforms"\s*:/.test(text) && /"url"\s*:/.test(text))
+  const looksLikeDotslash =
+    /dotslash/i.test(text) || (/"platforms"\s*:/.test(text) && /"url"\s*:/.test(text))
   if (!looksLikeDotslash) return undefined
   return text.match(/rust-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/)?.[1]
 }
@@ -184,7 +185,19 @@ export function inspectCodexInstall(binPath: string, realPath = binPath): CodexI
     findParentFile(realPath, 'package.json'),
     join(dirname(binPath), 'node_modules', '@openai', 'codex', 'package.json'),
     voltaRoot
-      ? join(voltaRoot, 'tools', 'image', 'packages', '@openai', 'codex', 'lib', 'node_modules', '@openai', 'codex', 'package.json')
+      ? join(
+          voltaRoot,
+          'tools',
+          'image',
+          'packages',
+          '@openai',
+          'codex',
+          'lib',
+          'node_modules',
+          '@openai',
+          'codex',
+          'package.json'
+        )
       : undefined
   ].filter((path): path is string => !!path && existsSync(path))
   const npmMetadataEntry = npmMetadataPaths
@@ -213,7 +226,11 @@ export function inspectCodexInstall(binPath: string, realPath = binPath): CodexI
   }
 
   if (/\/target\/(?:debug|release)\/codex(?:\.exe)?$/i.test(pathText(realPath))) {
-    return { installKind: 'source-build', version: sourceVersion(realPath), executablePath: realPath }
+    return {
+      installKind: 'source-build',
+      version: sourceVersion(realPath),
+      executablePath: realPath
+    }
   }
 
   const prefix = readPrefix(realPath)

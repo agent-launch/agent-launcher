@@ -8,13 +8,7 @@ import {
   type PointerEvent
 } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  Download,
-  ExternalLink,
-  RefreshCw,
-  RotateCcw,
-  TriangleAlert
-} from 'lucide-react'
+import { Download, ExternalLink, RefreshCw, RotateCcw, TriangleAlert } from 'lucide-react'
 import { Switch } from '@/components/ui/Switch'
 import { Select } from '@/components/ui/Select'
 import { CliIcon } from '@/components/CliIcon'
@@ -25,7 +19,15 @@ import { ENABLE_CHAT_HISTORY_RENDERING } from '@/features'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import appIcon from '@/assets/app-icon.png'
 import { SETTINGS_TABS, type SettingsTab } from './settingsTabs'
-import type { AppConfig, AppInfo, AppUpdateStatus, CliId, CliUpdateStatus, UsageDailyBucket, UsageScanResult } from '@shared/types'
+import type {
+  AppConfig,
+  AppInfo,
+  AppUpdateStatus,
+  CliId,
+  CliUpdateStatus,
+  UsageDailyBucket,
+  UsageScanResult
+} from '@shared/types'
 
 type UsageTooltipState = {
   content: string
@@ -58,10 +60,20 @@ export const SettingsPage = memo(function SettingsPage({
       {isMac && <div className="drag-region absolute inset-x-0 top-0 h-12" aria-hidden="true" />}
 
       <div className="relative h-full overflow-y-auto">
-        <div className={`mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 ${isMac ? 'pb-5 pt-12' : 'py-5'}`}>
-          <h2 className="font-display text-[26px] font-bold leading-tight text-text-strong">{t(activeTab.labelKey)}</h2>
+        <div
+          className={`mx-auto flex w-full max-w-[920px] flex-col gap-3 px-5 ${isMac ? 'pb-5 pt-12' : 'py-5'}`}
+        >
+          <h2 className="font-display text-[26px] font-bold leading-tight text-text-strong">
+            {t(activeTab.labelKey)}
+          </h2>
 
-          {tab === 'general' ? <GeneralSettings /> : tab === 'usage' ? <UsageSettings /> : <AboutSettings checkUpdatesKey={checkUpdatesKey} />}
+          {tab === 'general' ? (
+            <GeneralSettings />
+          ) : tab === 'usage' ? (
+            <UsageSettings />
+          ) : (
+            <AboutSettings checkUpdatesKey={checkUpdatesKey} />
+          )}
         </div>
       </div>
     </div>
@@ -109,7 +121,10 @@ function GeneralSettings() {
             <Select options={localeOptions} value={localeMode} onChange={setLocaleMode} />
           </SettingControlRow>
           {ENABLE_CHAT_HISTORY_RENDERING && (
-            <SettingControlRow title={t('settings.renderTranscript')} desc={t('settings.renderTranscriptDesc')}>
+            <SettingControlRow
+              title={t('settings.renderTranscript')}
+              desc={t('settings.renderTranscriptDesc')}
+            >
               <Switch checked={renderTranscript} onChange={setRenderTranscript} />
             </SettingControlRow>
           )}
@@ -121,12 +136,17 @@ function GeneralSettings() {
           <h3 className="text-[13px] font-medium text-text-strong">{t('settings.yolo.title')}</h3>
           <span
             className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px]"
-            style={{ background: 'color-mix(in srgb, var(--warning) 22%, transparent)', color: 'var(--text-strong)' }}
+            style={{
+              background: 'color-mix(in srgb, var(--warning) 22%, transparent)',
+              color: 'var(--text-strong)'
+            }}
           >
             <TriangleAlert size={11} /> {t('settings.yolo.danger')}
           </span>
         </div>
-        <p className="mb-2 mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.yolo.desc')}</p>
+        <p className="mb-2 mt-1 text-[12px] leading-relaxed text-text-weak">
+          {t('settings.yolo.desc')}
+        </p>
 
         <div className="space-y-1">
           {CLIS.map((cli) => {
@@ -147,9 +167,14 @@ function GeneralSettings() {
                   </div>
                 </div>
                 {support?.supported ? (
-                  <Switch checked={enabled} onChange={(value) => toggleYolo(cli.id as CliId, value)} />
+                  <Switch
+                    checked={enabled}
+                    onChange={(value) => toggleYolo(cli.id as CliId, value)}
+                  />
                 ) : (
-                  <span className="text-[11px] text-text-weak">{t('settings.yolo.notSupported')}</span>
+                  <span className="text-[11px] text-text-weak">
+                    {t('settings.yolo.notSupported')}
+                  </span>
                 )}
               </div>
             )
@@ -181,7 +206,8 @@ function UsageSettings() {
     let active = true
     setLoading(true)
     setError(null)
-    void window.api.usage.read(requestId, 365, 30)
+    void window.api.usage
+      .read(requestId, 365, 30)
       .then((nextUsage) => {
         if (active && nextUsage) {
           usageCache = nextUsage
@@ -236,8 +262,16 @@ function UsageSettings() {
     return (
       <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[13px] text-[var(--danger)]">{t('settings.usage.failed', { error })}</div>
-          <Button size="sm" variant="secondary" onClick={() => { cancelRef.current = load(true) }}>
+          <div className="text-[13px] text-[var(--danger)]">
+            {t('settings.usage.failed', { error })}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              cancelRef.current = load(true)
+            }}
+          >
             <RefreshCw size={13} />
             {t('settings.usage.refresh')}
           </Button>
@@ -254,25 +288,47 @@ function UsageSettings() {
       <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
-            <h3 className="text-[13px] font-medium text-text-strong">{t('settings.usage.title')}</h3>
-            <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.usage.desc')}</p>
+            <h3 className="text-[13px] font-medium text-text-strong">
+              {t('settings.usage.title')}
+            </h3>
+            <p className="mt-1 text-[12px] leading-relaxed text-text-weak">
+              {t('settings.usage.desc')}
+            </p>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => { cancelRef.current = load(true) }} disabled={loading}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              cancelRef.current = load(true)
+            }}
+            disabled={loading}
+          >
             <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             {t('settings.usage.refresh')}
           </Button>
         </div>
 
         <div className="grid gap-2 md:grid-cols-4">
-          <MetricCard value={formatCompact(usage.tokens.totalTokens)} label={t('settings.usage.tokens30')} />
+          <MetricCard
+            value={formatCompact(usage.tokens.totalTokens)}
+            label={t('settings.usage.tokens30')}
+          />
           <MetricCard value={String(usage.requestCount)} label={t('settings.usage.requests30')} />
-          <MetricCard value={`${summary.activeDays} / ${summary.bestStreak}`} label={t('settings.usage.activeDays')} />
-          <MetricCard value={formatCompact(summary.today?.tokens.totalTokens ?? 0)} label={t('settings.usage.tokensToday')} />
+          <MetricCard
+            value={`${summary.activeDays} / ${summary.bestStreak}`}
+            label={t('settings.usage.activeDays')}
+          />
+          <MetricCard
+            value={formatCompact(summary.today?.tokens.totalTokens ?? 0)}
+            label={t('settings.usage.tokensToday')}
+          />
         </div>
 
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <h4 className="text-[13px] font-medium text-text-strong">{t('settings.usage.activity')}</h4>
+            <h4 className="text-[13px] font-medium text-text-strong">
+              {t('settings.usage.activity')}
+            </h4>
             <span className="text-[12px] text-text-weak">
               {t('settings.usage.lastYear', {
                 count: formatCompact(summary.yearTokens)
@@ -285,7 +341,9 @@ function UsageSettings() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="min-w-0">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h4 className="text-[13px] font-medium text-text-strong">{t('settings.usage.modelDist')}</h4>
+              <h4 className="text-[13px] font-medium text-text-strong">
+                {t('settings.usage.modelDist')}
+              </h4>
               <span className="text-[12px] text-text-weak">
                 {t('settings.usage.tokenValue', { count: formatCompact(usage.tokens.totalTokens) })}
               </span>
@@ -299,13 +357,16 @@ function UsageSettings() {
                     <div className="flex items-center justify-between gap-2 text-[11px]">
                       <span className="min-w-0 truncate text-text-strong">{item.model}</span>
                       <span className="shrink-0 text-text-weak">
-                        {formatCompact(item.tokens.totalTokens)} · {percent(item.tokens.totalTokens, usage.tokens.totalTokens)}
+                        {formatCompact(item.tokens.totalTokens)} ·{' '}
+                        {percent(item.tokens.totalTokens, usage.tokens.totalTokens)}
                       </span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-surface-weak">
                       <div
                         className="h-full rounded-full bg-text-strong"
-                        style={{ width: `${Math.max(4, (item.tokens.totalTokens / summary.maxModelTokens) * 100)}%` }}
+                        style={{
+                          width: `${Math.max(4, (item.tokens.totalTokens / summary.maxModelTokens) * 100)}%`
+                        }}
                       />
                     </div>
                   </div>
@@ -316,7 +377,9 @@ function UsageSettings() {
 
           <div className="min-w-0">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h4 className="text-[13px] font-medium text-text-strong">{t('settings.usage.dailyCost')}</h4>
+              <h4 className="text-[13px] font-medium text-text-strong">
+                {t('settings.usage.dailyCost')}
+              </h4>
               <span className="text-[12px] text-text-weak">{t('settings.usage.last30')}</span>
             </div>
             <DailyBars days={summary.summaryDays} setTooltip={setTooltip} />
@@ -326,20 +389,29 @@ function UsageSettings() {
 
       <section className="rounded-lg border border-border-weak bg-surface/92 p-3 shadow-[var(--shadow-sm)]">
         <div className="mb-3">
-          <h3 className="text-[13px] font-medium text-text-strong">{t('settings.usage.byAgent')}</h3>
-          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.usage.byAgentDesc')}</p>
+          <h3 className="text-[13px] font-medium text-text-strong">
+            {t('settings.usage.byAgent')}
+          </h3>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">
+            {t('settings.usage.byAgentDesc')}
+          </p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           {usage.byCli.map((item) => {
             const cli = CLIS.find((entry) => entry.id === item.cliId)
             return (
-              <div key={item.cliId} className="rounded-lg border border-border-weak bg-surface/86 px-2.5 py-2">
+              <div
+                key={item.cliId}
+                className="rounded-lg border border-border-weak bg-surface/86 px-2.5 py-2"
+              >
                 <div className="flex items-center gap-2.5">
                   <span className="grid size-6 shrink-0 place-items-center rounded-md bg-surface-weak text-text-strong">
                     <CliIcon cliId={item.cliId} size={13} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[12px] font-medium text-text-strong">{cli?.name ?? item.cliId}</div>
+                    <div className="truncate text-[12px] font-medium text-text-strong">
+                      {cli?.name ?? item.cliId}
+                    </div>
                     <div className="mt-0.5 text-[11px] text-text-weak">
                       {t('settings.usage.agentMeta', {
                         requests: item.requestCount,
@@ -348,8 +420,12 @@ function UsageSettings() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[12px] font-semibold text-text-strong">{formatCompact(item.tokens.totalTokens)}</div>
-                    <div className="text-[11px] text-text-weak">{t('settings.usage.tokenUnit')}</div>
+                    <div className="text-[12px] font-semibold text-text-strong">
+                      {formatCompact(item.tokens.totalTokens)}
+                    </div>
+                    <div className="text-[11px] text-text-weak">
+                      {t('settings.usage.tokenUnit')}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -357,7 +433,10 @@ function UsageSettings() {
           })}
         </div>
         {usage.errors.length > 0 && (
-          <div className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[12px]" style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}>
+          <div
+            className="mt-4 rounded-lg border border-dashed px-3 py-2 text-[12px]"
+            style={{ color: 'var(--warning)', borderColor: 'var(--warning)' }}
+          >
             {t('settings.usage.partial', { count: usage.errors.length })}
           </div>
         )}
@@ -435,12 +514,21 @@ function UsageTooltip({ tooltip }: { tooltip: UsageTooltipState | null }) {
   )
 }
 
-function usageTooltipFromPointer(event: PointerEvent<HTMLElement | SVGElement>, content: string): UsageTooltipState {
+function usageTooltipFromPointer(
+  event: PointerEvent<HTMLElement | SVGElement>,
+  content: string
+): UsageTooltipState {
   const margin = 12
   const width = Math.min(220, Math.max(0, window.innerWidth - margin * 2))
   const half = width / 2
-  const align = event.clientX < margin + half ? 'start' : event.clientX > window.innerWidth - margin - half ? 'end' : 'center'
-  const x = align === 'start' ? margin : align === 'end' ? window.innerWidth - margin : event.clientX
+  const align =
+    event.clientX < margin + half
+      ? 'start'
+      : event.clientX > window.innerWidth - margin - half
+        ? 'end'
+        : 'center'
+  const x =
+    align === 'start' ? margin : align === 'end' ? window.innerWidth - margin : event.clientX
   return {
     content,
     x,
@@ -464,11 +552,16 @@ const DailyBars = memo(function DailyBars({
   const t = useT()
   const max = useMemo(() => Math.max(1, ...days.map((day) => day.tokens.totalTokens)), [days])
   const showTooltip = (event: PointerEvent<HTMLElement>, day: UsageDailyBucket) => {
-    setTooltip(usageTooltipFromPointer(event, t('settings.usage.dayTooltipWithRequests', {
-      date: day.date,
-      tokens: formatCompact(day.tokens.totalTokens),
-      requests: day.requestCount
-    })))
+    setTooltip(
+      usageTooltipFromPointer(
+        event,
+        t('settings.usage.dayTooltipWithRequests', {
+          date: day.date,
+          tokens: formatCompact(day.tokens.totalTokens),
+          requests: day.requestCount
+        })
+      )
+    )
   }
   return (
     <div
@@ -476,7 +569,8 @@ const DailyBars = memo(function DailyBars({
       onPointerLeave={() => setTooltip(null)}
     >
       {days.map((day) => {
-        const height = day.tokens.totalTokens > 0 ? Math.max(6, (day.tokens.totalTokens / max) * 150) : 3
+        const height =
+          day.tokens.totalTokens > 0 ? Math.max(6, (day.tokens.totalTokens / max) * 150) : 3
         return (
           <div key={day.date} className="flex min-w-0 flex-1 items-end">
             <div
@@ -490,9 +584,10 @@ const DailyBars = memo(function DailyBars({
               className="w-full rounded-t-[4px] transition-[background,filter] hover:brightness-110 focus-visible:brightness-110"
               style={{
                 height,
-                background: day.tokens.totalTokens > 0
-                  ? 'color-mix(in srgb, var(--text-strong) 72%, var(--surface-base))'
-                  : 'var(--surface-weak)'
+                background:
+                  day.tokens.totalTokens > 0
+                    ? 'color-mix(in srgb, var(--text-strong) 72%, var(--surface-base))'
+                    : 'var(--surface-weak)'
               }}
               onPointerEnter={(event) => showTooltip(event, day)}
               onPointerMove={(event) => showTooltip(event, day)}
@@ -535,8 +630,13 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
       weeks: nextWeeks,
       max: Math.max(1, ...days.map((day) => day.tokens.totalTokens)),
       monthLabels: heatmapMonthLabels(nextWeeks, monthNames),
-      width: HEATMAP_LABEL_WIDTH + Math.max(0, nextWeeks.length * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) - HEATMAP_CELL_GAP),
-      height: HEATMAP_MONTH_HEIGHT + HEATMAP_ROWS * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) - HEATMAP_CELL_GAP
+      width:
+        HEATMAP_LABEL_WIDTH +
+        Math.max(0, nextWeeks.length * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) - HEATMAP_CELL_GAP),
+      height:
+        HEATMAP_MONTH_HEIGHT +
+        HEATMAP_ROWS * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) -
+        HEATMAP_CELL_GAP
     }
   }, [days, monthNamesKey])
 
@@ -569,8 +669,18 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
           )
         })}
         {[1, 3, 5].map((row) => (
-          <text key={`weekday-${row}`} x={0} y={HEATMAP_MONTH_HEIGHT + row * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) + 8} fill="var(--text-weak)" fontSize="10">
-            {row === 1 ? t('settings.usage.mon') : row === 3 ? t('settings.usage.wed') : t('settings.usage.fri')}
+          <text
+            key={`weekday-${row}`}
+            x={0}
+            y={HEATMAP_MONTH_HEIGHT + row * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) + 8}
+            fill="var(--text-weak)"
+            fontSize="10"
+          >
+            {row === 1
+              ? t('settings.usage.mon')
+              : row === 3
+                ? t('settings.usage.wed')
+                : t('settings.usage.fri')}
           </text>
         ))}
         {weeks.flatMap((week, column) =>
@@ -589,7 +699,11 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
                 tabIndex={day ? 0 : undefined}
                 role={day ? 'img' : undefined}
                 aria-label={day ? tooltipText : undefined}
-                className={day ? 'outline-none transition-[filter,stroke-width] hover:brightness-110 focus-visible:brightness-110' : undefined}
+                className={
+                  day
+                    ? 'outline-none transition-[filter,stroke-width] hover:brightness-110 focus-visible:brightness-110'
+                    : undefined
+                }
                 x={HEATMAP_LABEL_WIDTH + column * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP)}
                 y={HEATMAP_MONTH_HEIGHT + row * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP)}
                 width={HEATMAP_CELL_SIZE}
@@ -598,8 +712,16 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
                 fill={heatmapColor(level)}
                 stroke="var(--border-weak)"
                 strokeWidth={0.8}
-                onPointerEnter={day ? (event) => setTooltip(usageTooltipFromPointer(event, tooltipText)) : undefined}
-                onPointerMove={day ? (event) => setTooltip(usageTooltipFromPointer(event, tooltipText)) : undefined}
+                onPointerEnter={
+                  day
+                    ? (event) => setTooltip(usageTooltipFromPointer(event, tooltipText))
+                    : undefined
+                }
+                onPointerMove={
+                  day
+                    ? (event) => setTooltip(usageTooltipFromPointer(event, tooltipText))
+                    : undefined
+                }
                 onPointerLeave={day ? () => setTooltip(null) : undefined}
                 onBlur={day ? () => setTooltip(null) : undefined}
               />
@@ -686,7 +808,11 @@ function formatCompact(value: number): string {
 }
 
 function trimFixed(value: number): string {
-  return value >= 100 ? value.toFixed(0) : value >= 10 ? value.toFixed(1) : value.toFixed(2).replace(/0$/, '')
+  return value >= 100
+    ? value.toFixed(0)
+    : value >= 10
+      ? value.toFixed(1)
+      : value.toFixed(2).replace(/0$/, '')
 }
 
 function percent(value: number, total: number): string {
@@ -766,9 +892,13 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <img src={appIcon} alt="" className="app-logo size-8 shrink-0" />
-            <h3 className="font-display text-[16px] font-semibold text-text-strong">Agent Launcher</h3>
+            <h3 className="font-display text-[16px] font-semibold text-text-strong">
+              Agent Launcher
+            </h3>
           </div>
-          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.aboutDesc')}</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">
+            {t('settings.aboutDesc')}
+          </p>
           <div className="mt-3 grid gap-1.5 text-[12px]">
             <InfoRow label={t('settings.aboutVersion')} value={info?.version ?? '-'} />
             <InfoRow label={t('settings.aboutPlatform')} value={info?.platform ?? '-'} />
@@ -787,8 +917,12 @@ function AboutSettings({ checkUpdatesKey = 0 }: { checkUpdatesKey?: number }) {
       <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h3 className="text-[13px] font-medium text-text-strong">{t('settings.cliStatus.title')}</h3>
-            <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.cliStatus.desc')}</p>
+            <h3 className="text-[13px] font-medium text-text-strong">
+              {t('settings.cliStatus.title')}
+            </h3>
+            <p className="mt-1 text-[12px] leading-relaxed text-text-weak">
+              {t('settings.cliStatus.desc')}
+            </p>
           </div>
           <Button
             size="sm"
@@ -836,7 +970,10 @@ function AppUpdateSection({
 }) {
   const t = useT()
   const busy = status?.status === 'checking' || status?.status === 'downloading'
-  const hasUpdate = status?.status === 'available' || status?.status === 'downloading' || status?.status === 'downloaded'
+  const hasUpdate =
+    status?.status === 'available' ||
+    status?.status === 'downloading' ||
+    status?.status === 'downloaded'
   const downloaded = status?.status === 'downloaded'
   const latestVersion = status?.latestRelease?.version ?? status?.policy?.latestVersion ?? '-'
   const canAutoUpdate = !!status?.supported && !!status?.canAutoDownload
@@ -854,15 +991,17 @@ function AppUpdateSection({
             ? t('settings.appUpdate.checking')
             : t('settings.appUpdate.check')
 
-  const actionIcon = downloaded
-    ? <RotateCcw size={13} />
-    : status?.status === 'downloading' || status?.status === 'checking'
-      ? <RefreshCw size={13} className="animate-spin" />
-      : hasUpdate && !canAutoUpdate
-        ? <ExternalLink size={13} />
-        : hasUpdate
-          ? <Download size={13} />
-          : <RefreshCw size={13} />
+  const actionIcon = downloaded ? (
+    <RotateCcw size={13} />
+  ) : status?.status === 'downloading' || status?.status === 'checking' ? (
+    <RefreshCw size={13} className="animate-spin" />
+  ) : hasUpdate && !canAutoUpdate ? (
+    <ExternalLink size={13} />
+  ) : hasUpdate ? (
+    <Download size={13} />
+  ) : (
+    <RefreshCw size={13} />
+  )
 
   const runPrimary = async () => {
     if (downloaded) {
@@ -880,10 +1019,19 @@ function AppUpdateSection({
     <section className="rounded-lg border border-border-weak bg-surface/92 shadow-[var(--shadow-sm)] p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div>
-          <h3 className="text-[13px] font-medium text-text-strong">{t('settings.appUpdate.title')}</h3>
-          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">{t('settings.appUpdate.desc')}</p>
+          <h3 className="text-[13px] font-medium text-text-strong">
+            {t('settings.appUpdate.title')}
+          </h3>
+          <p className="mt-1 text-[12px] leading-relaxed text-text-weak">
+            {t('settings.appUpdate.desc')}
+          </p>
         </div>
-        <Button size="sm" variant={hasUpdate ? 'primary' : 'secondary'} onClick={runPrimary} disabled={busy}>
+        <Button
+          size="sm"
+          variant={hasUpdate ? 'primary' : 'secondary'}
+          onClick={runPrimary}
+          disabled={busy}
+        >
           {actionIcon}
           {actionLabel}
         </Button>
@@ -892,21 +1040,31 @@ function AppUpdateSection({
       <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
         <div className="min-w-0 rounded-lg border border-border-weak bg-surface/72 px-2.5 py-2">
           <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            <StatusPill tone={hasUpdate ? 'warning' : status?.status === 'error' ? 'muted' : 'success'}>
+            <StatusPill
+              tone={hasUpdate ? 'warning' : status?.status === 'error' ? 'muted' : 'success'}
+            >
               {appUpdateStateText(status, t)}
             </StatusPill>
             {status?.policy?.force ? (
               <StatusPill tone="warning">{t('settings.appUpdate.force')}</StatusPill>
             ) : null}
             {!status?.supported ? (
-              <span className="text-[11px] text-text-weak">{t('settings.appUpdate.manualOnly')}</span>
+              <span className="text-[11px] text-text-weak">
+                {t('settings.appUpdate.manualOnly')}
+              </span>
             ) : null}
           </div>
           <div className="grid gap-1 text-[12px]">
-            <InfoRow label={t('settings.appUpdate.currentVersion')} value={status?.currentVersion ?? '-'} />
+            <InfoRow
+              label={t('settings.appUpdate.currentVersion')}
+              value={status?.currentVersion ?? '-'}
+            />
             <InfoRow label={t('settings.appUpdate.latest')} value={latestVersion} />
             {status?.policy?.minVersion ? (
-              <InfoRow label={t('settings.appUpdate.minVersion')} value={status.policy.minVersion} />
+              <InfoRow
+                label={t('settings.appUpdate.minVersion')}
+                value={status.policy.minVersion}
+              />
             ) : null}
           </div>
           {status?.status === 'downloading' ? (
@@ -916,7 +1074,10 @@ function AppUpdateSection({
                 <span>{percent}%</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-surface-weak">
-                <div className="h-full rounded-full bg-text-strong transition-[width]" style={{ width: `${percent}%` }} />
+                <div
+                  className="h-full rounded-full bg-text-strong transition-[width]"
+                  style={{ width: `${percent}%` }}
+                />
               </div>
             </div>
           ) : null}
@@ -984,12 +1145,13 @@ function CliStatusRow({
         : status.updateAvailable
           ? t('settings.cliStatus.updateAvailable')
           : installed
-          ? t('settings.cliStatus.installed')
-          : t('settings.cliStatus.notInstalled')
+            ? t('settings.cliStatus.installed')
+            : t('settings.cliStatus.notInstalled')
   const versionText = !status
     ? '-'
     : status.currentVersion || (installed ? t('settings.cliStatus.versionUnknown') : '-')
-  const latestText = status?.latestVersion ?? (status?.error ? t('settings.cliStatus.latestFailed') : '-')
+  const latestText =
+    status?.latestVersion ?? (status?.error ? t('settings.cliStatus.latestFailed') : '-')
   const detailText = status?.error
     ? status.error
     : status?.binPath
@@ -1005,7 +1167,9 @@ function CliStatusRow({
         <div className="min-w-0">
           <div className="truncate text-[12px] font-medium text-text-strong">{name}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-text-weak">
-            <StatusPill tone={status?.updateAvailable ? 'warning' : installed ? 'success' : 'muted'}>
+            <StatusPill
+              tone={status?.updateAvailable ? 'warning' : installed ? 'success' : 'muted'}
+            >
               {stateLabel}
             </StatusPill>
             <span>{sourceLabel}</span>
@@ -1048,12 +1212,24 @@ function CliStatusRow({
   )
 }
 
-function StatusPill({ children, tone }: { children: React.ReactNode; tone: 'success' | 'warning' | 'muted' }) {
+function StatusPill({
+  children,
+  tone
+}: {
+  children: React.ReactNode
+  tone: 'success' | 'warning' | 'muted'
+}) {
   const styles =
     tone === 'success'
-      ? { background: 'color-mix(in srgb, var(--success) 16%, transparent)', color: 'var(--success)' }
+      ? {
+          background: 'color-mix(in srgb, var(--success) 16%, transparent)',
+          color: 'var(--success)'
+        }
       : tone === 'warning'
-        ? { background: 'color-mix(in srgb, var(--warning) 20%, transparent)', color: 'var(--text-strong)' }
+        ? {
+            background: 'color-mix(in srgb, var(--warning) 20%, transparent)',
+            color: 'var(--text-strong)'
+          }
         : { background: 'var(--surface-weak)', color: 'var(--text-weak)' }
   return (
     <span className="inline-flex h-4 items-center rounded-full px-1.5 text-[10px]" style={styles}>
@@ -1066,7 +1242,10 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
   return (
     <div className="grid grid-cols-[104px_1fr] gap-2">
       <span className="text-text-weak">{label}</span>
-      <span className={`min-w-0 truncate text-text-strong ${mono ? 'font-mono text-[11px]' : ''}`} title={value}>
+      <span
+        className={`min-w-0 truncate text-text-strong ${mono ? 'font-mono text-[11px]' : ''}`}
+        title={value}
+      >
         {value}
       </span>
     </div>

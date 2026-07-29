@@ -39,7 +39,12 @@ function officialProfileName(id: CliId): string {
 }
 
 function createOfficialProfile(id: CliId): CliProfile {
-  return { id: OFFICIAL_PROFILE_ID, name: officialProfileName(id), providerId: 'official', baseUrl: '' }
+  return {
+    id: OFFICIAL_PROFILE_ID,
+    name: officialProfileName(id),
+    providerId: 'official',
+    baseUrl: ''
+  }
 }
 
 function hasApiConfig(profile: Pick<CliProfile, 'baseUrl' | 'apiKey'>): boolean {
@@ -100,7 +105,9 @@ function syncProfileState(id: CliId, cli: CliProfiles): void {
   const requestedMode = cli.authMode ?? defaultAuthMode(id)
   if (!activeProfile(cli)) {
     const fallback =
-      requestedMode === 'official' ? official : cli.profiles.find((p) => authModeForProfile(id, p) === 'api')
+      requestedMode === 'official'
+        ? official
+        : cli.profiles.find((p) => authModeForProfile(id, p) === 'api')
     cli.activeProfileId = fallback?.id ?? cli.profiles[0]?.id
   }
   cli.authMode = activeProfile(cli) ? authModeForProfile(id, activeProfile(cli)) : requestedMode
@@ -195,7 +202,11 @@ function normalize(raw: unknown): AppConfig {
       // Legacy schema 1: a single {providerId,baseUrl,apiKey,model} object.
       const legacy = entry as CliProfilePatch
       if (legacy.baseUrl || legacy.apiKey || legacy.providerId || legacy.model) {
-        const p: CliProfile = { id: newId(), name: legacy.providerId ?? 'Default config', ...legacy }
+        const p: CliProfile = {
+          id: newId(),
+          name: legacy.providerId ?? 'Default config',
+          ...legacy
+        }
         base.clis[id] = { activeProfileId: p.id, profiles: [p], authMode: 'api' }
       }
     }
@@ -259,7 +270,8 @@ export function addProfile(id: CliId, patch: CliProfilePatch): AppConfig {
   const profile: CliProfile = { id: newId(), name: patch.name || 'Untitled', ...patch }
   normalizeProfile(id, profile)
   cli.profiles.push(profile)
-  if (!cli.activeProfileId || authModeForProfile(id, profile) === 'api') cli.activeProfileId = profile.id
+  if (!cli.activeProfileId || authModeForProfile(id, profile) === 'api')
+    cli.activeProfileId = profile.id
   syncProfileState(id, cli)
   return saveConfig(cfg)
 }
@@ -316,7 +328,9 @@ export function setAuthMode(id: CliId, authMode: AuthMode): AppConfig {
 
 export function getAuthMode(id: CliId): AuthMode {
   const cli = loadConfig().clis[id]
-  return activeProfile(cli) ? authModeForProfile(id, activeProfile(cli)) : (cli.authMode ?? defaultAuthMode(id))
+  return activeProfile(cli)
+    ? authModeForProfile(id, activeProfile(cli))
+    : (cli.authMode ?? defaultAuthMode(id))
 }
 
 export function getActiveProfile(id: CliId): CliProfile | undefined {

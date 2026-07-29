@@ -21,7 +21,5 @@ export function CliIcon({ cliId, size = 20 }: { cliId: CliId; size?: number }) {
   if (Icon) return <>{Icon({ size })}</>
   // Fallback: the CLI's glyph (e.g. π for Pi).
   const glyph = CLIS.find((c) => c.id === cliId)?.glyph ?? '?'
-  return (
-    <span style={{ fontSize: size * 0.8, lineHeight: 1, fontWeight: 600 }}>{glyph}</span>
-  )
+  return <span style={{ fontSize: size * 0.8, lineHeight: 1, fontWeight: 600 }}>{glyph}</span>
 }

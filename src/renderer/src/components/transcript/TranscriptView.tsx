@@ -50,7 +50,9 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
         <span className="grid size-6 shrink-0 place-items-center rounded-lg text-text-base">
           <CliIcon cliId={cliId} size={14} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-strong">{name}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-text-strong">
+          {name}
+        </span>
         <Button size="sm" onClick={onResume}>
           <SquareTerminal size={14} />
           {t('transcript.resume')}
@@ -59,9 +61,13 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {!data ? (
-          <div className="px-6 py-8 text-center text-[13px] text-text-weak">{t('transcript.loading')}</div>
+          <div className="px-6 py-8 text-center text-[13px] text-text-weak">
+            {t('transcript.loading')}
+          </div>
         ) : data.messages.length === 0 ? (
-          <div className="px-6 py-8 text-center text-[13px] text-text-weak">{t('transcript.empty')}</div>
+          <div className="px-6 py-8 text-center text-[13px] text-text-weak">
+            {t('transcript.empty')}
+          </div>
         ) : (
           <div className="mx-auto w-full max-w-[980px] px-8 py-7">
             {data.truncated && (
@@ -69,7 +75,11 @@ export function TranscriptView({ cliId, sessionId, name, onResume, onBack }: Pro
                 {t('transcript.truncated')}
               </div>
             )}
-            <MessageList messages={data.messages} assistantName={active?.name ?? cliId} assistantCliId={cliId} />
+            <MessageList
+              messages={data.messages}
+              assistantName={active?.name ?? cliId}
+              assistantCliId={cliId}
+            />
           </div>
         )}
       </div>
