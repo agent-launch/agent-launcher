@@ -23,8 +23,50 @@ describe('main store', () => {
       expect(cfg.clis.opencode.authMode).toBe('api')
       expect(cfg.clis.pi.authMode).toBe('api')
       expect(cfg.clis.hermes.authMode).toBe('api')
-      expect(cfg.clis.gemini.authMode).toBe('official')
+      expect(cfg.clis.gemini.authMode).toBe('api')
       expect(cfg.resources.codex).toEqual({ prices: [], mcpServers: [], skills: [] })
+    })
+  })
+
+  it('drops a legacy pinned gemini official profile now that gemini has no OAuth support', async () => {
+    await withIsolatedHome(async () => {
+      const { paths } = await import('../../src/main/sandbox')
+      mkdirSync(dirname(paths.config), { recursive: true })
+      writeFileSync(
+        paths.config,
+        JSON.stringify({
+          clis: {
+            gemini: {
+              profiles: [
+                { id: 'official', name: 'Google Official', providerId: 'official', baseUrl: '' }
+              ],
+              activeProfileId: 'official',
+              authMode: 'official'
+            }
+          },
+          prefs: {
+            gemini: { officialProfilePinned: true }
+          }
+        })
+      )
+
+      const { loadConfig } = await import('../../src/main/store')
+      const cfg = loadConfig()
+
+      expect(cfg.clis.gemini.profiles).toEqual([])
+      expect(cfg.clis.gemini.activeProfileId).toBeUndefined()
+      expect(cfg.clis.gemini.authMode).toBe('api')
+      expect(cfg.prefs.gemini.officialProfilePinned).toBeUndefined()
+    })
+  })
+
+  it('ignores requests to switch a non-official-auth CLI into official mode', async () => {
+    await withIsolatedHome(async () => {
+      const { getAuthMode, setAuthMode } = await import('../../src/main/store')
+
+      setAuthMode('gemini', 'official')
+
+      expect(getAuthMode('gemini')).toBe('api')
     })
   })
 

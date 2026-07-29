@@ -287,19 +287,10 @@ const OPENCODE: Provider[] = [
 
 // Gemini uses GOOGLE_GEMINI_BASE_URL, which expects the native Gemini API
 // shape — not the OpenAI-compatible shape the CODEX list above assumes — so
-// it can't reuse that list. Kept to official + custom until a specific
-// Gemini-protocol-compatible relay is verified to work.
-const GEMINI: Provider[] = [
-  {
-    id: 'official',
-    name: 'Google Official',
-    category: 'official',
-    baseUrl: '',
-    websiteUrl: 'https://github.com/google-gemini/gemini-cli',
-    note: 'Official Google account login'
-  },
-  CUSTOM
-]
+// it can't reuse that list. No official-login option: gemini-cli dropped
+// free-tier Google-account sign-in on 2026-06-18 (see store.ts
+// OFFICIAL_AUTH_CLIS), so API key/relay is the only path that works.
+const GEMINI: Provider[] = [CUSTOM]
 
 export const PROVIDERS_BY_CLI: Record<CliId, Provider[]> = {
   'claude-code': CLAUDE,

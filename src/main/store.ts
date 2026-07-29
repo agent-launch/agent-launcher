@@ -19,7 +19,11 @@ import type {
 
 const SCHEMA = 4
 const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini']
-const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex', 'gemini'])
+// gemini-cli dropped free-tier Google-account sign-in on 2026-06-18 (Google
+// pushed individuals to Antigravity CLI instead), so gemini can no longer
+// default to — or offer — "official" OAuth here; API-key/relay is now the
+// only auth path that actually works for it.
+const OFFICIAL_AUTH_CLIS = new Set<CliId>(['claude-code', 'codex'])
 const OPENAI_COMPATIBLE_CLIS = new Set<CliId>(['codex', 'opencode', 'pi', 'hermes'])
 const OFFICIAL_PROFILE_ID = 'official'
 const ROUTERLINK_OPENAI_BASE_URL = 'https://router-link.world3.ai/api/v1'
@@ -31,7 +35,6 @@ function defaultAuthMode(id: CliId): AuthMode {
 
 function officialProfileName(id: CliId): string {
   if (id === 'codex') return 'OpenAI Official'
-  if (id === 'gemini') return 'Google Official'
   return 'Claude Official'
 }
 
@@ -118,6 +121,22 @@ function dropUnpinnedOfficialProfile(cli: CliProfiles, prefs: CliPrefs | undefin
   }
 }
 
+/** gemini-cli's OAuth support (OFFICIAL_AUTH_CLIS) was removed after Google
+ * dropped free-tier sign-in (2026-06-18). A user who'd previously pinned a
+ * "Google Official" profile would otherwise keep it active with an empty
+ * baseUrl/apiKey and no matching provider card — unlike
+ * dropUnpinnedOfficialProfile, this clears it unconditionally, pinned or not. */
+function dropGeminiOfficialProfile(cli: CliProfiles, prefs: CliPrefs | undefined): void {
+  if (prefs) delete prefs.officialProfilePinned
+  cli.profiles = cli.profiles.filter((profile) => !isOfficialProfile(profile))
+  if (cli.activeProfileId && !cli.profiles.some((profile) => profile.id === cli.activeProfileId)) {
+    cli.activeProfileId = undefined
+  }
+  // A stale stored 'official' authMode would otherwise survive as
+  // syncProfileState's requestedMode fallback once there's no active profile.
+  if (cli.authMode === 'official') cli.authMode = 'api'
+}
+
 function inferInstallSource(state: CliInstallState): InstallSource {
   if (state.source) return state.source
   if (!state.installed) return 'system'
@@ -192,7 +211,8 @@ function normalize(raw: unknown): AppConfig {
       }
     }
     normalizeProfiles(id, base.clis[id])
-    dropUnpinnedOfficialProfile(base.clis[id], base.prefs[id])
+    if (id === 'gemini') dropGeminiOfficialProfile(base.clis[id], base.prefs[id])
+    else dropUnpinnedOfficialProfile(base.clis[id], base.prefs[id])
     syncProfileState(id, base.clis[id])
   }
   return base
@@ -237,7 +257,7 @@ export function getInstallSource(id: CliId): InstallSource {
 export function addProfile(id: CliId, patch: CliProfilePatch): AppConfig {
   const cfg = loadConfig()
   const cli = cfg.clis[id]
-  if (patch.providerId === 'official' && !hasApiConfig(patch)) {
+  if (patch.providerId === 'official' && !hasApiConfig(patch) && OFFICIAL_AUTH_CLIS.has(id)) {
     cfg.prefs[id] = { ...cfg.prefs[id], officialProfilePinned: true }
     const profile = ensureOfficialProfile(id, cli)
     if (profile) {
@@ -290,6 +310,10 @@ export function setActiveProfile(id: CliId, profileId: string): AppConfig {
 export function setAuthMode(id: CliId, authMode: AuthMode): AppConfig {
   const cfg = loadConfig()
   const cli = cfg.clis[id]
+  // Ignore requests to switch a CLI without official-auth support into
+  // 'official' — it would otherwise stick as a pinned, profile-less mode
+  // with nothing for buildCliEnv to inject (see dropGeminiOfficialProfile).
+  if (authMode === 'official' && !OFFICIAL_AUTH_CLIS.has(id)) return cfg
   if (authMode === 'official') {
     cfg.prefs[id] = { ...cfg.prefs[id], officialProfilePinned: true }
     const profile = ensureOfficialProfile(id, cli)
