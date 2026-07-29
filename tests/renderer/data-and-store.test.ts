@@ -87,14 +87,9 @@ describe('renderer static data and persisted app store', () => {
         sidebarCollapsed: true,
         themeMode: 'dark',
         localeMode: 'en',
-        renderTranscript: true,
-        recentProjectDir: null
+        renderTranscript: true
       })
       expect(persisted.state.shellView).toBeUndefined()
-      store.getState().setRecentProjectDir('/work/project')
-      expect(
-        JSON.parse(localStorage.getItem('agent-launcher:app') ?? '{}').state.recentProjectDir
-      ).toBe('/work/project')
     } finally {
       vi.unstubAllGlobals()
       vi.resetModules()

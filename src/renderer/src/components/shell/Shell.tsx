@@ -8,7 +8,6 @@ import {
 } from 'react'
 import {
   Gauge,
-  FolderOpen,
   History,
   PanelLeftClose,
   PanelLeftOpen,
@@ -70,8 +69,6 @@ export function Shell() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
   const setShellView = useAppStore((s) => s.setShellView)
   const transcriptRenderingPreferred = useAppStore((s) => s.renderTranscript)
-  const recentProjectDir = useAppStore((s) => s.recentProjectDir)
-  const setRecentProjectDir = useAppStore((s) => s.setRecentProjectDir)
   const renderTranscript = ENABLE_CHAT_HISTORY_RENDERING && transcriptRenderingPreferred
   const active = CLIS.find((c) => c.id === activeCli) ?? CLIS[0]
   const activeCliId = active.id as CliId
@@ -94,7 +91,6 @@ export function Shell() {
   const [openingDashboard, setOpeningDashboard] = useState(false)
   const [dashboardError, setDashboardError] = useState<string | null>(null)
   const [dashboardUrl, setDashboardUrl] = useState<string | null>(null)
-  const [projectDragActive, setProjectDragActive] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<SessionInfo | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
@@ -294,42 +290,9 @@ export function Shell() {
       title: t('shell.newSessionTitle', { name: active.name })
     })
 
-  const selectProjectDirectory = async (): Promise<string | null> => {
-    const selected = await window.api.workspace.selectDirectory(recentProjectDir ?? undefined)
-    if (selected) setRecentProjectDir(selected)
-    return selected
-  }
-
-  const projectDirectoryForLaunch = async (): Promise<string | undefined> => {
-    if (!recentProjectDir) return undefined
-
-    const valid = await window.api.workspace.validateDirectory(recentProjectDir)
-    if (valid) return valid
-    setRecentProjectDir(null)
-    return undefined
-  }
-
-  const startNewSession = async (directory?: string) => {
-    const cwd = directory ?? (await projectDirectoryForLaunch())
-    if (renderTranscript && chatSupported) startChat(cwd)
-    else start('cli', cwd)
-  }
-
-  const acceptDroppedProject = async (event: React.DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    setProjectDragActive(false)
-    const file = event.dataTransfer.files[0]
-    if (!file) return
-    let candidate: string
-    try {
-      candidate = window.api.workspace.pathForFile(file)
-    } catch {
-      return
-    }
-    const directory = await window.api.workspace.validateDirectory(candidate)
-    if (!directory) return
-    setRecentProjectDir(directory)
-    if (installed) void startNewSession(directory)
+  const startNewSession = () => {
+    if (renderTranscript && chatSupported) startChat()
+    else start('cli')
   }
 
   const backToHistory = () => {
@@ -375,8 +338,7 @@ export function Shell() {
     try {
       await window.api.terminal.openExternal({
         cliId: activeCliId,
-        mode: 'cli',
-        cwd: recentProjectDir ?? undefined
+        mode: 'cli'
       })
     } finally {
       setOpeningTerminal(false)
@@ -669,24 +631,7 @@ export function Shell() {
                   )
                 })}
                 {!activeTab && (
-                  <div
-                    className={`relative mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-3 px-5 py-4 transition-colors ${
-                      projectDragActive ? 'bg-selection/35' : ''
-                    }`}
-                    onDragEnter={(event) => {
-                      event.preventDefault()
-                      if (event.dataTransfer.types.includes('Files')) setProjectDragActive(true)
-                    }}
-                    onDragOver={(event) => {
-                      event.preventDefault()
-                      event.dataTransfer.dropEffect = 'copy'
-                    }}
-                    onDragLeave={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget as Node))
-                        setProjectDragActive(false)
-                    }}
-                    onDrop={acceptDroppedProject}
-                  >
+                  <div className="relative mx-auto flex h-full min-h-0 w-full max-w-[980px] flex-col gap-3 px-5 py-4 transition-colors">
                     {/* app-region: drag stays active even under opacity-0/pointer-events-none,
                       so only register drag regions while this view is actually shown. */}
                     {isMac && view === 'run' && (
@@ -740,16 +685,6 @@ export function Shell() {
                           disabled={openingTerminal || !installed}
                         >
                           {t('shell.openTerminal')}
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={() => void selectProjectDirectory()}
-                          title={recentProjectDir ?? t('shell.selectProject')}
-                        >
-                          <FolderOpen size={13} />
-                          <span className="max-w-36 truncate">
-                            {recentProjectDir ?? t('shell.selectProject')}
-                          </span>
                         </Button>
                         <Button onClick={() => void startNewSession()} disabled={!installed}>
                           {installed ? t('shell.newSession') : t('shell.installFirst')}

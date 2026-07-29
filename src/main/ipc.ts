@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, type OpenDialogOptions } from 'electron'
+import { app, ipcMain } from 'electron'
 import { existsSync } from 'node:fs'
 import {
   loadConfig,
@@ -29,7 +29,6 @@ import { cancelUsageRead, readUsageInWorker } from './usage-runner'
 import { cancelSessionList, listSessionsInWorker } from './sessions-runner'
 import { listInstalledMcp, listInstalledSkills, readInstalledSkill } from './installed-resources'
 import { testProfileConnection } from './profile-connectivity'
-import { resolveProjectDirectory } from './workspace-directory'
 import type {
   AuthLoginMethod,
   CliLinkOptions,
@@ -48,21 +47,6 @@ export function registerIpc(): void {
     hasConfig: existsSync(paths.config)
   }))
   ipcMain.handle('detect', () => detectEnvironment())
-  ipcMain.handle('workspace:selectDirectory', async (event, defaultPath?: string) => {
-    const options: OpenDialogOptions = {
-      defaultPath: resolveProjectDirectory(defaultPath) ?? undefined,
-      properties: ['openDirectory', 'createDirectory']
-    }
-    const parent = BrowserWindow.fromWebContents(event.sender)
-    const selected = parent
-      ? await dialog.showOpenDialog(parent, options)
-      : await dialog.showOpenDialog(options)
-    if (selected.canceled) return null
-    return resolveProjectDirectory(selected.filePaths[0])
-  })
-  ipcMain.handle('workspace:validateDirectory', (_event, candidate?: string) =>
-    resolveProjectDirectory(candidate)
-  )
 
   // ---- config / profiles ----
   // Keep file-configured CLIs' native config in sync after any profile change.

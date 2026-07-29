@@ -25,8 +25,6 @@ interface AppState {
   localeMode: LocaleMode
   /** Render a session's chat history in-UI on click (vs. straight to terminal). */
   renderTranscript: boolean
-  /** Last project directory selected for a new session. */
-  recentProjectDir: string | null
   /** Current shell view; transient UI state used by window chrome. */
   shellView: ShellView
   completeOnboarding: () => void
@@ -40,7 +38,6 @@ interface AppState {
   setThemeMode: (m: ThemeMode) => void
   setLocaleMode: (m: LocaleMode) => void
   setRenderTranscript: (on: boolean) => void
-  setRecentProjectDir: (dir: string | null) => void
   setShellView: (view: ShellView) => void
 }
 
@@ -54,7 +51,6 @@ export const useAppStore = create<AppState>()(
       themeMode: 'system',
       localeMode: 'system',
       renderTranscript: false,
-      recentProjectDir: null,
       shellView: 'run',
       completeOnboarding: () => set({ onboarded: true }),
       skipOnboarding: () => set({ onboarded: true }),
@@ -67,7 +63,6 @@ export const useAppStore = create<AppState>()(
       setThemeMode: (m) => set({ themeMode: m }),
       setLocaleMode: (m) => set({ localeMode: m }),
       setRenderTranscript: (on) => set({ renderTranscript: on }),
-      setRecentProjectDir: (dir) => set({ recentProjectDir: dir }),
       setShellView: (view) => set({ shellView: view })
     }),
     {
@@ -79,8 +74,7 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: s.sidebarCollapsed,
         themeMode: s.themeMode,
         localeMode: s.localeMode,
-        renderTranscript: s.renderTranscript,
-        recentProjectDir: s.recentProjectDir
+        renderTranscript: s.renderTranscript
       })
     }
   )

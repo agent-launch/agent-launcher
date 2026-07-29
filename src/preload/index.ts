@@ -1,4 +1,4 @@
-import { clipboard, contextBridge, ipcRenderer, webUtils } from 'electron'
+import { clipboard, contextBridge, ipcRenderer } from 'electron'
 import { release } from 'node:os'
 import {
   BUNDLED_CONPTY_BUILD_NUMBER,
@@ -75,13 +75,6 @@ const api = {
   clipboard: {
     readText: (): string => clipboard.readText(),
     writeText: (text: string): void => clipboard.writeText(text)
-  },
-  workspace: {
-    selectDirectory: (defaultPath?: string): Promise<string | null> =>
-      ipcRenderer.invoke('workspace:selectDirectory', defaultPath),
-    validateDirectory: (candidate?: string): Promise<string | null> =>
-      ipcRenderer.invoke('workspace:validateDirectory', candidate),
-    pathForFile: (file: File): string => webUtils.getPathForFile(file)
   },
   app: {
     info: (): Promise<AppInfo> => ipcRenderer.invoke('app:info'),
