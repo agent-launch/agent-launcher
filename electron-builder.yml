@@ -1,0 +1,41 @@
+appId: app.agent-launch.agentlauncher
+productName: Agent Launcher
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - '!**/*.map'
+asarUnpack:
+  # sql.js ships a .wasm that must be a real file on disk (not inside asar).
+  - '**/node_modules/sql.js/dist/sql-wasm.wasm'
+  # @lydell/node-pty loads a platform-specific .node binary from a sibling
+  # package; it must live outside the asar to be dlopen-able at runtime.
+  - '**/node_modules/@lydell/node-pty-*/**'
+mac:
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+  category: Development
+publish:
+  provider: github
+  owner: agent-launch
+  repo: agent-launcher
+  releaseType: release

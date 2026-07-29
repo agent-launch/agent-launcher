@@ -1,0 +1,93 @@
+{
+  "name": "agent-launcher",
+  "version": "0.1.0",
+  "description": "Configure and run existing coding-agent CLIs from a desktop app.",
+  "author": "agent-launch",
+  "license": "MIT",
+  "homepage": "https://github.com/agent-launch/agent-launcher#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/agent-launch/agent-launcher.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agent-launch/agent-launcher/issues"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./out/main/index.js",
+  "scripts": {
+    "ensure:electron": "node scripts/ensure-electron.cjs",
+    "predev": "pnpm ensure:electron",
+    "dev": "electron-vite dev",
+    "prepreview": "pnpm ensure:electron",
+    "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:typecheck": "tsc --noEmit -p tsconfig.test.json",
+    "verify": "pnpm typecheck && pnpm test:typecheck && pnpm test:run",
+    "audit:ci": "pnpm audit --prod --audit-level high",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
+    "package": "pnpm build && electron-builder",
+    "package:mac": "pnpm build && electron-builder --mac",
+    "package:win": "pnpm build && electron-builder --win",
+    "package:linux": "pnpm build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@lobehub/icons": "^5.10.0",
+    "@lydell/node-pty": "1.2.0-beta.12",
+    "@radix-ui/react-dialog": "^1.1.18",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "electron-updater": "^6.8.9",
+    "lucide-react": "^1.17.0",
+    "react-hot-toast": "^2.6.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1",
+    "sql.js": "^1.14.1",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.1",
+    "@types/node": "^26.0.1",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/sql.js": "^1.4.11",
+    "@typescript/native": "npm:typescript@~7.0.2",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.3",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tailwindcss": "^4.3.1",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^7.3.6",
+    "vitest": "^3.2.4"
+  },
+  "optionalDependencies": {
+    "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
+    "@lydell/node-pty-linux-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-linux-x64": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-arm64": "1.2.0-beta.12",
+    "@lydell/node-pty-win32-x64": "1.2.0-beta.12"
+  }
+}

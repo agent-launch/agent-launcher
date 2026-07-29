@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and support / 使用问题和支持
+    url: https://github.com/agent-launch/agent-launcher/discussions
+    about: Ask usage and configuration questions in Discussions. / 请在 Discussions 中询问使用和配置问题。
+  - name: Security report / 安全报告
+    url: https://github.com/agent-launch/agent-launcher/security/advisories/new
+    about: Report vulnerabilities privately. / 私下报告安全漏洞。

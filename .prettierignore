@@ -1,0 +1,8 @@
+node_modules
+out
+release
+dist
+pnpm-lock.yaml
+docs/images
+*.log
+*.tsbuildinfo

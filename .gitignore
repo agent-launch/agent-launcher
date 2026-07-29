@@ -1,0 +1,10 @@
+node_modules
+dist
+out
+release
+*.log
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+src-tauri
