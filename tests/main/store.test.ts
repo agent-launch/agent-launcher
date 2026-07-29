@@ -37,7 +37,9 @@ describe('main store', () => {
         JSON.stringify({
           clis: {
             gemini: {
-              profiles: [{ id: 'official', name: 'Google Official', providerId: 'official', baseUrl: '' }],
+              profiles: [
+                { id: 'official', name: 'Google Official', providerId: 'official', baseUrl: '' }
+              ],
               activeProfileId: 'official',
               authMode: 'official'
             }

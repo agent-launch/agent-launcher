@@ -257,7 +257,7 @@ export function getInstallSource(id: CliId): InstallSource {
 export function addProfile(id: CliId, patch: CliProfilePatch): AppConfig {
   const cfg = loadConfig()
   const cli = cfg.clis[id]
-  if (patch.providerId === 'official' && !hasApiConfig(patch)) {
+  if (patch.providerId === 'official' && !hasApiConfig(patch) && OFFICIAL_AUTH_CLIS.has(id)) {
     cfg.prefs[id] = { ...cfg.prefs[id], officialProfilePinned: true }
     const profile = ensureOfficialProfile(id, cli)
     if (profile) {

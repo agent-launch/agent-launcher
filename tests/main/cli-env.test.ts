@@ -93,7 +93,15 @@ describe('CLI environment builder', () => {
         JSON.stringify({
           clis: {
             gemini: {
-              profiles: [{ id: 'p1', name: 'Gemini Relay', providerId: 'custom', baseUrl: 'https://gemini.example/v1', apiKey: 'sk-gemini' }],
+              profiles: [
+                {
+                  id: 'p1',
+                  name: 'Gemini Relay',
+                  providerId: 'custom',
+                  baseUrl: 'https://gemini.example/v1',
+                  apiKey: 'sk-gemini'
+                }
+              ],
               activeProfileId: 'p1',
               authMode: 'official'
             }
