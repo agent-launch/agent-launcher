@@ -17,7 +17,7 @@ import type {
   SystemCliCandidate,
   SystemCliDetection
 } from '@shared/types'
-import { fetchJson } from './download'
+import { fetchJson, isReachable } from './download'
 import {
   codexInstallLabel,
   inspectCodexInstall,
@@ -189,6 +189,50 @@ function run(cmd: string, args: string[]): Promise<string> {
         ? resolve(out.trim())
         : reject(new Error(lastLines(err || out, 8) || `exit ${code}`))
     )
+  })
+}
+
+/** Run a long install command, reporting its latest output line as progress and
+ * failing with the tail of the log so a blocked download or a permission error
+ * is visible in the UI rather than swallowed. */
+function runStreaming(
+  cmd: string,
+  args: string[],
+  onProgress: Progress,
+  label: string,
+  timeoutMs?: number
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const p = spawnCliProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    let tail = ''
+    let timedOut = false
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          timedOut = true
+          p.kill()
+        }, timeoutMs)
+      : undefined
+    const append = (chunk: Buffer): void => {
+      tail = `${tail}${decodeProcessOutput(chunk)}`.slice(-3000)
+      const line = tail
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .at(-1)
+      if (line) onProgress('install', `${label}: ${line}`)
+    }
+    p.stdout!.on('data', append)
+    p.stderr!.on('data', append)
+    p.on('error', (e) => {
+      clearTimeout(timer)
+      reject(e)
+    })
+    p.on('close', (code) => {
+      clearTimeout(timer)
+      if (timedOut) return reject(new Error(`${label} timed out`))
+      if (code === 0) return resolve()
+      reject(new Error(lastLines(tail, 8) || `${label} exit ${code}`))
+    })
   })
 }
 
@@ -669,6 +713,219 @@ export async function linkSystemCli(
 ): Promise<CliLinkResult> {
   try {
     return await linkExistingSystemCli(id, onProgress, binPath)
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e)
+    onProgress('error', error)
+    return { ok: false, cliId: id, error }
+  }
+}
+
+/** Where each CLI's official installer script is hosted. Reachability of this
+ * host decides whether the native path is worth attempting at all. */
+const NATIVE_INSTALL_HOST: Partial<Record<CliId, string>> = {
+  'claude-code': 'claude.ai',
+  hermes: 'hermes-agent.nousresearch.com'
+}
+
+export interface InstallStep {
+  /** 'native' and 'official' run a vendor install script; 'npm' installs the
+   * published package with the user's own npm (and therefore their registry). */
+  kind: 'native' | 'npm' | 'official'
+  file: string
+  args: string[]
+  label: string
+  timeoutMs: number
+}
+
+function powershellFile(): string {
+  return process.env.SystemRoot
+    ? join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    : 'powershell.exe'
+}
+
+function powershellStep(
+  kind: InstallStep['kind'],
+  script: string[],
+  label: string,
+  timeoutMs: number
+): InstallStep {
+  return {
+    kind,
+    file: powershellFile(),
+    args: [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-Command',
+      [
+        '$ErrorActionPreference = "Stop"',
+        '$ProgressPreference = "SilentlyContinue"',
+        ...script
+      ].join('; ')
+    ],
+    label,
+    timeoutMs
+  }
+}
+
+function bashStep(
+  kind: InstallStep['kind'],
+  command: string,
+  label: string,
+  timeoutMs: number
+): InstallStep {
+  return { kind, file: 'bash', args: ['-lc', command], label, timeoutMs }
+}
+
+/** The official Claude Code installer. It is the recommended path because it
+ * self-updates in the background, but it is served from claude.ai, which is not
+ * reachable everywhere — hence the npm fallback in `installStepsFor`. */
+function claudeNativeStep(platform: NodeJS.Platform): InstallStep {
+  const timeoutMs = 5 * 60_000
+  if (platform === 'win32') {
+    return powershellStep(
+      'native',
+      ['irm https://claude.ai/install.ps1 | iex'],
+      'irm https://claude.ai/install.ps1 | iex',
+      timeoutMs
+    )
+  }
+  return bashStep(
+    'native',
+    'curl -fsSL --connect-timeout 10 --max-time 300 https://claude.ai/install.sh | bash',
+    'curl -fsSL https://claude.ai/install.sh | bash',
+    timeoutMs
+  )
+}
+
+/** Hermes Agent is a Python app distributed by its own installer script; it has
+ * no npm package, so there is nothing to fall back to. */
+function hermesOfficialStep(platform: NodeJS.Platform): InstallStep {
+  const timeoutMs = 10 * 60_000
+  const label = 'Hermes official installer'
+  if (platform === 'win32') {
+    return powershellStep(
+      'official',
+      [
+        '$installer = Join-Path $env:TEMP "hermes-agent-install.ps1"',
+        'Invoke-WebRequest -UseBasicParsing https://hermes-agent.nousresearch.com/install.ps1 -OutFile $installer',
+        '& $installer -SkipSetup -NonInteractive'
+      ],
+      label,
+      timeoutMs
+    )
+  }
+  return bashStep(
+    'official',
+    'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-setup --non-interactive',
+    label,
+    timeoutMs
+  )
+}
+
+function npmStep(npmPath: string, pkg: string): InstallStep {
+  return {
+    kind: 'npm',
+    file: npmPath,
+    // No registry flag is passed: the user's own npm configuration (and
+    // therefore any mirror they rely on) must win.
+    args: ['install', '-g', `${pkg}@latest`, '--no-audit', '--no-fund', '--no-update-notifier'],
+    label: `npm install -g ${pkg}@latest`,
+    timeoutMs: 10 * 60_000
+  }
+}
+
+/** The ordered install attempts for a CLI that is not on this machine. Pure, so
+ * the fallback ordering is unit-testable without touching the network. */
+export function installStepsFor(
+  id: CliId,
+  opts: {
+    platform?: NodeJS.Platform
+    npmPath?: string
+    /** Result of probing `NATIVE_INSTALL_HOST[id]`; `false` skips the native
+     * attempt entirely instead of waiting for it to time out. */
+    nativeReachable?: boolean
+  } = {}
+): InstallStep[] {
+  const platform = opts.platform ?? process.platform
+  if (id === 'hermes') {
+    return opts.nativeReachable === false ? [] : [hermesOfficialStep(platform)]
+  }
+  const steps: InstallStep[] = []
+  if (id === 'claude-code' && opts.nativeReachable !== false) {
+    steps.push(claudeNativeStep(platform))
+  }
+  if (isNpmCliId(id) && opts.npmPath) steps.push(npmStep(opts.npmPath, NPM_PACKAGES[id]))
+  return steps
+}
+
+function noInstallerMessage(id: CliId): string {
+  const command = SYSTEM_COMMANDS[id]
+  if (id === 'hermes') {
+    return `Cannot reach ${NATIVE_INSTALL_HOST.hermes} to install ${command}. Check your network, then install it from the official docs.`
+  }
+  return `Cannot install ${command} automatically: npm was not detected. Install Node.js 22 or later, then try again.`
+}
+
+/**
+ * One-click install for a CLI the user does not have. Deliberately never
+ * reinstalls, repairs, or updates: if the command is already on disk this
+ * degrades to plain linking, so an existing install is left untouched.
+ *
+ * Claude Code tries its official native installer first and falls back to npm
+ * when claude.ai is unreachable or the script fails; the other npm-published
+ * CLIs go straight to npm, and Hermes uses its own installer.
+ */
+export async function installMissingCli(id: CliId, onProgress: Progress): Promise<CliLinkResult> {
+  try {
+    const configured = loadConfig().install[id].binPath
+    const detection = await detectSystemCli(id, configured)
+    if (detection.installed) {
+      onProgress('link', `${detection.command} is already installed; linking it instead`)
+      return await linkExistingSystemCli(id, onProgress, detection.selectedPath)
+    }
+
+    const npmPath = isNpmCliId(id) ? ((await which('npm')) ?? undefined) : undefined
+    const nativeHost = NATIVE_INSTALL_HOST[id]
+    let nativeReachable: boolean | undefined
+    if (nativeHost) {
+      onProgress('install', `Checking whether ${nativeHost} is reachable…`)
+      nativeReachable = await isReachable(`https://${nativeHost}/`)
+      if (!nativeReachable) {
+        onProgress(
+          'install',
+          npmPath
+            ? `${nativeHost} is unreachable; installing with npm instead`
+            : `${nativeHost} is unreachable`
+        )
+      }
+    }
+
+    const steps = installStepsFor(id, { npmPath, nativeReachable })
+    if (!steps.length) throw new Error(noInstallerMessage(id))
+
+    let lastError: unknown
+    for (const step of steps) {
+      onProgress(step.kind, `Running ${step.label}…`)
+      try {
+        await runStreaming(step.file, step.args, onProgress, step.label, step.timeoutMs)
+      } catch (e) {
+        lastError = e
+        continue
+      }
+      try {
+        return await linkExistingSystemCli(id, onProgress)
+      } catch (e) {
+        // The command finished but nothing landed on a path we search — try the
+        // next strategy rather than reporting a successful install.
+        lastError = new Error(
+          `${step.label} finished, but ${SYSTEM_COMMANDS[id]} could not be located: ${
+            e instanceof Error ? e.message : String(e)
+          }`
+        )
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e)
     onProgress('error', error)

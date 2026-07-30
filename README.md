@@ -10,7 +10,7 @@
   </p>
 </div>
 
-Agent Launcher is a local desktop workspace for coding-agent CLIs. It detects and links CLIs already installed on your system, applies account or provider configuration, and runs each agent in an embedded terminal or chat view. Agent Launcher does not install, reinstall, or update agent CLIs.
+Agent Launcher is a local desktop workspace for coding-agent CLIs. It detects and links CLIs already installed on your system, installs the ones you don't have in one click, applies account or provider configuration, and runs each agent in an embedded terminal or chat view. A CLI you already have is never reinstalled or updated.
 
 ![Agent Launcher workspace](docs/images/agent-launcher-workspace.jpg)
 
@@ -33,13 +33,13 @@ Download the appropriate package from [GitHub Releases](https://github.com/White
 - Windows: NSIS installer
 - Linux: AppImage
 
-On first launch, Agent Launcher detects existing CLI commands and lets you select the command to link when multiple copies are present. Install missing CLIs separately using each project's official documentation.
+On first launch, Agent Launcher detects existing CLI commands and lets you select the command to link when multiple copies are present. A CLI that is not found can be installed in one click, or you can install it yourself from the project's official documentation and detect it again.
 
 ## Features
 
 ### Guided setup and CLI linking
 
-The first-run wizard checks the local environment, links existing agent binaries, and walks through official-account or API configuration. Missing CLIs link to their official installation documentation. Legacy app-managed installations remain readable so existing users can migrate without losing configuration.
+The first-run wizard checks the local environment, links existing agent binaries, and walks through official-account or API configuration. A CLI it cannot find can be installed in one click: Claude Code uses its official installer and falls back to npm when that host is unreachable, the other npm-published CLIs install with your own npm (and therefore your own registry or mirror), and Hermes Agent uses its official installer. Legacy app-managed installations remain readable so existing users can migrate without losing configuration.
 
 ### Project-aware sessions
 
