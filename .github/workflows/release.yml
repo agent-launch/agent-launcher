@@ -88,6 +88,17 @@ jobs:
           APPLE_TEAM_ID: ${{ matrix.name == 'macos' && secrets.APPLE_TEAM_ID || '' }}
         run: pnpm ${{ matrix.package_script }}
 
+      - name: Upload build debug logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: agent-launcher-${{ matrix.name }}-debug
+          path: |
+            builder-debug.yml
+            release/
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Verify macOS signing and notarization
         if: matrix.name == 'macos'
         shell: bash
