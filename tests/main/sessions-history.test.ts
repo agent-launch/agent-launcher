@@ -1,9 +1,205 @@
-import { existsSync, utimesSync } from 'node:fs'
+import { existsSync, readFileSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { withIsolatedHome, writeJson, writeJsonl } from '../helpers/isolated-main'
+import { withIsolatedHome, writeJson, writeJsonl, writeText } from '../helpers/isolated-main'
 
 describe('sessions history and transcripts', () => {
+  it('reads gemini sessions from chats/*.jsonl, not the legacy logs.json', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { listSessions, readTranscript, resumeArgs } =
+        await import('../../src/main/sessions-history')
+      const projectDir = join(home, '.gemini', 'tmp', 'my-project')
+      writeText(join(projectDir, '.project_root'), '/Users/tester/my-project')
+
+      // Header + first-message shape verified against a real gemini-cli
+      // install; the "gemini" role type and resumability/ignored-content
+      // rules below are copied from gemini-cli's own bundled source (see
+      // parseGeminiChatFile's comment). The multi-$set accumulation shape
+      // itself (whether $set replaces vs. appends messages) is still
+      // untested against a real multi-turn exchange, hence the id-dedup
+      // approach that's tolerant of either.
+      writeJsonl(join(projectDir, 'chats', 'session-2026-07-22T04-25-247f2185.jsonl'), [
+        {
+          sessionId: '247f2185-f58d-4847-bcca-227f7b325f81',
+          projectHash: 'e719f6418e79f37ee3f4d03bef0a3a1e56a800108c0a87b132da8760824b1264',
+          startTime: '2026-07-22T04:25:09.902Z',
+          lastUpdated: '2026-07-22T04:25:09.902Z',
+          kind: 'main'
+        },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'ctx-msg',
+                timestamp: '2026-07-22T04:25:09.903Z',
+                type: 'user',
+                content: [{ text: '<session_context>\nignored setup text\n</session_context>' }]
+              },
+              {
+                id: 'real-question',
+                timestamp: '2026-07-22T04:25:20.000Z',
+                type: 'user',
+                content: [{ text: 'What does this repo do?' }]
+              }
+            ],
+            lastUpdated: '2026-07-22T04:25:20.000Z'
+          }
+        },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'model-reply',
+                timestamp: '2026-07-22T04:25:21.000Z',
+                type: 'gemini',
+                content: [{ text: 'It is a CLI launcher.' }]
+              }
+            ],
+            lastUpdated: '2026-07-22T04:25:21.000Z'
+          }
+        }
+      ])
+
+      // A stale logs.json entry with an unrelated id — must NOT be what gets
+      // surfaced, since it's exactly the kind of legacy entry that produced
+      // "Invalid session identifier" on resume in the original bug report.
+      writeJson(join(projectDir, 'logs.json'), [
+        {
+          sessionId: 'stale-legacy-id-not-resumable',
+          timestamp: '2026-07-01T00:00:00.000Z',
+          message: 'an old, unrelated prompt'
+        }
+      ])
+
+      const sessions = await listSessions('gemini')
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0]).toMatchObject({
+        id: '247f2185-f58d-4847-bcca-227f7b325f81',
+        name: 'What does this repo do?',
+        cwd: '/Users/tester/my-project'
+      })
+
+      expect(resumeArgs('gemini', sessions[0].id)).toEqual(['--resume', sessions[0].id])
+
+      const transcript = await readTranscript('gemini', sessions[0].id)
+      expect(transcript.messages).toEqual([
+        {
+          role: 'user',
+          parts: [{ kind: 'text', text: 'What does this repo do?' }],
+          ts: new Date('2026-07-22T04:25:20.000Z').getTime()
+        },
+        {
+          role: 'assistant',
+          parts: [{ kind: 'text', text: 'It is a CLI launcher.' }],
+          ts: new Date('2026-07-22T04:25:21.000Z').getTime()
+        }
+      ])
+    })
+  })
+
+  it('hides a gemini session that never got past the auto-injected context message', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { listSessions } = await import('../../src/main/sessions-history')
+      const projectDir = join(home, '.gemini', 'tmp', 'empty-project')
+
+      // Exact shape observed on a real machine: a session started (e.g. hit
+      // an auth/trust prompt) but the user never actually asked anything, so
+      // gemini-cli's own --list-sessions/--resume treat it as not resumable.
+      writeJsonl(join(projectDir, 'chats', 'session-2026-07-30T21-09-39acce00.jsonl'), [
+        {
+          sessionId: '39acce00-1c4b-49f5-9814-69c7e53b55ac',
+          startTime: '2026-07-30T21:09:46.170Z',
+          lastUpdated: '2026-07-30T21:09:46.170Z',
+          kind: 'main'
+        },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'ctx-msg',
+                timestamp: '2026-07-30T21:09:46.171Z',
+                type: 'user',
+                content: [{ text: '<session_context>\nsetup only, no real question\n' }]
+              }
+            ],
+            lastUpdated: '2026-07-30T21:09:46.171Z'
+          }
+        }
+      ])
+
+      expect(await listSessions('gemini')).toEqual([])
+    })
+  })
+
+  it('deletes a gemini session by the 1-based startTime-ascending index gemini-cli itself expects', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { chmodSync, mkdirSync, writeFileSync: writeFile } = await import('node:fs')
+      const { paths } = await import('../../src/main/sandbox')
+      const { setInstallState } = await import('../../src/main/store')
+      const { deleteSession } = await import('../../src/main/sessions-history')
+
+      const projectDir = join(home, '.gemini', 'tmp', 'my-project')
+      // A real, existing directory — Node's spawn needs `cwd` to actually
+      // exist or it fails with ENOENT before the command even runs.
+      const realProjectCwd = join(home, 'workspace')
+      mkdirSync(realProjectCwd, { recursive: true })
+      writeText(join(projectDir, '.project_root'), realProjectCwd)
+
+      const chatEntry = (sessionId: string, isoTime: string, text: string) => [
+        { sessionId, startTime: isoTime, lastUpdated: isoTime, kind: 'main' },
+        {
+          $set: {
+            messages: [{ id: 'm1', timestamp: isoTime, type: 'user', content: [{ text }] }],
+            lastUpdated: isoTime
+          }
+        }
+      ]
+      // Older session first, newer second — startTime-ascending index of the
+      // second (newer) one should be 2.
+      writeJsonl(
+        join(projectDir, 'chats', 'session-a.jsonl'),
+        chatEntry(
+          '11111111-1111-1111-1111-111111111111',
+          '2026-07-01T00:00:00.000Z',
+          'first question'
+        )
+      )
+      writeJsonl(
+        join(projectDir, 'chats', 'session-b.jsonl'),
+        chatEntry(
+          '22222222-2222-2222-2222-222222222222',
+          '2026-07-02T00:00:00.000Z',
+          'second question'
+        )
+      )
+
+      // Stand-in for the real `gemini` binary: records its argv + cwd instead
+      // of actually running gemini-cli (no real install/API key needed to
+      // verify the index/cwd this code computes and passes).
+      mkdirSync(paths.cliInstall('gemini'), { recursive: true })
+      const fakeGeminiPath = join(paths.cliInstall('gemini'), 'fake-gemini.sh')
+      const recordPath = join(paths.cliInstall('gemini'), 'invocation.json')
+      // Plain text (cwd on line 1, one arg per line after) rather than JSON —
+      // no escaping/trailing-comma bookkeeping needed in a throwaway shell script.
+      writeFile(
+        fakeGeminiPath,
+        `#!/bin/sh\nprintf '%s\\n' "$PWD" > "${recordPath}"\nfor a in "$@"; do printf '%s\\n' "$a" >> "${recordPath}"; done\nexit 0\n`
+      )
+      chmodSync(fakeGeminiPath, 0o755)
+      setInstallState('gemini', { installed: true, source: 'system', binPath: fakeGeminiPath })
+
+      const result = await deleteSession('gemini', '22222222-2222-2222-2222-222222222222')
+      expect(result).toMatchObject({ ok: true, deletedCount: 1 })
+
+      const { realpathSync } = await import('node:fs')
+      const [recordedCwd, ...recordedArgs] = readFileSync(recordPath, 'utf8').trim().split('\n')
+      // Compare canonical paths — macOS resolves $PWD through the
+      // /var -> /private/var symlink, which is unrelated to what's tested here.
+      expect(realpathSync(recordedCwd)).toBe(realpathSync(realProjectCwd))
+      expect(recordedArgs).toEqual(['--delete-session', '2'])
+    })
+  })
+
   it('lists and reads JSONL-backed sessions across CLIs', async () => {
     await withIsolatedHome(async ({ home }) => {
       const { systemCliConfigDir } = await import('../../src/main/config-paths')
