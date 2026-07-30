@@ -1,5 +1,5 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, isAbsolute, relative, resolve } from 'node:path'
 import { paths } from './sandbox'
 import { ALL_CLI_IDS } from '@shared/types'
 import type {
@@ -7,7 +7,6 @@ import type {
   AuthMode,
   CliId,
   CliInstallState,
-  InstallSource,
   CliMcpPatch,
   CliPrefs,
   CliPricePatch,
@@ -18,7 +17,7 @@ import type {
   CliSkillPatch
 } from '@shared/types'
 
-const SCHEMA = 4
+const SCHEMA = 5
 const CLI_IDS: readonly CliId[] = ALL_CLI_IDS
 // gemini-cli dropped free-tier Google-account sign-in on 2026-06-18 (Google
 // pushed individuals to Antigravity CLI instead), so gemini can no longer
@@ -138,13 +137,15 @@ function dropGeminiOfficialProfile(cli: CliProfiles, prefs: CliPrefs | undefined
   if (cli.authMode === 'official') cli.authMode = 'api'
 }
 
-function inferInstallSource(state: CliInstallState): InstallSource {
-  if (state.source) return state.source
-  if (!state.installed) return 'system'
+export function isLegacyManagedInstall(state: CliInstallState): boolean {
+  if (!state.installed) return false
   const root = resolve(paths.root)
-  const binPath = state.binPath ? resolve(state.binPath) : ''
-  const nodeEntry = state.nodeEntry ? resolve(state.nodeEntry) : ''
-  return binPath.startsWith(root) || nodeEntry.startsWith(root) ? 'sandbox' : 'system'
+  const isInsideRoot = (value?: string): boolean => {
+    if (!value) return false
+    const rel = relative(root, resolve(value))
+    return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel))
+  }
+  return isInsideRoot(state.binPath) || isInsideRoot(state.nodeEntry)
 }
 
 function emptyConfig(): AppConfig {
@@ -179,7 +180,8 @@ function normalize(raw: unknown): AppConfig {
   for (const id of CLI_IDS) {
     if (r.install?.[id]) {
       base.install[id] = { ...base.install[id], ...r.install[id] }
-      base.install[id].source = inferInstallSource(base.install[id])
+      base.install[id].legacyManaged = isLegacyManagedInstall(base.install[id])
+      base.install[id].source = 'system'
       // Security blocks are detection-session state. Older builds persisted a
       // version-based guess here, which could keep a working Codex disabled
       // after restart even though no explicit security failure was present.
@@ -245,12 +247,12 @@ export function saveConfig(cfg: AppConfig): AppConfig {
 
 export function setInstallState(id: CliId, state: CliInstallState): AppConfig {
   const cfg = loadConfig()
-  cfg.install[id] = state
+  cfg.install[id] = {
+    ...state,
+    legacyManaged: isLegacyManagedInstall(state),
+    source: 'system'
+  }
   return saveConfig(cfg)
-}
-
-export function getInstallSource(id: CliId): InstallSource {
-  return loadConfig().install[id].source ?? 'system'
 }
 
 // ---- profile CRUD ----

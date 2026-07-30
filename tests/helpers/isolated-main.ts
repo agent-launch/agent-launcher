@@ -8,6 +8,7 @@ export async function withIsolatedHome<T>(
 ): Promise<T> {
   const home = mkdtempSync(join(tmpdir(), 'agent-launcher-test-'))
   const isolatedEnv = {
+    HOME: home,
     XDG_CONFIG_HOME: join(home, '.config'),
     XDG_DATA_HOME: join(home, '.local', 'share'),
     XDG_CACHE_HOME: join(home, '.cache'),

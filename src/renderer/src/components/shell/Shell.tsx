@@ -2,11 +2,15 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type SyntheticEvent
 } from 'react'
 import {
+  Check,
+  ChevronDown,
+  Folder,
   Gauge,
   History,
   PanelLeftClose,
@@ -59,6 +63,164 @@ interface SessionState {
   cliId: CliId | null
   items: SessionInfo[]
   loaded: boolean
+}
+
+function displayDirectoryName(cwd: string): string {
+  return cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() ?? cwd
+}
+
+interface DirectoryOption {
+  key: string
+  label: string
+  cwd: string | null
+}
+
+function DirectorySelect({
+  options,
+  value,
+  onChange
+}: {
+  options: DirectoryOption[]
+  value: string
+  onChange: (key: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((o) => o.key === value)
+  )
+  const selected = options[selectedIndex] ?? options[0]
+
+  useEffect(() => {
+    if (!open) return
+    setHighlightedIndex(selectedIndex)
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return
+      setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+        return
+      }
+      if (!open) return
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault()
+          setHighlightedIndex((i) => Math.min(options.length - 1, i + 1))
+          break
+        case 'ArrowUp':
+          event.preventDefault()
+          setHighlightedIndex((i) => Math.max(0, i - 1))
+          break
+        case 'Home':
+          event.preventDefault()
+          setHighlightedIndex(0)
+          break
+        case 'End':
+          event.preventDefault()
+          setHighlightedIndex(options.length - 1)
+          break
+        case 'Enter':
+        case ' ': {
+          event.preventDefault()
+          const option = options[highlightedIndex]
+          if (option) {
+            onChange(option.key)
+            setOpen(false)
+            triggerRef.current?.focus()
+          }
+          break
+        }
+        case 'Tab':
+          setOpen(false)
+          break
+      }
+    }
+    window.addEventListener('pointerdown', onPointerDown, true)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open, options, highlightedIndex, selectedIndex, onChange])
+
+  useEffect(() => {
+    optionRefs.current[highlightedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex])
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            setOpen(true)
+          }
+        }}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={open ? 'directory-select-listbox' : undefined}
+        title={selected?.cwd ?? selected?.label}
+        className="no-drag flex h-8 max-w-[240px] items-center gap-2 rounded-md border border-border-weak bg-surface/95 px-3 text-left text-[13px] text-text-strong transition-[background,border-color,box-shadow] hover:border-border-selected/70 hover:bg-surface"
+      >
+        <Folder size={14} className="shrink-0 text-text-weak" />
+        <span className="min-w-0 truncate">{selected?.label}</span>
+        <ChevronDown size={14} className="shrink-0 text-text-weak" />
+      </button>
+      {open && (
+        <div
+          id="directory-select-listbox"
+          role="listbox"
+          aria-activedescendant={`directory-option-${options[highlightedIndex]?.key}`}
+          className="absolute left-0 top-[calc(100%+6px)] z-50 max-h-72 w-[min(320px,calc(100vw-32px))] overflow-y-auto rounded-lg border border-border-weak bg-stronger p-1 text-[13px] shadow-[0_8px_18px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.05)]"
+        >
+          {options.map((option, index) => (
+            <button
+              key={option.key}
+              ref={(el) => {
+                optionRefs.current[index] = el
+              }}
+              type="button"
+              role="option"
+              id={`directory-option-${option.key}`}
+              aria-selected={option.key === value}
+              title={option.cwd ?? option.label}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              onClick={() => {
+                onChange(option.key)
+                setOpen(false)
+                triggerRef.current?.focus()
+              }}
+              className={`flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left transition-colors ${
+                index === highlightedIndex
+                  ? 'bg-selection text-text-strong'
+                  : option.key === value
+                    ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
+                    : 'text-text-base hover:bg-selection hover:text-text-strong'
+              }`}
+            >
+              {option.key === value ? (
+                <Check size={12} className="shrink-0" />
+              ) : (
+                <span className="w-3 shrink-0" />
+              )}
+              <span className="min-w-0 truncate">{option.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function Shell() {
@@ -183,9 +345,50 @@ export function Shell() {
 
   const installed = cfg?.install[activeCliId]?.installed ?? false
   const showWorkspaceTabs = view === 'run' && (tabs.length > 0 || !!activeTab)
-  const visibleSessions = sessionState.cliId === activeCliId ? sessionState.items : []
+  const visibleSessions = useMemo(
+    () => (sessionState.cliId === activeCliId ? sessionState.items : []),
+    [sessionState.cliId, sessionState.items, activeCliId]
+  )
   const sessionsLoaded = sessionState.cliId === activeCliId && sessionState.loaded
   const showSessionSkeleton = showSessionLoading && !sessionsLoaded
+
+  const [selectedDirectory, setSelectedDirectory] = useState<string>('all')
+
+  useEffect(() => {
+    setSelectedDirectory('all')
+  }, [activeCliId])
+
+  const directoryOptions = useMemo(() => {
+    const options: DirectoryOption[] = [{ key: 'all', label: t('shell.allDirectories'), cwd: null }]
+    const seen = new Set<string>()
+    let hasUnassociated = false
+    for (const s of visibleSessions) {
+      const cwd = s.cwd?.trim()
+      if (!cwd) {
+        hasUnassociated = true
+        continue
+      }
+      if (seen.has(cwd)) continue
+      seen.add(cwd)
+      options.push({ key: cwd, label: displayDirectoryName(cwd), cwd })
+    }
+    if (hasUnassociated) {
+      options.push({ key: '__none__', label: t('shell.unassociatedDirectory'), cwd: null })
+    }
+    return options
+  }, [visibleSessions, t])
+
+  useEffect(() => {
+    if (!directoryOptions.some((option) => option.key === selectedDirectory)) {
+      setSelectedDirectory('all')
+    }
+  }, [directoryOptions, selectedDirectory])
+
+  const filteredSessions = useMemo(() => {
+    if (selectedDirectory === 'all') return visibleSessions
+    if (selectedDirectory === '__none__') return visibleSessions.filter((s) => !s.cwd?.trim())
+    return visibleSessions.filter((s) => s.cwd?.trim() === selectedDirectory)
+  }, [visibleSessions, selectedDirectory])
 
   const newKey = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
@@ -643,17 +846,24 @@ export function Shell() {
                     <div
                       className={`shrink-0 flex flex-wrap items-center justify-between gap-2.5 ${isMac && view === 'run' ? 'drag-region' : ''}`}
                     >
-                      <div className="flex items-baseline gap-3">
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-weak">
-                          {t('shell.history')}
-                        </span>
-                        <button
-                          onClick={refreshSessions}
-                          disabled={loadingSessions}
-                          className="no-drag text-[11px] text-text-weak transition-colors hover:text-text-strong disabled:cursor-default disabled:text-text-muted"
-                        >
-                          {loadingSessions ? t('shell.loadingSessions') : t('shell.refresh')}
-                        </button>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-baseline gap-3">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-weak">
+                            {t('shell.history')}
+                          </span>
+                          <button
+                            onClick={refreshSessions}
+                            disabled={loadingSessions}
+                            className="no-drag text-[11px] text-text-weak transition-colors hover:text-text-strong disabled:cursor-default disabled:text-text-muted"
+                          >
+                            {loadingSessions ? t('shell.loadingSessions') : t('shell.refresh')}
+                          </button>
+                        </div>
+                        <DirectorySelect
+                          options={directoryOptions}
+                          value={selectedDirectory}
+                          onChange={setSelectedDirectory}
+                        />
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {activeCliId === 'hermes' && (
@@ -695,7 +905,7 @@ export function Shell() {
                     <ScrollFade
                       className="h-full min-h-0 overflow-y-auto pr-1"
                       ariaBusy={loadingSessions}
-                      watchKey={`${activeCliId}:${visibleSessions.length}:${showSessionSkeleton ? 'loading' : 'loaded'}`}
+                      watchKey={`${activeCliId}:${selectedDirectory}:${filteredSessions.length}:${showSessionSkeleton ? 'loading' : 'loaded'}`}
                     >
                       {dashboardError && activeCliId === 'hermes' && (
                         <div className="mb-3 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-[12px] text-danger">
@@ -717,13 +927,13 @@ export function Shell() {
                       )}
                       {showSessionSkeleton ? (
                         <SessionListSkeleton label={t('shell.loadingSessions')} />
-                      ) : !sessionsLoaded ? null : visibleSessions.length === 0 ? (
+                      ) : !sessionsLoaded ? null : filteredSessions.length === 0 ? (
                         <div className="rounded-xl border border-dashed border-border-weak bg-surface/72 px-4 py-12 text-center text-[13px] text-text-weak shadow-[var(--shadow-card)]">
                           {t('shell.noHistory', { name: active.name })}
                         </div>
                       ) : (
                         <div className="space-y-1">
-                          {visibleSessions.map((s) => (
+                          {filteredSessions.map((s) => (
                             <div
                               key={s.id}
                               className="group relative rounded-lg border border-border-weak bg-surface/92 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] hover:border-border-base hover:bg-surface hover:shadow-[var(--shadow-card)]"
@@ -742,6 +952,14 @@ export function Shell() {
                                   </div>
                                   <div className="truncate text-[10px] text-text-weak">
                                     {fmtTime(s.updatedAt)}
+                                  </div>
+                                  <div className="flex items-center gap-1 truncate text-[10px] text-text-weak">
+                                    <Folder size={10} className="shrink-0" />
+                                    <span className="truncate">
+                                      {s.cwd?.trim()
+                                        ? s.cwd.trim()
+                                        : t('shell.unassociatedDirectory')}
+                                    </span>
                                   </div>
                                 </div>
                               </button>

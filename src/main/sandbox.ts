@@ -11,7 +11,7 @@ import type { CliId } from '@shared/types'
  *     config.json            app config (provider/key/model, install state)
  *     node/                  legacy bundled portable Node
  *     cli/<id>/              legacy managed CLI files
- *     cli-config/<id>/       each CLI's redirected config dir (CLAUDE_CONFIG_DIR etc.)
+ *     cli-config/<id>/       legacy redirected config/state and app-owned telemetry
  */
 export const SANDBOX_ROOT = join(homedir(), '.agent-launcher')
 

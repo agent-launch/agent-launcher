@@ -56,10 +56,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   const [detections, wslCodexPath] = await Promise.all([
     Promise.all(
       ALL_CLI_IDS.map((id) =>
-        detectSystemCli(
-          id,
-          cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined
-        )
+        detectSystemCli(id, cfg.install[id].legacyManaged ? undefined : cfg.install[id].binPath)
       )
     ),
     detectWslCodex()
@@ -76,7 +73,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   ) as DetectResult['systemClis']
   for (const detection of detections) {
     const install = cfg.install[detection.cliId]
-    if (install.source !== 'system') continue
+    if (install.legacyManaged) continue
     const launchBlockedReason = detection.macosSecurityRisk ? 'macos-security' : undefined
     if (install.launchBlockedReason !== launchBlockedReason) {
       setInstallState(detection.cliId, { ...install, launchBlockedReason })

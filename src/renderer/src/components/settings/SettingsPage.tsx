@@ -1154,12 +1154,11 @@ function CliStatusRow({
 }) {
   const t = useT()
   const installed = !!status?.installed
-  const sourceLabel =
-    status?.source === 'sandbox'
-      ? t('settings.cliStatus.sourceLegacy')
-      : status?.source === 'system'
-        ? t('settings.cliStatus.sourceSystem')
-        : t('settings.cliStatus.sourceUnknown')
+  const sourceLabel = status?.legacyManaged
+    ? t('settings.cliStatus.sourceLegacy')
+    : status?.source === 'system'
+      ? t('settings.cliStatus.sourceSystem')
+      : t('settings.cliStatus.sourceUnknown')
   const stateLabel = !status
     ? checking
       ? t('settings.cliStatus.checking')

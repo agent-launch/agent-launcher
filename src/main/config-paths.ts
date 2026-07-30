@@ -1,7 +1,6 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { paths } from './sandbox'
-import { getInstallSource } from './store'
 import type { CliId } from '@shared/types'
 
 export function hermesHomeDir(): string {
@@ -16,14 +15,12 @@ export function hermesHomeDir(): string {
 /**
  * gemini-cli's GEMINI_CLI_HOME env var (v0.25+) replaces its own os.homedir()
  * resolution rather than pointing at a config dir directly, so its actual
- * state lands at `${GEMINI_CLI_HOME}/.gemini` (see buildCliEnv). Anything
- * that needs to read gemini's on-disk config/session state directly — not
- * just set the env var — should go through this instead of cliConfigDir().
+ * state lands at `${GEMINI_CLI_HOME}/.gemini`. Anything that needs to read
+ * gemini's on-disk config/session state directly — not just set the env var —
+ * should go through this instead of cliConfigDir().
  */
 export function geminiStateDir(): string {
-  return getInstallSource('gemini') === 'system'
-    ? join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini')
-    : join(paths.cliConfig('gemini'), '.gemini')
+  return join(process.env.GEMINI_CLI_HOME || homedir(), '.gemini')
 }
 
 /**
@@ -47,6 +44,22 @@ export function systemCliConfigDir(cliId: CliId): string {
   return join(xdgConfigHome, 'opencode')
 }
 
+/** Every CLI now uses its standard config directory; the sandbox redirect is gone. */
 export function cliConfigDir(cliId: CliId): string {
-  return getInstallSource(cliId) === 'system' ? systemCliConfigDir(cliId) : paths.cliConfig(cliId)
+  return systemCliConfigDir(cliId)
+}
+
+/**
+ * Read-only state dirs left behind by deprecated app-managed installs, which
+ * redirected each CLI's config home into ~/.agent-launcher/cli-config/<id>.
+ * Callers are responsible for skipping roots that no longer exist on disk.
+ * SQLite-backed opencode/Hermes state is intentionally not merged.
+ */
+export function cliStateRoots(cliId: CliId): string[] {
+  const primary = cliId === 'gemini' ? geminiStateDir() : systemCliConfigDir(cliId)
+  if (cliId === 'opencode' || cliId === 'hermes') return [primary]
+  // Mirror the old GEMINI_CLI_HOME semantics: state landed at <home>/.gemini.
+  const legacy =
+    cliId === 'gemini' ? join(paths.cliConfig('gemini'), '.gemini') : paths.cliConfig(cliId)
+  return [primary, legacy]
 }

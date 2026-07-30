@@ -3,7 +3,7 @@ import { delimiter, join } from 'node:path'
 import { homedir } from 'node:os'
 import { paths } from './sandbox'
 import { geminiUsageLogPath, hermesHomeDir } from './config-paths'
-import { getActiveProfile, getAuthMode, getInstallSource, getPrefs } from './store'
+import { getActiveProfile, getAuthMode, getPrefs, loadConfig } from './store'
 import type { CliId, CliProfile, EnvPair } from '@shared/types'
 
 function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -66,44 +66,21 @@ function claudeModelEnv(profile: CliProfile | undefined): EnvPair[] {
 }
 
 /**
- * The CLI-specific env vars we inject (config dir + relay endpoint + auth +
- * model). Separated from PATH so it can also drive the "Resolved Environment"
- * preview in the UI. Uses the CLI's ACTIVE profile.
+ * The CLI-specific env vars we inject (relay endpoint + auth + model).
+ * Config-home redirects were removed: every CLI now uses its standard config
+ * directory (see config-paths.ts). Separated from PATH so it can also drive
+ * the "Resolved Environment" preview in the UI. Uses the CLI's ACTIVE profile.
  */
 function cliVars(cliId: CliId): EnvPair[] {
   const p = getActiveProfile(cliId)
-  const configDir = paths.cliConfig(cliId)
-  const isSystemInstall = getInstallSource(cliId) === 'system'
   const out: EnvPair[] = []
 
   if (cliId === 'claude-code') {
-    if (!isSystemInstall) out.push({ key: 'CLAUDE_CONFIG_DIR', value: configDir })
     if (getAuthMode(cliId) === 'official') return out
     if (p?.baseUrl) out.push({ key: 'ANTHROPIC_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'ANTHROPIC_AUTH_TOKEN', value: p.apiKey, secret: true })
     out.push(...claudeModelEnv(p))
-  } else if (cliId === 'codex') {
-    if (isSystemInstall) return out
-    out.push({ key: 'CODEX_HOME', value: configDir })
-  } else if (cliId === 'opencode') {
-    if (isSystemInstall) return out
-    // opencode honors XDG dirs; isolate config/data/cache/state into the sandbox.
-    // Relay/key live in opencode.json (see native-config), pointed to here.
-    out.push({ key: 'XDG_CONFIG_HOME', value: join(configDir, 'xdg-config') })
-    out.push({ key: 'XDG_DATA_HOME', value: join(configDir, 'xdg-data') })
-    out.push({ key: 'XDG_CACHE_HOME', value: join(configDir, 'xdg-cache') })
-    out.push({ key: 'XDG_STATE_HOME', value: join(configDir, 'xdg-state') })
-    out.push({ key: 'OPENCODE_CONFIG', value: join(configDir, 'opencode.json') })
-  } else if (cliId === 'pi') {
-    if (isSystemInstall) return out
-    // PI_CODING_AGENT_DIR holds config (models.json/auth.json) + sessions/.
-    out.push({ key: 'PI_CODING_AGENT_DIR', value: configDir })
   } else if (cliId === 'gemini') {
-    // GEMINI_CLI_HOME (gemini-cli v0.25+) replaces its own os.homedir()
-    // resolution, so state lands at `${configDir}/.gemini` — not at configDir
-    // itself (see geminiStateDir in config-paths.ts, used wherever we need to
-    // read that state back, e.g. sessions/MCP/skills).
-    if (!isSystemInstall) out.push({ key: 'GEMINI_CLI_HOME', value: configDir })
     // gemini-cli dropped free-tier OAuth login (2026-06-18), so there's no
     // "official" auth mode to defer to here — always inject the relay/key.
     // Unresolved caveat: a previously-saved `security.auth.selectedType` in
@@ -125,6 +102,8 @@ function cliVars(cliId: CliId): EnvPair[] {
       out.push({ key: 'GEMINI_TELEMETRY_OUTFILE', value: geminiUsageLogPath() })
     }
   }
+  // codex / opencode / pi / hermes rely on native config files for relay
+  // settings, not env vars.
   return out
 }
 
@@ -144,7 +123,7 @@ export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = withCommonPath({ ...process.env })
   clearManagedAuthEnv(env, cliId)
   if (cliId === 'hermes') env.HERMES_HOME = hermesHomeDir()
-  if (getInstallSource(cliId) !== 'system') {
+  if (loadConfig().install[cliId].legacyManaged) {
     const nodeBinDir = process.platform === 'win32' ? paths.node : join(paths.node, 'bin')
     env.PATH = [nodeBinDir, env.PATH].filter(Boolean).join(delimiter)
   }

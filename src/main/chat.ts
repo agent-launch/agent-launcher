@@ -1,9 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
 import type { WebContents } from 'electron'
-import { paths } from './sandbox'
-import { loadConfig, getActiveProfile, getInstallSource } from './store'
+import { loadConfig, getActiveProfile } from './store'
 import { buildCliEnv } from './cli-env'
 import { assertCliLaunchAllowed } from './cli-launch-safety'
 import { resolveLaunchCwd } from './launch-cwd'
@@ -400,7 +398,7 @@ function turnTarget(s: ChatState, text: string): { file: string; args: string[] 
   const profile = getActiveProfile('pi')
   const modelArgs =
     profile?.baseUrl && profile.model ? ['--model', `agentlauncher/${profile.model}`] : []
-  if (install.source === 'system') {
+  if (!install.legacyManaged) {
     return { file: bin, args: ['--mode', 'json', '-p', text, ...sess, ...modelArgs] }
   }
   // Legacy managed Pi (node app): node + cli.js entry.
@@ -447,11 +445,8 @@ export function startChat(wc: WebContents, opts: ChatStartOptions): string {
   if (!install.installed || !install.binPath) throw new Error(`${opts.cliId} is not installed`)
   assertCliLaunchAllowed(opts.cliId, install)
 
-  const cwd = resolveLaunchCwd(opts.cwd)
+  const cwd = resolveLaunchCwd(opts.cliId, opts.cwd)
   if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') writeNativeConfig(opts.cliId)
-  if (getInstallSource(opts.cliId) !== 'system') {
-    mkdirSync(paths.cliConfig(opts.cliId), { recursive: true })
-  }
 
   const id = `chat-${++seq}`
   const s: ChatState = {

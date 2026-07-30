@@ -37,14 +37,14 @@ All renderer↔main communication goes through `src/preload/index.ts`, which exp
 
 A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI config two ways:
 
-1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects relay/auth/model variables. System installs use their normal config homes; redirected config directories remain only for legacy managed installs.
+1. **Env vars** — `src/main/cli-env.ts` (`buildCliEnv`) injects relay/auth/model variables. Every install uses the CLI's normal config home. Leftover redirected directories from legacy managed installs are read only for file-backed session-history compatibility.
 2. **Native config files** — `src/main/native-config.ts` writes the files some CLIs read instead of (or in addition to) env: Claude Code `settings.json` (env block), Codex `config.toml`+`auth.json`, opencode `opencode.json` (custom `@ai-sdk/openai-compatible` provider), Pi `models.json`, Hermes `config.yaml`+`.env`. `hasNativeConfig(id)` gates this; Gemini is env-var only. **Any profile change in `ipc.ts` re-runs `writeNativeConfig` via the `synced()` wrapper** — keep that invariant when adding config mutations.
 
 `readNativeFiles` produces **masked** copies for the UI (`resolvedEnvPreview` does the same for smoke checks/tests); secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
 
 ### CLI discovery and linking (`src/main/install/`)
 
-The app detects existing system commands, lets users choose among duplicate paths, and records the selected command. It never invokes npm, package-manager updates, or official CLI installers. Legacy `source: "sandbox"` records remain supported only for reading and running.
+The app detects existing system commands, lets users choose among duplicate paths, and records the selected command. It never invokes npm, package-manager updates, or official CLI installers. Legacy `source: "sandbox"` records are normalized to `"system"`; binaries under the app state root remain runnable through the derived `legacyManaged` flag.
 
 `platform.ts` holds all the OS/arch → package-key/triple mapping quirks (win32→"windows"/"win", musl on linux, etc.). `detect.ts` reports environment facts to the wizard and cross-checks recorded `binPath`s still exist on disk.
 

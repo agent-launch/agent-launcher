@@ -9,7 +9,7 @@ describe('main store', () => {
       const { loadConfig } = await import('../../src/main/store')
       const cfg = loadConfig()
 
-      expect(cfg.schema).toBe(4)
+      expect(cfg.schema).toBe(5)
       expect(Object.keys(cfg.install)).toEqual([
         'claude-code',
         'codex',
@@ -70,7 +70,7 @@ describe('main store', () => {
     })
   })
 
-  it('normalizes legacy RouterLink OpenAI URLs and infers install source', async () => {
+  it('normalizes legacy RouterLink OpenAI URLs and infers legacy managed installs', async () => {
     await withIsolatedHome(async () => {
       const { paths } = await import('../../src/main/sandbox')
       mkdirSync(dirname(paths.config), { recursive: true })
@@ -100,10 +100,29 @@ describe('main store', () => {
       const { getActiveProfile, loadConfig } = await import('../../src/main/store')
       const cfg = loadConfig()
 
-      expect(cfg.install.codex.source).toBe('sandbox')
+      expect(cfg.install.codex.source).toBe('system')
+      expect(cfg.install.codex.legacyManaged).toBe(true)
       expect(cfg.install.pi.source).toBe('system')
+      expect(cfg.install.pi.legacyManaged).toBe(false)
       expect(getActiveProfile('codex')?.baseUrl).toBe('https://router-link.world3.ai/api/v1')
       expect(getActiveProfile('claude-code')?.baseUrl).toBe('https://router-link.world3.ai/api')
+    })
+  })
+
+  it('does not classify sibling path prefixes as legacy managed installs', async () => {
+    await withIsolatedHome(async () => {
+      const { paths } = await import('../../src/main/sandbox')
+      const { isLegacyManagedInstall } = await import('../../src/main/store')
+
+      expect(
+        isLegacyManagedInstall({
+          installed: true,
+          binPath: join(`${paths.root}-backup`, 'cli', 'codex')
+        })
+      ).toBe(false)
+      expect(
+        isLegacyManagedInstall({ installed: true, binPath: join(paths.root, 'cli', 'codex') })
+      ).toBe(true)
     })
   })
 
