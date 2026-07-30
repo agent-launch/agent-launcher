@@ -254,17 +254,22 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: link ----
     'onboarding.linkTitle': '关联已安装的 CLI',
     'onboarding.linkDesc':
-      'Agent Launcher 只关联系统中已有的 CLI，不会下载、安装、重装或更新 CLI。',
+      'Agent Launcher 会关联系统中已有的 CLI，绝不重装或更新它们；只有未检测到的 CLI 才提供一键安装。',
     'onboarding.installed': '已安装{version}',
+    'onboarding.installedBtn': '已安装',
     'onboarding.systemLinked': '使用系统版本{version}',
     'onboarding.linking': '关联中',
     'onboarding.linkDone': '已关联',
     'onboarding.linkingBusy': '关联中…',
     'onboarding.useSystemBtn': '使用系统版本',
-    'onboarding.linkManageDesc': '缺失的 CLI 请先按官方文档自行安装，返回后重新检测即可关联。',
+    'onboarding.linkManageDesc':
+      '已检测到的 CLI 保持原样，不会被重装或更新；缺失的 CLI 可以一键安装，也可以按官方文档自行安装后重新检测。',
     'onboarding.refreshDetection': '重新检测',
     'onboarding.systemAvailable': '检测到系统版本，可直接使用',
-    'onboarding.systemMissing': '未检测到系统版本，请查看官方安装文档',
+    'onboarding.systemMissing': '未检测到系统版本，可一键安装',
+    'onboarding.installBtn': '一键安装',
+    'onboarding.installBusy': '安装中…',
+    'onboarding.installDone': '安装完成',
     'onboarding.macSecurityManualUpdateWarning':
       'macOS 已拦截该系统命令，Agent Launcher 不会启动或替你更新它。请卸载后按官方安装文档安装当前版本。',
     'onboarding.codexManualUpdateWarning':
@@ -650,18 +655,22 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: link ----
     'onboarding.linkTitle': 'Link installed CLIs',
     'onboarding.linkDesc':
-      'Agent Launcher only links CLIs already installed on the system. It does not download, install, reinstall, or update CLIs.',
+      'Agent Launcher links the CLIs already on your system and never reinstalls or updates them. One-click install is offered only for CLIs it cannot find.',
     'onboarding.installed': 'Installed{version}',
+    'onboarding.installedBtn': 'Installed',
     'onboarding.systemLinked': 'Using system CLI{version}',
     'onboarding.linking': 'Linking',
     'onboarding.linkDone': 'Linked',
     'onboarding.linkingBusy': 'Linking…',
     'onboarding.useSystemBtn': 'Use system CLI',
     'onboarding.linkManageDesc':
-      'For missing CLIs, follow their official documentation, then return and detect them again.',
+      'Detected CLIs are left exactly as they are — never reinstalled or updated. Missing CLIs can be installed in one click, or install them yourself from the official docs and detect again.',
     'onboarding.refreshDetection': 'Detect again',
     'onboarding.systemAvailable': 'System CLI detected and ready to link',
-    'onboarding.systemMissing': 'System CLI not detected; see the official installation docs',
+    'onboarding.systemMissing': 'System CLI not detected; it can be installed for you',
+    'onboarding.installBtn': 'Install',
+    'onboarding.installBusy': 'Installing…',
+    'onboarding.installDone': 'Installed',
     'onboarding.macSecurityManualUpdateWarning':
       'macOS has blocked this system command, so Agent Launcher will neither launch nor update it. Uninstall it, then follow the official installation docs to install a current version.',
     'onboarding.codexManualUpdateWarning':

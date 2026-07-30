@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/app'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -140,7 +140,25 @@ function DetectStep() {
   return (
     <StepShell title={t('onboarding.detectTitle')} desc={t('onboarding.detectDesc')}>
       {!result ? (
-        <div className="text-[13px] text-text-weak">{t('onboarding.detecting')}</div>
+        // Placeholder rows rather than a bare "detecting…" line: the list keeps
+        // its shape, so nothing jumps when the real results land. The labels are
+        // left blank because detection returns them in its own order.
+        <ul className="space-y-2" aria-busy="true" aria-label={t('onboarding.detecting')}>
+          {Array.from({ length: CLIS.length + 1 }, (_, i) => (
+            <li
+              key={i}
+              className="rounded-xl border border-border-weak bg-surface/92 px-4 py-3 text-[14px] shadow-[var(--shadow-sm)]"
+            >
+              <div className="flex min-h-7 items-center gap-3">
+                <span className="grid size-5 shrink-0 place-items-center">
+                  <Loader2 size={13} className="animate-spin text-text-weak" />
+                </span>
+                <span className="h-3.5 w-28 shrink-0 animate-pulse rounded bg-surface-weak" />
+                <span className="ml-auto h-3.5 w-40 max-w-[50%] animate-pulse rounded bg-surface-weak" />
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : (
         <>
           <ul className="space-y-2">
@@ -425,6 +443,11 @@ function LinkStep() {
   const t = useT()
   const [ui, setUi] = useState<Record<string, CliInstallUi>>({})
   const [systemClis, setSystemClis] = useState<Partial<Record<CliId, SystemCliDetection>>>({})
+  // Until the first detection resolves, nothing is known about any CLI. Without
+  // this the rows would claim every CLI is missing for a moment.
+  const [detecting, setDetecting] = useState(true)
+  // A manual re-detect keeps the rows it already has and only spins the button.
+  const [refreshing, setRefreshing] = useState(false)
   const autoLinkStarted = useRef(false)
 
   const refreshDetection = async () => {
@@ -437,55 +460,63 @@ function LinkStep() {
   // found on PATH so the default is ready without an extra click.
   useEffect(() => {
     let cancelled = false
-    Promise.all([window.api.config.get(), refreshDetection()]).then(async ([cfg, result]) => {
-      if (cancelled) return
-      const autoLinks = CLIS.map((c) => c.id as CliId).filter((id) => {
-        const inst = cfg.install[id]
-        const detected = result.systemClis?.[id]
-        if (!detected?.installed || !detected.selectedPath) return false
-        // Never probe a candidate that can trigger a macOS security dialog.
-        // The row explains the required manual update instead.
-        if (detected.macosSecurityRisk) return false
-        return !inst?.installed || inst.legacyManaged || detected.status === 'stale'
-      })
-
-      setUi((prev) => {
-        const next = { ...prev }
-        for (const c of CLIS) {
-          const id = c.id as CliId
+    const detection = Promise.all([window.api.config.get(), refreshDetection()]).then(
+      async ([cfg, result]) => {
+        if (cancelled) return
+        const autoLinks = CLIS.map((c) => c.id as CliId).filter((id) => {
           const inst = cfg.install[id]
           const detected = result.systemClis?.[id]
-          const staleSystemInstall =
-            !inst?.legacyManaged && (detected?.status === 'stale' || detected?.macosSecurityRisk)
-          const shouldAutoLink = autoLinks.includes(id)
-          if (inst?.installed && !staleSystemInstall && !shouldAutoLink && !next[id]?.busy) {
-            next[c.id] = {
-              phase: 'done',
-              message: t('settings.cliStatus.installed'),
-              version: inst.version,
-              legacyManaged: inst.legacyManaged,
-              binPath: inst.binPath
-            }
-          } else if (shouldAutoLink && !next[id]?.busy) {
-            next[id] = {
-              ...next[id],
-              busy: true,
-              phase: 'link',
-              message: t('onboarding.systemAvailable'),
-              legacyManaged: false,
-              binPath: detected?.selectedPath
+          if (!detected?.installed || !detected.selectedPath) return false
+          // Never probe a candidate that can trigger a macOS security dialog.
+          // The row explains the required manual update instead.
+          if (detected.macosSecurityRisk) return false
+          return !inst?.installed || inst.legacyManaged || detected.status === 'stale'
+        })
+
+        setUi((prev) => {
+          const next = { ...prev }
+          for (const c of CLIS) {
+            const id = c.id as CliId
+            const inst = cfg.install[id]
+            const detected = result.systemClis?.[id]
+            const staleSystemInstall =
+              !inst?.legacyManaged && (detected?.status === 'stale' || detected?.macosSecurityRisk)
+            const shouldAutoLink = autoLinks.includes(id)
+            if (inst?.installed && !staleSystemInstall && !shouldAutoLink && !next[id]?.busy) {
+              next[c.id] = {
+                phase: 'done',
+                message: t('settings.cliStatus.installed'),
+                version: inst.version,
+                legacyManaged: inst.legacyManaged,
+                binPath: inst.binPath
+              }
+            } else if (shouldAutoLink && !next[id]?.busy) {
+              next[id] = {
+                ...next[id],
+                busy: true,
+                phase: 'link',
+                message: t('onboarding.systemAvailable'),
+                legacyManaged: false,
+                binPath: detected?.selectedPath
+              }
             }
           }
-        }
-        return next
-      })
+          return next
+        })
+        setDetecting(false)
 
-      if (autoLinkStarted.current) return
-      autoLinkStarted.current = true
-      for (const id of autoLinks) {
-        if (cancelled) return
-        await linkOne(id, result.systemClis?.[id]?.selectedPath)
+        if (autoLinkStarted.current) return
+        autoLinkStarted.current = true
+        for (const id of autoLinks) {
+          if (cancelled) return
+          await linkOne(id, result.systemClis?.[id]?.selectedPath)
+        }
       }
+    )
+    // A failed detection must still clear the loading state, or every row stays
+    // stuck on its placeholder.
+    detection.catch(() => {
+      if (!cancelled) setDetecting(false)
     })
     return () => {
       cancelled = true
@@ -526,14 +557,62 @@ function LinkStep() {
     await refreshDetection()
   }
 
+  /** Only reachable for a CLI that was not detected — the main process links
+   * instead of installing if the command turns out to already exist. */
+  const installOne = async (id: CliId) => {
+    setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }))
+    try {
+      const r = await window.api.cli.install(id)
+      setUi((p) => ({
+        ...p,
+        [id]: r.ok
+          ? {
+              busy: false,
+              phase: 'done',
+              message: r.warning ?? t('onboarding.installDone'),
+              version: r.version,
+              legacyManaged: false,
+              binPath: r.binPath
+            }
+          : { busy: false, phase: 'error', error: r.error }
+      }))
+    } catch (e) {
+      setUi((p) => ({
+        ...p,
+        [id]: {
+          busy: false,
+          phase: 'error',
+          error: e instanceof Error ? e.message : String(e)
+        }
+      }))
+    } finally {
+      await refreshDetection()
+    }
+  }
+
   return (
     <StepShell title={t('onboarding.linkTitle')} desc={t('onboarding.linkDesc')}>
       <div className="mb-4 flex items-center justify-between gap-4 rounded-xl border border-border-weak bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)]">
         <div className="min-w-0 text-[12px] leading-relaxed text-text-base">
           {t('onboarding.linkManageDesc')}
         </div>
-        <Button className="shrink-0" size="sm" onClick={refreshDetection}>
-          {t('onboarding.refreshDetection')}
+        <Button
+          className="shrink-0"
+          size="sm"
+          disabled={detecting || refreshing}
+          onClick={() => {
+            setRefreshing(true)
+            refreshDetection().finally(() => setRefreshing(false))
+          }}
+        >
+          {detecting || refreshing ? (
+            <>
+              <Loader2 size={13} className="animate-spin" />
+              {t('onboarding.detecting')}
+            </>
+          ) : (
+            t('onboarding.refreshDetection')
+          )}
         </Button>
       </div>
       <div className="space-y-2">
@@ -545,6 +624,11 @@ function LinkStep() {
           const isLinked = s.phase === 'done' || detected?.status === 'linked'
           const canLink =
             !hasMacSecurityRisk && !isLinked && !!detected?.installed && !!detected.selectedPath
+          // Installing is offered only once detection has run and found nothing:
+          // an existing CLI is never reinstalled or updated.
+          const canInstall = !hasMacSecurityRisk && !isLinked && !!detected && !detected.installed
+          // Nothing is known about this row yet — show that instead of guessing.
+          const rowDetecting = detecting && !s.busy && s.phase !== 'done'
           const macSecurityWarning = hasMacSecurityRisk
             ? t(
                 id === 'codex'
@@ -584,6 +668,11 @@ function LinkStep() {
                     </span>
                   ) : s.busy ? (
                     (s.message ?? t('onboarding.linking'))
+                  ) : rowDetecting ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 size={12} className="animate-spin" />
+                      {t('onboarding.detecting')}
+                    </span>
                   ) : detected?.installed ? (
                     t('onboarding.systemAvailable')
                   ) : (
@@ -597,26 +686,42 @@ function LinkStep() {
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {!canLink ? (
-                  <ButtonLink
-                    size="sm"
-                    variant="secondary"
-                    href={c.installDocsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <ExternalLink size={13} />
-                    {t('onboarding.officialInstallDocs')}
-                  </ButtonLink>
+                {rowDetecting ? (
+                  // Placeholder so the row keeps its height while detecting.
+                  <span className="h-7 w-24 animate-pulse rounded-md bg-surface-weak" />
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    disabled={s.busy}
-                    onClick={() => linkOne(id, detected?.selectedPath)}
-                  >
-                    {s.busy ? t('onboarding.linkingBusy') : t('onboarding.useSystemBtn')}
-                  </Button>
+                  <>
+                    {s.phase === 'done' ? (
+                      <Button size="sm" disabled>
+                        <Check size={13} />
+                        {t('onboarding.installedBtn')}
+                      </Button>
+                    ) : canInstall ? (
+                      <Button size="sm" disabled={s.busy} onClick={() => installOne(id)}>
+                        {s.busy ? t('onboarding.installBusy') : t('onboarding.installBtn')}
+                      </Button>
+                    ) : canLink ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={s.busy}
+                        onClick={() => linkOne(id, detected?.selectedPath)}
+                      >
+                        {s.busy ? t('onboarding.linkingBusy') : t('onboarding.useSystemBtn')}
+                      </Button>
+                    ) : (
+                      <ButtonLink
+                        size="sm"
+                        variant="secondary"
+                        href={c.installDocsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <ExternalLink size={13} />
+                        {t('onboarding.officialInstallDocs')}
+                      </ButtonLink>
+                    )}
+                  </>
                 )}
               </div>
             </div>

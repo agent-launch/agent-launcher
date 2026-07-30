@@ -1,4 +1,4 @@
-import { get } from 'node:https'
+import { get, request } from 'node:https'
 
 /** GET a URL into memory as a string (small JSON metadata). */
 export function fetchText(url: string, redirects = 5): Promise<string> {
@@ -24,4 +24,36 @@ export function fetchText(url: string, redirects = 5): Promise<string> {
 
 export async function fetchJson<T>(url: string): Promise<T> {
   return JSON.parse(await fetchText(url)) as T
+}
+
+/** Is the host serving this URL reachable at all? Any HTTP response counts —
+ * only the network path is being tested, not the resource.
+ *
+ * An official installer script piped into a shell can hang for minutes when the
+ * host is blackholed rather than refused (claude.ai from mainland China). This
+ * probe lets a caller pick a fallback install path in seconds instead. */
+export function isReachable(url: string, timeoutMs = 5000): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (value: boolean): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve(value)
+    }
+    const req = request(
+      url,
+      { method: 'HEAD', headers: { 'user-agent': 'AgentLauncher' } },
+      (res) => {
+        res.resume()
+        finish(true)
+      }
+    )
+    req.on('error', () => finish(false))
+    const timer = setTimeout(() => {
+      req.destroy()
+      finish(false)
+    }, timeoutMs)
+    req.end()
+  })
 }

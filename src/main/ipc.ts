@@ -13,7 +13,12 @@ import { paths } from './sandbox'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { deleteSession, readTranscript } from './sessions-history'
 import { detectEnvironment } from './install/detect'
-import { cleanupSystemCli, getCliUpdateStatuses, linkSystemCli } from './install/installer'
+import {
+  cleanupSystemCli,
+  getCliUpdateStatuses,
+  installMissingCli,
+  linkSystemCli
+} from './install/installer'
 import {
   createSession,
   openExternalAgent,
@@ -91,11 +96,16 @@ export function registerIpc(): void {
     const send = (p: CliLinkProgress) => {
       if (!e.sender.isDestroyed()) e.sender.send('cli:linkProgress', p)
     }
-    return linkSystemCli(
-      id,
-      (phase, message) => send({ cliId: id, phase: phase as CliLinkProgress['phase'], message }),
-      opts?.binPath
-    )
+    return linkSystemCli(id, (phase, message) => send({ cliId: id, phase, message }), opts?.binPath)
+  })
+  // Installs only what is missing. `installMissingCli` links instead of
+  // installing when the CLI is already present, so this can never disturb an
+  // existing install.
+  ipcMain.handle('cli:install', async (e, id: CliId) => {
+    const send = (p: CliLinkProgress) => {
+      if (!e.sender.isDestroyed()) e.sender.send('cli:linkProgress', p)
+    }
+    return installMissingCli(id, (phase, message) => send({ cliId: id, phase, message }))
   })
   ipcMain.handle('cli:cleanup', (_e, id: CliId, binPath: string) => cleanupSystemCli(id, binPath))
   ipcMain.handle('cli:status', () => getCliUpdateStatuses())

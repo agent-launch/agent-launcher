@@ -4,7 +4,7 @@ This file provides guidance to coding agents (Codex, opencode, etc.) when workin
 
 ## What this is
 
-AgentLauncher is an Electron desktop app that **configures and runs** six coding-agent CLIs — Claude Code, Codex, opencode, Pi, Gemini CLI, and Hermes Agent — for users who don't use the command line. The app detects and links existing system CLIs but does not install, reinstall, or update them. It materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
+AgentLauncher is an Electron desktop app that **configures and runs** six coding-agent CLIs — Claude Code, Codex, opencode, Pi, Gemini CLI, and Hermes Agent — for users who don't use the command line. The app detects and links existing system CLIs, and offers a one-click install **only** for a CLI it cannot find; an install that already exists is never reinstalled or updated. It materializes provider/relay config from the UI and spawns each CLI in an embedded terminal. Open-source docs and package metadata are English-first; the UI is localized in Chinese and English.
 
 ## Commands
 
@@ -31,7 +31,7 @@ All renderer↔main communication goes through `src/preload/index.ts`, which exp
 
 ### App data and legacy managed installs
 
-`src/main/sandbox.ts` defines `~/.agent-launcher/` for Agent Launcher state and compatibility with old app-managed installs. The managed-install feature is deprecated: do not add installation flows under `paths.cliInstall`, bundled Node, the private npm cache, the system npm, or official installers. Existing legacy installs remain readable so users can migrate without losing config.
+`src/main/sandbox.ts` defines `~/.agent-launcher/` for Agent Launcher state and compatibility with old app-managed installs. The managed-install feature is deprecated: do not add installation flows under `paths.cliInstall`, bundled Node, or the private npm cache. A one-click install goes through the user's own npm (or the vendor's installer script) and lands wherever those normally put it. Existing legacy installs remain readable so users can migrate without losing config.
 
 ### How a CLI gets configured (two mechanisms, often both)
 
@@ -42,9 +42,15 @@ A provider profile (`CliProfile`: baseUrl/apiKey/model) is turned into CLI confi
 
 `readNativeFiles` produces **masked** copies for the UI (`resolvedEnvPreview` does the same for smoke checks/tests); secrets are stored plaintext on disk by deliberate product decision (no keychain) — see `store.ts`.
 
-### CLI discovery and linking (`src/main/install/`)
+### CLI discovery, linking, and one-click install (`src/main/install/`)
 
-The app detects existing system commands, lets users choose among duplicate paths, and records the selected command. It never invokes npm, package-manager updates, or official CLI installers. Legacy `source: "sandbox"` records are normalized to `"system"`; binaries under the app state root remain runnable through the derived `legacyManaged` flag.
+The app detects existing system commands, lets users choose among duplicate paths, and records the selected command. Legacy `source: "sandbox"` records are normalized to `"system"`; binaries under the app state root remain runnable through the derived `legacyManaged` flag.
+
+`installMissingCli(id, onProgress)` in `installer.ts` is the **only** execution path that installs anything, and it is deliberately narrow:
+
+- It re-detects first and **links instead of installing** when the command already exists, so an existing install is never reinstalled, repaired, or updated. There is no update/upgrade code path anywhere — `tests/main/install-policy.test.ts` asserts this.
+- `installStepsFor(id, …)` is a pure function returning the ordered attempts, so the fallback ordering is unit-testable without the network (`tests/main/install-steps.test.ts`). Claude Code tries its official `claude.ai` installer, then falls back to npm — `claude.ai` is unreachable in some regions, and `isReachable()` (`download.ts`) probes it with a 5s timeout so the native attempt is skipped rather than left to hang. Codex/opencode/Pi/Gemini go straight to npm; Hermes uses its own installer script (it publishes to PyPI, so there is nothing to fall back to).
+- npm runs with the user's own configuration — **never pass a registry flag**, or a user on a mirror breaks.
 
 `platform.ts` holds all the OS/arch → package-key/triple mapping quirks (win32→"windows"/"win", musl on linux, etc.). `detect.ts` reports environment facts to the wizard and cross-checks recorded `binPath`s still exist on disk.
 
@@ -62,6 +68,6 @@ React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run detect
 
 ## Adding a new CLI
 
-It's a `CliId` union member touched in many places — grep for an existing id like `'opencode'`. Minimally: `shared/types.ts` (`CliId`), `store.ts` (`CLI_IDS`), `cli-env.ts` (env vars), `install/installer.ts` (+`platform.ts` keys), `pty.ts` (`yoloArgs`, node-entry handling), `sessions-history.ts` (`list*` + `resumeArgs`), `native-config.ts` if file-configured, and renderer `data/clis.ts` + `data/providers.ts`.
+It's a `CliId` union member touched in many places — grep for an existing id like `'opencode'`. Minimally: `shared/types.ts` (`CliId`), `store.ts` (`CLI_IDS`), `cli-env.ts` (env vars), `install/installer.ts` (`NPM_PACKAGES` + `installStepsFor` if it can be installed, plus `platform.ts` keys), `pty.ts` (`yoloArgs`, node-entry handling), `sessions-history.ts` (`list*` + `resumeArgs`), `native-config.ts` if file-configured, and renderer `data/clis.ts` + `data/providers.ts`.
 
 DO NOT send optional commentary
