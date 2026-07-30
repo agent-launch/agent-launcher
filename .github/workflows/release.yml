@@ -76,16 +76,34 @@ jobs:
           echo "Using version ${VERSION}"
           pnpm pkg set version="${VERSION}"
 
+      - name: Configure code signing
+        shell: bash
+        env:
+          MATRIX_NAME: ${{ matrix.name }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [[ "$MATRIX_NAME" == "macos" && -n "$MAC_CSC_LINK" ]]; then
+            echo "CSC_LINK=$MAC_CSC_LINK" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+            [[ -n "$APPLE_ID" ]] && echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            [[ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]] && echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD" >> "$GITHUB_ENV"
+            [[ -n "$APPLE_TEAM_ID" ]] && echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          elif [[ "$MATRIX_NAME" == "windows" && -n "$WIN_CSC_LINK" ]]; then
+            echo "CSC_LINK=$WIN_CSC_LINK" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$WIN_CSC_KEY_PASSWORD" >> "$GITHUB_ENV"
+          fi
+          # Do not auto-discover identities on CI runners; only sign when secrets are explicitly provided.
+          echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+
       - name: Build package
         env:
-          ELECTRON_BUILDER_PUBLISH: never
           GH_TOKEN: ${{ github.token }}
-          CSC_LINK: ${{ matrix.name == 'macos' && secrets.MAC_CSC_LINK || matrix.name == 'windows' && secrets.WIN_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.name == 'macos' && secrets.MAC_CSC_KEY_PASSWORD || matrix.name == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ (matrix.name == 'macos' && secrets.MAC_CSC_LINK != '') || (matrix.name == 'windows' && secrets.WIN_CSC_LINK != '') }}
-          APPLE_ID: ${{ matrix.name == 'macos' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.name == 'macos' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.name == 'macos' && secrets.APPLE_TEAM_ID || '' }}
         run: pnpm ${{ matrix.package_script }}
 
       - name: Upload build debug logs
