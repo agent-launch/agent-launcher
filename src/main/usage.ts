@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { isAbsolute, join, relative, resolve } from 'node:path'
-import { hermesHomeDir } from './config-paths'
+import { geminiUsageLogPath, hermesHomeDir } from './config-paths'
 import { getSql, readSqliteSnapshot } from './sqlite'
 import { paths } from './sandbox'
 import { listSessions } from './sessions-history'
@@ -35,7 +35,7 @@ interface ClaudeUsageCandidate extends UsageEntry {
   stopReason?: string
 }
 
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes']
+const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini']
 const ZERO_TOKENS: UsageTokenTotals = {
   inputTokens: 0,
   outputTokens: 0,
@@ -537,6 +537,90 @@ async function collectHermesUsage(): Promise<UsageEntry[]> {
   return entries
 }
 
+/** Splits gemini-cli's local telemetry outfile into individual JSON objects.
+ * It's NOT valid JSON (array) or JSONL — each OTEL event is a separate
+ * `JSON.stringify(event, null, 2)` call appended back-to-back with no
+ * separator (verified against a real `--telemetry` run), so this walks brace
+ * depth while respecting string literals/escapes to find each object's end. */
+export function splitConcatenatedJsonObjects(text: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let start = -1
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      if (escaped) escaped = false
+      else if (ch === '\\') escaped = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+    } else if (ch === '{') {
+      if (depth === 0) start = i
+      depth++
+    } else if (ch === '}') {
+      depth--
+      if (depth === 0 && start >= 0) {
+        out.push(text.slice(start, i + 1))
+        start = -1
+      }
+    }
+  }
+  return out
+}
+
+function collectGeminiUsage(): UsageEntry[] {
+  const logPath = geminiUsageLogPath()
+  if (!existsSync(logPath)) return []
+  let text: string
+  let fallbackTs: number
+  try {
+    text = readFileSync(logPath, 'utf8')
+    // Matches the other collectors' convention (e.g. collectClaudeUsage) of
+    // falling back to the source file's mtime rather than "now" — "now" would
+    // misattribute an old event to today if a future gemini-cli release ever
+    // omits/malforms event.timestamp.
+    fallbackTs = statSync(logPath).mtimeMs
+  } catch {
+    return []
+  }
+  const entries: UsageEntry[] = []
+  for (const chunk of splitConcatenatedJsonObjects(text)) {
+    let event: unknown
+    try {
+      event = JSON.parse(chunk)
+    } catch {
+      continue
+    }
+    const record = asRecord(event)
+    const attributes = asRecord(record?.attributes)
+    if (!attributes || attributes['event.name'] !== 'gemini_cli.api_response') continue
+    const entry: UsageEntry = {
+      cliId: 'gemini',
+      sessionId:
+        typeof attributes['session.id'] === 'string' ? attributes['session.id'] : undefined,
+      model: normalizeModel(attributes.model),
+      ts: normalizeTs(attributes['event.timestamp']) ?? fallbackTs,
+      // tool_token_count is deliberately left out — its OTEL semantics aren't
+      // documented precisely enough to confidently fold into input or output.
+      inputTokens: readNumber(attributes, ['input_token_count']),
+      outputTokens:
+        readNumber(attributes, ['output_token_count']) +
+        readNumber(attributes, ['thoughts_token_count']),
+      cacheReadTokens: readNumber(attributes, ['cached_content_token_count']),
+      // Gemini's API has no "cache write/creation" concept the way Claude's
+      // prompt caching does — cached_content_token_count is a cache *read*
+      // (reused context), so there's nothing to map here.
+      cacheCreationTokens: 0
+    }
+    if (hasUsage(entry)) entries.push(entry)
+  }
+  return entries
+}
+
 function dateKey(ts: number): string {
   const date = new Date(ts)
   const yyyy = date.getFullYear()
@@ -612,7 +696,8 @@ export async function readUsage(rangeDays = 365, summaryDays = 30): Promise<Usag
     ['codex', collectCodexUsage],
     ['opencode', collectOpencodeUsage],
     ['pi', collectPiUsage],
-    ['hermes', collectHermesUsage]
+    ['hermes', collectHermesUsage],
+    ['gemini', collectGeminiUsage]
   ]
 
   const entries: UsageEntry[] = []

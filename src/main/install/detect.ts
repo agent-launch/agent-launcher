@@ -1,10 +1,18 @@
 import { spawn } from 'node:child_process'
 import { loadConfig, setInstallState } from '../store'
 import { detectPlatform } from './platform'
-import type { DetectItem, DetectResult } from '@shared/types'
+import { ALL_CLI_IDS } from '@shared/types'
+import type { CliId, DetectItem, DetectResult } from '@shared/types'
 import { detectSystemCli } from './installer'
 
-const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
+const CLI_LABELS: Record<CliId, string> = {
+  'claude-code': 'Claude Code',
+  codex: 'Codex CLI',
+  opencode: 'OpenCode',
+  pi: 'Pi',
+  hermes: 'Hermes Agent',
+  gemini: 'Gemini CLI'
+}
 
 function detectWslCodex(): Promise<string | undefined> {
   if (process.platform !== 'win32') return Promise.resolve(undefined)
@@ -47,7 +55,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   const cfg = loadConfig()
   const [detections, wslCodexPath] = await Promise.all([
     Promise.all(
-      CLI_IDS.map((id) =>
+      ALL_CLI_IDS.map((id) =>
         detectSystemCli(
           id,
           cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined
@@ -86,16 +94,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   for (const d of detections) {
     items.push({
       key: d.cliId,
-      label:
-        d.cliId === 'claude-code'
-          ? 'Claude Code'
-          : d.cliId === 'codex'
-            ? 'Codex CLI'
-            : d.cliId === 'opencode'
-              ? 'OpenCode'
-              : d.cliId === 'pi'
-                ? 'Pi'
-                : 'Hermes Agent',
+      label: CLI_LABELS[d.cliId],
       present: d.installed,
       detail: d.installed ? displayDetectionDetail(d) : d.detail
     })

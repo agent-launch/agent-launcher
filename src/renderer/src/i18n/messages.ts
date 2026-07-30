@@ -93,6 +93,9 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
       '开启后，对应 CLI 会自动批准所有操作（执行命令、改文件等），不再逐次确认。省事但有风险，只在你信任当前项目时开启。每个 CLI 独立设置。',
     'settings.yolo.unsupported': '该 CLI 从不询问审批，工具始终直接执行，无需开关',
     'settings.yolo.notSupported': '不支持',
+    'settings.geminiUsageTracking.title': 'Gemini 用量记录',
+    'settings.geminiUsageTracking.desc':
+      '默认关闭。打开后，Gemini CLI 会在本地记录每次对话的 token 用量，用量页面才能显示这个 CLI 的数据；数据只写在你自己电脑上，不会上传。',
     'settings.renderTranscript': '在 UI 中聊天（而非终端）',
     'settings.renderTranscriptDesc':
       '开启后，点击历史会话会在界面里打开对话（带完整历史，可继续聊天）；关闭则点击会话直接在终端中恢复。',
@@ -482,6 +485,9 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'settings.yolo.unsupported':
       'This CLI never prompts for approval; tools always run without a switch',
     'settings.yolo.notSupported': 'Unsupported',
+    'settings.geminiUsageTracking.title': 'Gemini usage tracking',
+    'settings.geminiUsageTracking.desc':
+      'Off by default. When on, Gemini CLI records local token usage per conversation so the Usage page can show data for it; the data stays on your own machine and is never uploaded.',
     'settings.renderTranscript': 'Chat in the UI (not the terminal)',
     'settings.renderTranscriptDesc':
       'When on, clicking a past session opens it in the app (with full history, ready to continue); when off, clicking resumes it straight in the terminal.',

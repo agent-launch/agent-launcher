@@ -1,8 +1,9 @@
+import { mkdirSync } from 'node:fs'
 import { delimiter, join } from 'node:path'
 import { homedir } from 'node:os'
 import { paths } from './sandbox'
-import { hermesHomeDir } from './config-paths'
-import { getActiveProfile, getAuthMode, getInstallSource } from './store'
+import { geminiUsageLogPath, hermesHomeDir } from './config-paths'
+import { getActiveProfile, getAuthMode, getInstallSource, getPrefs } from './store'
 import type { CliId, CliProfile, EnvPair } from '@shared/types'
 
 function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -113,6 +114,16 @@ function cliVars(cliId: CliId): EnvPair[] {
     // before GEMINI_API_KEY).
     if (p?.baseUrl) out.push({ key: 'GOOGLE_GEMINI_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'GEMINI_API_KEY', value: p.apiKey, secret: true })
+    // Opt-in only (Settings > Usage tracking): gemini-cli never writes token
+    // counts anywhere else on disk, so reading its own local OpenTelemetry
+    // output (see geminiUsageLogPath) is the only way to populate the Usage
+    // page for this CLI — off by default since it changes gemini-cli's own
+    // behavior (an extra local log file written on every run).
+    if (getPrefs('gemini').usageTrackingEnabled) {
+      out.push({ key: 'GEMINI_TELEMETRY_ENABLED', value: 'true' })
+      out.push({ key: 'GEMINI_TELEMETRY_TARGET', value: 'local' })
+      out.push({ key: 'GEMINI_TELEMETRY_OUTFILE', value: geminiUsageLogPath() })
+    }
   }
   return out
 }
@@ -136,6 +147,17 @@ export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
   if (getInstallSource(cliId) !== 'system') {
     const nodeBinDir = process.platform === 'win32' ? paths.node : join(paths.node, 'bin')
     env.PATH = [nodeBinDir, env.PATH].filter(Boolean).join(delimiter)
+  }
+  if (cliId === 'gemini' && getPrefs('gemini').usageTrackingEnabled) {
+    // Best-effort: if this fails (permissions, disk full), gemini-cli simply
+    // won't be able to write its own telemetry file this run — same
+    // degraded state as leaving the toggle off, not worth failing the
+    // launch over.
+    try {
+      mkdirSync(paths.cliConfig('gemini'), { recursive: true })
+    } catch {
+      /* ignore */
+    }
   }
   for (const { key, value } of cliVars(cliId)) env[key] = value
   return env

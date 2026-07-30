@@ -26,6 +26,17 @@ export function geminiStateDir(): string {
     : join(paths.cliConfig('gemini'), '.gemini')
 }
 
+/**
+ * Where we point gemini-cli's own local OpenTelemetry output (see
+ * CliPrefs.usageTrackingEnabled) so usage.ts can read token counts back.
+ * Always under our own managed dir — independent of GEMINI_CLI_HOME/
+ * geminiStateDir, since this is bookkeeping we own, not part of gemini's
+ * real state.
+ */
+export function geminiUsageLogPath(): string {
+  return join(paths.cliConfig('gemini'), 'usage-telemetry.log')
+}
+
 export function systemCliConfigDir(cliId: CliId): string {
   if (cliId === 'claude-code') return join(homedir(), '.claude')
   if (cliId === 'codex') return join(homedir(), '.codex')

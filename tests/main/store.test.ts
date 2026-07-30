@@ -178,6 +178,9 @@ describe('main store', () => {
       store.setYolo('opencode', true)
       expect(store.getPrefs('opencode').yolo).toBe(true)
 
+      store.setUsageTrackingEnabled('gemini', true)
+      expect(store.getPrefs('gemini').usageTrackingEnabled).toBe(true)
+
       let cfg = store.addPriceEntry('opencode', {
         provider: 'OpenRouter',
         model: 'gpt',

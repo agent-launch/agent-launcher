@@ -1,8 +1,8 @@
 import { parentPort, workerData } from 'node:worker_threads'
 import { listSessions } from './sessions-history'
-import type { CliId } from '@shared/types'
+import { ALL_CLI_IDS } from '@shared/types'
 
-const CLI_IDS = new Set<CliId>(['claude-code', 'codex', 'opencode', 'pi', 'hermes'])
+const CLI_IDS = new Set<string>(ALL_CLI_IDS)
 
 async function main(): Promise<void> {
   if (!parentPort) throw new Error('Sessions worker requires a parent port')

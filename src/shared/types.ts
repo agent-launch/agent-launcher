@@ -1,6 +1,11 @@
 // Shared IPC contract types — imported by both main and renderer.
 
-export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes' | 'gemini'
+// The array is the source of truth — CliId is derived from it — so adding a
+// CLI means updating this one place instead of several independently
+// hand-maintained lists drifting out of sync (see sessions-worker.ts and
+// install/detect.ts, which both did exactly that before this change).
+export const ALL_CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
+export type CliId = (typeof ALL_CLI_IDS)[number]
 
 export type InstallSource = 'sandbox' | 'system'
 export type CodexInstallKind =
@@ -261,6 +266,12 @@ export interface CliPrefs {
   systemConfigImportChecked?: boolean
   /** Internal: keep a user-created empty official profile visible in config lists. */
   officialProfilePinned?: boolean
+  /** Gemini-only: opt-in to gemini-cli's own local OpenTelemetry file so its
+   * token usage can be read for the Usage page. Off by default — gemini-cli
+   * doesn't record token counts anywhere else on disk, so this is the only
+   * way to populate its usage data, and enabling it changes gemini-cli's own
+   * behavior (writes a local log file on every run). */
+  usageTrackingEnabled?: boolean
 }
 
 export interface AppConfig {
