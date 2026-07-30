@@ -149,7 +149,15 @@ export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
     env.PATH = [nodeBinDir, env.PATH].filter(Boolean).join(delimiter)
   }
   if (cliId === 'gemini' && getPrefs('gemini').usageTrackingEnabled) {
-    mkdirSync(paths.cliConfig('gemini'), { recursive: true })
+    // Best-effort: if this fails (permissions, disk full), gemini-cli simply
+    // won't be able to write its own telemetry file this run — same
+    // degraded state as leaving the toggle off, not worth failing the
+    // launch over.
+    try {
+      mkdirSync(paths.cliConfig('gemini'), { recursive: true })
+    } catch {
+      /* ignore */
+    }
   }
   for (const { key, value } of cliVars(cliId)) env[key] = value
   return env

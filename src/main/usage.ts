@@ -542,7 +542,7 @@ async function collectHermesUsage(): Promise<UsageEntry[]> {
  * `JSON.stringify(event, null, 2)` call appended back-to-back with no
  * separator (verified against a real `--telemetry` run), so this walks brace
  * depth while respecting string literals/escapes to find each object's end. */
-function splitConcatenatedJsonObjects(text: string): string[] {
+export function splitConcatenatedJsonObjects(text: string): string[] {
   const out: string[] = []
   let depth = 0
   let start = -1
@@ -576,8 +576,14 @@ function collectGeminiUsage(): UsageEntry[] {
   const logPath = geminiUsageLogPath()
   if (!existsSync(logPath)) return []
   let text: string
+  let fallbackTs: number
   try {
     text = readFileSync(logPath, 'utf8')
+    // Matches the other collectors' convention (e.g. collectClaudeUsage) of
+    // falling back to the source file's mtime rather than "now" — "now" would
+    // misattribute an old event to today if a future gemini-cli release ever
+    // omits/malforms event.timestamp.
+    fallbackTs = statSync(logPath).mtimeMs
   } catch {
     return []
   }
@@ -597,7 +603,7 @@ function collectGeminiUsage(): UsageEntry[] {
       sessionId:
         typeof attributes['session.id'] === 'string' ? attributes['session.id'] : undefined,
       model: normalizeModel(attributes.model),
-      ts: normalizeTs(attributes['event.timestamp']) ?? Date.now(),
+      ts: normalizeTs(attributes['event.timestamp']) ?? fallbackTs,
       // tool_token_count is deliberately left out — its OTEL semantics aren't
       // documented precisely enough to confidently fold into input or output.
       inputTokens: readNumber(attributes, ['input_token_count']),
@@ -605,6 +611,9 @@ function collectGeminiUsage(): UsageEntry[] {
         readNumber(attributes, ['output_token_count']) +
         readNumber(attributes, ['thoughts_token_count']),
       cacheReadTokens: readNumber(attributes, ['cached_content_token_count']),
+      // Gemini's API has no "cache write/creation" concept the way Claude's
+      // prompt caching does — cached_content_token_count is a cache *read*
+      // (reused context), so there's nothing to map here.
       cacheCreationTokens: 0
     }
     if (hasUsage(entry)) entries.push(entry)

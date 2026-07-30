@@ -1,12 +1,11 @@
 import { spawn } from 'node:child_process'
 import { loadConfig, setInstallState } from '../store'
 import { detectPlatform } from './platform'
-import type { DetectItem, DetectResult } from '@shared/types'
+import { ALL_CLI_IDS } from '@shared/types'
+import type { CliId, DetectItem, DetectResult } from '@shared/types'
 import { detectSystemCli } from './installer'
 
-const CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
-
-const CLI_LABELS: Record<(typeof CLI_IDS)[number], string> = {
+const CLI_LABELS: Record<CliId, string> = {
   'claude-code': 'Claude Code',
   codex: 'Codex CLI',
   opencode: 'OpenCode',
@@ -56,7 +55,7 @@ export async function detectEnvironment(): Promise<DetectResult> {
   const cfg = loadConfig()
   const [detections, wslCodexPath] = await Promise.all([
     Promise.all(
-      CLI_IDS.map((id) =>
+      ALL_CLI_IDS.map((id) =>
         detectSystemCli(
           id,
           cfg.install[id].source === 'system' ? cfg.install[id].binPath : undefined

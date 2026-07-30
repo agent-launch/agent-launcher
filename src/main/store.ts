@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { paths } from './sandbox'
+import { ALL_CLI_IDS } from '@shared/types'
 import type {
   AppConfig,
   AuthMode,
@@ -18,7 +19,7 @@ import type {
 } from '@shared/types'
 
 const SCHEMA = 4
-const CLI_IDS: CliId[] = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini']
+const CLI_IDS: readonly CliId[] = ALL_CLI_IDS
 // gemini-cli dropped free-tier Google-account sign-in on 2026-06-18 (Google
 // pushed individuals to Antigravity CLI instead), so gemini can no longer
 // default to — or offer — "official" OAuth here; API-key/relay is now the
@@ -344,8 +345,10 @@ export function setYolo(id: CliId, yolo: boolean): AppConfig {
   return saveConfig(cfg)
 }
 
-/** Gemini-only: see CliPrefs.usageTrackingEnabled. */
-export function setUsageTrackingEnabled(id: CliId, enabled: boolean): AppConfig {
+/** Gemini-only: see CliPrefs.usageTrackingEnabled. Narrowed to the literal
+ * 'gemini' (rather than CliId) since no other CLI has a meaning for this
+ * pref — a caller passing another id is a type error, not a silent no-op. */
+export function setUsageTrackingEnabled(id: 'gemini', enabled: boolean): AppConfig {
   const cfg = loadConfig()
   cfg.prefs[id] = { ...cfg.prefs[id], usageTrackingEnabled: enabled }
   return saveConfig(cfg)

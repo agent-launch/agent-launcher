@@ -1,5 +1,5 @@
-import { mkdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { withIsolatedHome, writeJsonl } from '../helpers/isolated-main'
 
@@ -207,6 +207,78 @@ describe('usage scanning and launch cwd resolution', () => {
       expect(resolveLaunchCwd(cwd)).toBe(cwd)
       expect(resolveLaunchCwd(join(home, 'missing'))).toBe(home)
       expect(resolveLaunchCwd('   ')).toBe(home)
+    })
+  })
+
+  it('splits gemini-cli telemetry output into individual JSON objects', async () => {
+    const { splitConcatenatedJsonObjects } = await import('../../src/main/usage')
+
+    // Back-to-back pretty-printed objects with no separator, as gemini-cli
+    // actually writes them (verified against a real `--telemetry` run).
+    const concatenated = `{\n  "a": 1\n}{\n  "b": 2\n}`
+    expect(splitConcatenatedJsonObjects(concatenated).map((s) => JSON.parse(s))).toEqual([
+      { a: 1 },
+      { b: 2 }
+    ])
+
+    // Braces and escaped quotes inside string values must not be mistaken
+    // for object boundaries.
+    const withStrings = `{\n  "text": "a { b } \\"quoted\\" c"\n}{\n  "n": 2\n}`
+    expect(splitConcatenatedJsonObjects(withStrings).map((s) => JSON.parse(s))).toEqual([
+      { text: 'a { b } "quoted" c' },
+      { n: 2 }
+    ])
+
+    // Truncated/malformed trailing input (e.g. a write interrupted mid-event)
+    // must not throw, and the earlier complete object must still parse.
+    const truncated = `{\n  "complete": true\n}{\n  "incomplete": tr`
+    const chunks = splitConcatenatedJsonObjects(truncated)
+    expect(chunks).toHaveLength(1)
+    expect(JSON.parse(chunks[0])).toEqual({ complete: true })
+
+    expect(splitConcatenatedJsonObjects('')).toEqual([])
+  })
+
+  it('reads a synthetic gemini_cli.api_response event end-to-end through readUsage', async () => {
+    await withIsolatedHome(async () => {
+      const { geminiUsageLogPath } = await import('../../src/main/config-paths')
+      const { setUsageTrackingEnabled } = await import('../../src/main/store')
+      const { readUsage } = await import('../../src/main/usage')
+
+      setUsageTrackingEnabled('gemini', true)
+      const logPath = geminiUsageLogPath()
+      mkdirSync(dirname(logPath), { recursive: true })
+      const pastTimestamp = new Date(Date.now() - 60_000).toISOString()
+      const otherEvent = { attributes: { 'event.name': 'gemini_cli.config', model: 'ignored' } }
+      const apiResponse = {
+        attributes: {
+          'session.id': 'gemini-session-1',
+          'event.name': 'gemini_cli.api_response',
+          'event.timestamp': pastTimestamp,
+          model: 'gemini-2.5-flash',
+          input_token_count: 100,
+          output_token_count: 20,
+          thoughts_token_count: 5,
+          cached_content_token_count: 10
+        }
+      }
+      writeFileSync(
+        logPath,
+        JSON.stringify(otherEvent, null, 2) + JSON.stringify(apiResponse, null, 2)
+      )
+
+      const result = await readUsage(365, 30)
+      const geminiCard = result.byCli.find((item) => item.cliId === 'gemini')
+      expect(geminiCard).toMatchObject({
+        requestCount: 1,
+        tokens: {
+          inputTokens: 100,
+          outputTokens: 25,
+          cacheReadTokens: 10,
+          cacheCreationTokens: 0,
+          totalTokens: 135
+        }
+      })
     })
   })
 })

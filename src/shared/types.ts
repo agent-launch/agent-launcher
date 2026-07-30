@@ -1,6 +1,11 @@
 // Shared IPC contract types — imported by both main and renderer.
 
-export type CliId = 'claude-code' | 'codex' | 'opencode' | 'pi' | 'hermes' | 'gemini'
+// The array is the source of truth — CliId is derived from it — so adding a
+// CLI means updating this one place instead of several independently
+// hand-maintained lists drifting out of sync (see sessions-worker.ts and
+// install/detect.ts, which both did exactly that before this change).
+export const ALL_CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
+export type CliId = (typeof ALL_CLI_IDS)[number]
 
 export type InstallSource = 'sandbox' | 'system'
 export type CodexInstallKind =

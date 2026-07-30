@@ -72,7 +72,7 @@ export function registerIpc(): void {
     synced(id, setActiveProfile(id, pid))
   )
   ipcMain.handle('config:setYolo', (_e, id: CliId, on: boolean) => setYolo(id, on))
-  ipcMain.handle('config:setUsageTrackingEnabled', (_e, id: CliId, on: boolean) =>
+  ipcMain.handle('config:setUsageTrackingEnabled', (_e, id: 'gemini', on: boolean) =>
     setUsageTrackingEnabled(id, on)
   )
   ipcMain.handle('config:testConnection', (_e, id: CliId, patch: CliProfilePatch) =>

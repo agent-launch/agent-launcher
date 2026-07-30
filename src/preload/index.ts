@@ -140,7 +140,7 @@ const api = {
       ipcRenderer.invoke('config:setActiveProfile', id, pid),
     setYolo: (id: CliId, on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setYolo', id, on),
-    setUsageTrackingEnabled: (id: CliId, on: boolean): Promise<AppConfig> =>
+    setUsageTrackingEnabled: (id: 'gemini', on: boolean): Promise<AppConfig> =>
       ipcRenderer.invoke('config:setUsageTrackingEnabled', id, on),
     testConnection: (id: CliId, patch: CliProfilePatch): Promise<ProfileConnectionResult> =>
       ipcRenderer.invoke('config:testConnection', id, patch),
