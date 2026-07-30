@@ -11,6 +11,7 @@ import { loadConfig, setInstallState } from '../store'
 import type {
   CliId,
   CliInstallState,
+  CliLinkProgress,
   CliLinkResult,
   CliUpdateStatus,
   CleanupCliResult,
@@ -25,7 +26,7 @@ import {
   type CodexInstallInspection
 } from './codex-safety'
 
-type Progress = (phase: string, message: string, fraction?: number) => void
+type Progress = (phase: CliLinkProgress['phase'], message: string, fraction?: number) => void
 
 interface NpmDist {
   version: string
@@ -203,13 +204,36 @@ function runStreaming(
   timeoutMs?: number
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const p = spawnCliProcess(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    // Run installers in their own process group so a timeout can terminate any
+    // child processes spawned by the shell (e.g. curl, npm, system package managers).
+    const p = spawnProcess(cmd, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32'
+    })
     let tail = ''
     let timedOut = false
+
+    const terminate = (signal: NodeJS.Signals): void => {
+      if (p.pid == null) {
+        p.kill(signal)
+        return
+      }
+      try {
+        if (process.platform !== 'win32') {
+          process.kill(-p.pid, signal)
+        } else {
+          p.kill(signal)
+        }
+      } catch {
+        p.kill(signal)
+      }
+    }
+
     const timer = timeoutMs
       ? setTimeout(() => {
           timedOut = true
-          p.kill()
+          terminate('SIGTERM')
+          setTimeout(() => terminate('SIGKILL'), 5000)
         }, timeoutMs)
       : undefined
     const append = (chunk: Buffer): void => {
@@ -807,9 +831,11 @@ function hermesOfficialStep(platform: NodeJS.Platform): InstallStep {
     return powershellStep(
       'official',
       [
-        '$installer = Join-Path $env:TEMP "hermes-agent-install.ps1"',
+        '$tmp = [System.IO.Path]::GetTempFileName()',
+        '$installer = $tmp + ".ps1"',
         'Invoke-WebRequest -UseBasicParsing https://hermes-agent.nousresearch.com/install.ps1 -OutFile $installer',
-        '& $installer -SkipSetup -NonInteractive'
+        '& $installer -SkipSetup -NonInteractive',
+        'Remove-Item $installer -ErrorAction SilentlyContinue'
       ],
       label,
       timeoutMs
@@ -864,7 +890,7 @@ function noInstallerMessage(id: CliId): string {
   if (id === 'hermes') {
     return `Cannot reach ${NATIVE_INSTALL_HOST.hermes} to install ${command}. Check your network, then install it from the official docs.`
   }
-  return `Cannot install ${command} automatically: npm was not detected. Install Node.js 22 or later, then try again.`
+  return `Cannot install ${command} automatically: npm was not detected. Install a current version of Node.js / npm, then try again.`
 }
 
 /**
@@ -879,6 +905,13 @@ function noInstallerMessage(id: CliId): string {
 export async function installMissingCli(id: CliId, onProgress: Progress): Promise<CliLinkResult> {
   try {
     const configured = loadConfig().install[id].binPath
+    // Explicit guard: if the user already has a configured binary on disk, link
+    // it rather than installing anything — even if it is not currently on PATH.
+    if (configured && existsSync(configured)) {
+      onProgress('link', `${SYSTEM_COMMANDS[id]} is already installed; linking it instead`)
+      return await linkExistingSystemCli(id, onProgress, configured)
+    }
+
     const detection = await detectSystemCli(id, configured)
     if (detection.installed) {
       onProgress('link', `${detection.command} is already installed; linking it instead`)
@@ -911,6 +944,14 @@ export async function installMissingCli(id: CliId, onProgress: Progress): Promis
         await runStreaming(step.file, step.args, onProgress, step.label, step.timeoutMs)
       } catch (e) {
         lastError = e
+        // A failed installer may still have placed the binary somewhere we
+        // search on the next detection pass. If so, link it instead of falling
+        // back to another installer.
+        const retry = await detectSystemCli(id, configured)
+        if (retry.installed) {
+          onProgress('link', `${retry.command} is already installed; linking it instead`)
+          return await linkExistingSystemCli(id, onProgress, retry.selectedPath)
+        }
         continue
       }
       try {

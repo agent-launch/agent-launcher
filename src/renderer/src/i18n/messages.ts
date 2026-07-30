@@ -256,6 +256,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.linkDesc':
       'Agent Launcher 会关联系统中已有的 CLI，绝不重装或更新它们；只有未检测到的 CLI 才提供一键安装。',
     'onboarding.installed': '已安装{version}',
+    'onboarding.installedBtn': '已安装',
     'onboarding.systemLinked': '使用系统版本{version}',
     'onboarding.linking': '关联中',
     'onboarding.linkDone': '已关联',
@@ -656,6 +657,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.linkDesc':
       'Agent Launcher links the CLIs already on your system and never reinstalls or updates them. One-click install is offered only for CLIs it cannot find.',
     'onboarding.installed': 'Installed{version}',
+    'onboarding.installedBtn': 'Installed',
     'onboarding.systemLinked': 'Using system CLI{version}',
     'onboarding.linking': 'Linking',
     'onboarding.linkDone': 'Linked',

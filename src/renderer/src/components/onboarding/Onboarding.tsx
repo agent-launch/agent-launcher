@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
-import { ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/app'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -561,21 +561,33 @@ function LinkStep() {
    * instead of installing if the command turns out to already exist. */
   const installOne = async (id: CliId) => {
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }))
-    const r = await window.api.cli.install(id)
-    setUi((p) => ({
-      ...p,
-      [id]: r.ok
-        ? {
-            busy: false,
-            phase: 'done',
-            message: r.warning ?? t('onboarding.installDone'),
-            version: r.version,
-            legacyManaged: false,
-            binPath: r.binPath
-          }
-        : { busy: false, phase: 'error', error: r.error }
-    }))
-    await refreshDetection()
+    try {
+      const r = await window.api.cli.install(id)
+      setUi((p) => ({
+        ...p,
+        [id]: r.ok
+          ? {
+              busy: false,
+              phase: 'done',
+              message: r.warning ?? t('onboarding.installDone'),
+              version: r.version,
+              legacyManaged: false,
+              binPath: r.binPath
+            }
+          : { busy: false, phase: 'error', error: r.error }
+      }))
+    } catch (e) {
+      setUi((p) => ({
+        ...p,
+        [id]: {
+          busy: false,
+          phase: 'error',
+          error: e instanceof Error ? e.message : String(e)
+        }
+      }))
+    } finally {
+      await refreshDetection()
+    }
   }
 
   return (
@@ -679,12 +691,16 @@ function LinkStep() {
                   <span className="h-7 w-24 animate-pulse rounded-md bg-surface-weak" />
                 ) : (
                   <>
-                    {canInstall && (
+                    {s.phase === 'done' ? (
+                      <Button size="sm" disabled>
+                        <Check size={13} />
+                        {t('onboarding.installedBtn')}
+                      </Button>
+                    ) : canInstall ? (
                       <Button size="sm" disabled={s.busy} onClick={() => installOne(id)}>
                         {s.busy ? t('onboarding.installBusy') : t('onboarding.installBtn')}
                       </Button>
-                    )}
-                    {canLink ? (
+                    ) : canLink ? (
                       <Button
                         size="sm"
                         variant="secondary"

@@ -58,6 +58,6 @@ describe('CLI installation policy', () => {
     const onboarding = source('src/renderer/src/components/onboarding/Onboarding.tsx')
 
     expect(onboarding).toMatch(/const canInstall =[\s\S]{0,160}!detected\.installed/)
-    expect(onboarding).toMatch(/canInstall && \([\s\S]{0,200}installOne\(id\)/)
+    expect(onboarding).toMatch(/canInstall \? \([\s\S]{0,200}installOne\(id\)/)
   })
 })
