@@ -10,7 +10,6 @@ import {
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import { homedir } from 'node:os'
 import { cliConfigDir, geminiStateDir, hermesHomeDir, systemCliConfigDir } from './config-paths'
-import { getInstallSource } from './store'
 import type {
   CliId,
   InstalledMcpEntry,
@@ -538,18 +537,11 @@ function mcpConfigPaths(
   if (cliId === 'opencode') return [{ path: join(dir, 'opencode.json'), key: 'mcp' }]
   if (cliId === 'claude-code') {
     // Claude Code keeps user-scope MCP servers in `.claude.json` under
-    // `mcpServers`. Where it looks for that file depends on CLAUDE_CONFIG_DIR:
-    //   - system install (no env var): `~/.claude.json` (home root, sibling
-    //     of the ~/.claude dir, NOT inside it)
-    //   - sandbox install (CLAUDE_CONFIG_DIR set): `<configDir>/.claude.json`
-    //     (inside the redirected config dir)
-    // It does NOT read `settings.json`'s `mcpServers` or a config-dir
-    // `.mcp.json` (that one is project-scoped, read from the cwd).
-    const claudeJson =
-      getInstallSource(cliId) === 'system'
-        ? join(homedir(), '.claude.json')
-        : join(dir, '.claude.json')
-    return [{ path: claudeJson, key: 'mcpServers' }]
+    // `mcpServers`. It looks for that file at `~/.claude.json` (home root,
+    // sibling of the ~/.claude dir, NOT inside it). It does NOT read
+    // `settings.json`'s `mcpServers` or a config-dir `.mcp.json` (that one is
+    // project-scoped, read from the cwd).
+    return [{ path: join(homedir(), '.claude.json'), key: 'mcpServers' }]
   }
   if (cliId === 'hermes') return [{ path: join(dir, 'config.yaml'), kind: 'hermes' }]
   return [
@@ -629,12 +621,6 @@ export function deleteInstalledMcp(cliId: CliId, entryId: string): InstalledMcpE
   return listInstalledMcp(cliId)
 }
 
-function sandboxSkillRoots(cliId: CliId, dir: string): string[] {
-  if (cliId === 'opencode')
-    return [join(dir, 'xdg-config', 'opencode', 'skills'), join(dir, 'skills')]
-  return [join(dir, 'skills')]
-}
-
 function systemSkillRoots(cliId: CliId, dir: string): string[] {
   if (cliId === 'opencode') {
     return [
@@ -649,11 +635,7 @@ function systemSkillRoots(cliId: CliId, dir: string): string[] {
 
 function skillRoots(cliId: CliId): string[] {
   const dir = cliId === 'gemini' ? geminiStateDir() : cliConfigDir(cliId)
-  const roots =
-    getInstallSource(cliId) === 'system'
-      ? systemSkillRoots(cliId, dir)
-      : sandboxSkillRoots(cliId, dir)
-
+  const roots = systemSkillRoots(cliId, dir)
   return [...new Set(roots.map((root) => resolve(root)))]
 }
 

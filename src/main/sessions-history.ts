@@ -16,11 +16,11 @@ import { StringDecoder } from 'node:string_decoder'
 import type initSqlJs from 'sql.js'
 import { buildCliEnv } from './cli-env'
 import { assertCliLaunchAllowed } from './cli-launch-safety'
+import { defaultWorkspaceForCli } from './launch-cwd'
 import { getSql, readSqliteSnapshot } from './sqlite'
-import { geminiStateDir, hermesHomeDir } from './config-paths'
+import { cliStateRoots, hermesHomeDir } from './config-paths'
 import { decodeProcessOutput, spawnProcess } from './process'
-import { paths } from './sandbox'
-import { getInstallSource, loadConfig } from './store'
+import { loadConfig } from './store'
 import type {
   CliId,
   SessionDeleteResult,
@@ -49,20 +49,8 @@ interface CodexAppServerClient {
   close(): void
 }
 
-function cliStateRoot(cliId: CliId): string {
-  // Gemini nests state under `.gemini` inside GEMINI_CLI_HOME rather than at
-  // configDir itself (sandboxed or not) — see geminiStateDir.
-  if (cliId === 'gemini') return geminiStateDir()
-  if (getInstallSource(cliId) !== 'system') return paths.cliConfig(cliId)
-  if (cliId === 'claude-code') return join(homedir(), '.claude')
-  if (cliId === 'codex') return join(homedir(), '.codex')
-  if (cliId === 'pi') return join(homedir(), '.pi', 'agent')
-  if (cliId === 'hermes') return hermesHomeDir()
-  return paths.cliConfig(cliId)
-}
-
 function hermesDbPath(): string {
-  return join(cliStateRoot('hermes'), 'state.db')
+  return join(hermesHomeDir(), 'state.db')
 }
 
 function opencodeDbPath(): string {
@@ -70,14 +58,22 @@ function opencodeDbPath(): string {
 }
 
 function opencodeBaseDir(): string {
-  if (getInstallSource('opencode') !== 'system')
-    return join(paths.cliConfig('opencode'), 'xdg-data', 'opencode')
   const dataHome = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share')
   return join(dataHome, 'opencode')
 }
 
 function opencodeStorageDir(): string {
   return join(opencodeBaseDir(), 'storage')
+}
+
+/** Deduplicate sessions by id, keeping the most recently updated copy. */
+function mergeById(sessions: SessionInfo[]): SessionInfo[] {
+  const byId = new Map<string, SessionInfo>()
+  for (const s of sessions) {
+    const existing = byId.get(s.id)
+    if (!existing || s.updatedAt > existing.updatedAt) byId.set(s.id, s)
+  }
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 function isMissingFileError(error: unknown): boolean {
@@ -597,7 +593,7 @@ function codexSessionIdFromPath(file: string): string {
   return name.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1] ?? name
 }
 
-function findCodexSessionFile(id: string): string | null {
+function findCodexSessionFiles(id: string): string[] {
   const roots = codexSessionRoots()
   const candidates: string[] = []
   const walk = (dir: string): void => {
@@ -612,11 +608,9 @@ function findCodexSessionFile(id: string): string | null {
       if (existsSync(root)) walk(root)
     }
   } catch {
-    return null
+    return []
   }
-  const direct = candidates.find((file) => basename(file).includes(id))
-  if (direct) return direct
-  for (const file of recentJsonl(
+  const refs = recentJsonl(
     candidates.map((full) => {
       try {
         return { full, id: '', mtimeMs: statSync(full).mtimeMs }
@@ -624,30 +618,49 @@ function findCodexSessionFile(id: string): string | null {
         return { full, id: '', mtimeMs: 0 }
       }
     })
-  )) {
+  )
+  const direct = refs.filter((file) => codexSessionIdFromPath(file.full) === id)
+  if (direct.length > 0) return direct.map((file) => file.full)
+
+  const matches: FileRef[] = []
+  for (const file of refs) {
     for (const rec of readLines(file.full)) {
-      const o = asRecord(rec)
-      if (o && extractCodexSessionId(o) === id) return file.full
+      const entry = asRecord(rec)
+      if (entry && extractCodexSessionId(entry) === id) {
+        matches.push(file)
+        break
+      }
     }
   }
-  return null
+  return matches.map((file) => file.full)
+}
+
+function findCodexSessionFile(id: string): string | null {
+  return findCodexSessionFiles(id)[0] ?? null
 }
 
 function codexSessionRoots(): string[] {
-  const root = cliStateRoot('codex')
-  return [join(root, 'sessions'), join(root, 'archived_sessions')]
+  return cliStateRoots('codex').flatMap((root) => [
+    join(root, 'sessions'),
+    join(root, 'archived_sessions')
+  ])
 }
 
 function codexSessionNames(): Map<string, string> {
-  const file = join(cliStateRoot('codex'), 'session_index.jsonl')
-  if (!existsSync(file)) return new Map()
-
   const names = new Map<string, string>()
-  for (const value of readLines(file)) {
-    const entry = asRecord(value)
-    const id = displayTitleCandidate(entry?.id)
-    const name = displayTitleCandidate(entry?.thread_name ?? entry?.threadName)
-    if (id && name) names.set(id, name)
+  for (const root of cliStateRoots('codex')) {
+    const file = join(root, 'session_index.jsonl')
+    if (!existsSync(file)) continue
+    const rootNames = new Map<string, string>()
+    for (const value of readLines(file)) {
+      const entry = asRecord(value)
+      const id = displayTitleCandidate(entry?.id)
+      const name = displayTitleCandidate(entry?.thread_name ?? entry?.threadName)
+      if (id && name) rootNames.set(id, name)
+    }
+    for (const [id, name] of rootNames) {
+      if (!names.has(id)) names.set(id, name)
+    }
   }
   return names
 }
@@ -658,7 +671,7 @@ function createCodexAppServerClient(): CodexAppServerClient {
   assertCliLaunchAllowed('codex', install)
 
   const proc = spawnProcess(install.binPath, ['app-server', '--stdio'], {
-    cwd: homedir(),
+    cwd: defaultWorkspaceForCli('codex'),
     env: buildCliEnv('codex') as NodeJS.ProcessEnv,
     stdio: ['pipe', 'pipe', 'ignore']
   })
@@ -801,24 +814,26 @@ function mergeCodexSessions(live: SessionInfo[], local: SessionInfo[]): SessionI
 
 /** Claude: <cfg>/projects/<encoded-cwd>/<uuid>.jsonl, title from the first real user turn. */
 function listClaude(): SessionInfo[] {
-  const root = join(cliStateRoot('claude-code'), 'projects')
-  if (!existsSync(root)) return []
+  const roots = cliStateRoots('claude-code').map((root) => join(root, 'projects'))
   const refs: FileRef[] = []
-  for (const proj of readdirSync(root)) {
-    const dir = join(root, proj)
-    let files: string[]
-    try {
-      files = readdirSync(dir)
-    } catch {
-      continue
-    }
-    for (const f of files) {
-      if (!f.endsWith('.jsonl') || f.startsWith('agent-')) continue
-      const full = join(dir, f)
+  for (const root of roots) {
+    if (!existsSync(root)) continue
+    for (const proj of readdirSync(root)) {
+      const dir = join(root, proj)
+      let files: string[]
       try {
-        refs.push({ full, id: f.replace(/\.jsonl$/, ''), mtimeMs: statSync(full).mtimeMs })
+        files = readdirSync(dir)
       } catch {
-        /* ignore */
+        continue
+      }
+      for (const f of files) {
+        if (!f.endsWith('.jsonl') || f.startsWith('agent-')) continue
+        const full = join(dir, f)
+        try {
+          refs.push({ full, id: f.replace(/\.jsonl$/, ''), mtimeMs: statSync(full).mtimeMs })
+        } catch {
+          /* ignore */
+        }
       }
     }
   }
@@ -872,7 +887,7 @@ function listClaude(): SessionInfo[] {
       cwd
     })
   }
-  return out.sort((a, b) => b.updatedAt - a.updatedAt)
+  return mergeById(out)
 }
 
 /** Codex: <cfg>/sessions/YYYY/MM/DD/rollout-*-<uuid>.jsonl, meta in first line. */
@@ -956,13 +971,12 @@ function listCodex(): SessionInfo[] {
       cwd
     })
   }
-  return out.sort((a, b) => b.updatedAt - a.updatedAt)
+  return mergeById(out)
 }
 
 /** Pi: JSONL session files under <cfg>/sessions (organized by working dir). */
 function listPi(): SessionInfo[] {
-  const root = join(cliStateRoot('pi'), 'sessions')
-  if (!existsSync(root)) return []
+  const roots = cliStateRoots('pi').map((root) => join(root, 'sessions'))
   const refs: FileRef[] = []
   const walk = (dir: string) => {
     for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -977,13 +991,16 @@ function listPi(): SessionInfo[] {
     }
   }
   try {
-    walk(root)
+    for (const root of roots) {
+      if (existsSync(root)) walk(root)
+    }
   } catch {
     return []
   }
-  const out: SessionInfo[] = []
+  const bySessionId = new Map<string, SessionInfo>()
   for (const ref of recentJsonl(refs)) {
     let isSession = false
+    let sessionId = ref.id
     let name: string | null = null
     let cwd: string | undefined
     let firstUser: string | null = null
@@ -992,6 +1009,7 @@ function listPi(): SessionInfo[] {
       // Session header: {type:"session", id, cwd, name?}
       if (o.type === 'session') {
         isSession = true
+        if (typeof o.id === 'string' && o.id.trim()) sessionId = o.id.trim()
         if (typeof o.cwd === 'string') cwd = o.cwd
         if (o.name) name = o.name
       }
@@ -1008,15 +1026,17 @@ function listPi(): SessionInfo[] {
     }
     if (!isSession) continue
     // Use the full file path as the id — pi resolves `--session <path>` directly.
-    out.push({
+    const info: SessionInfo = {
       id: ref.full,
       cliId: 'pi',
       name: (name || firstUser || 'Pi session').trim().slice(0, 80),
       updatedAt: ref.mtimeMs,
       cwd
-    })
+    }
+    const existing = bySessionId.get(sessionId)
+    if (!existing || info.updatedAt > existing.updatedAt) bySessionId.set(sessionId, info)
   }
-  return out
+  return [...bySessionId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 function collectJsonFiles(dir: string, out: string[]): void {
@@ -1102,7 +1122,7 @@ async function listOpencode(): Promise<SessionInfo[]> {
 }
 
 function listHermesJson(): SessionInfo[] {
-  const root = join(cliStateRoot('hermes'), 'sessions')
+  const root = join(hermesHomeDir(), 'sessions')
   if (!existsSync(root)) return []
   const files: string[] = []
   try {
@@ -1155,7 +1175,7 @@ function listHermesJson(): SessionInfo[] {
       /* skip bad Hermes session files */
     }
   }
-  return out.sort((a, b) => b.updatedAt - a.updatedAt)
+  return mergeById(out)
 }
 
 async function listHermesSqlite(): Promise<SessionInfo[]> {
@@ -1229,7 +1249,9 @@ async function listHermes(): Promise<SessionInfo[]> {
  * instead is a known follow-up (would also fix geminiTranscript below). */
 function listGemini(): SessionInfo[] {
   const files: string[] = []
-  collectJsonFiles(join(cliStateRoot('gemini'), 'tmp'), files)
+  for (const root of cliStateRoots('gemini')) {
+    collectJsonFiles(join(root, 'tmp'), files)
+  }
   const bySession = new Map<string, { firstMessage?: string; updatedAt: number }>()
   for (const file of files) {
     if (basename(file) !== 'logs.json') continue
@@ -1266,31 +1288,38 @@ function listGemini(): SessionInfo[] {
 }
 
 function deleteClaudeSession(id: string): SessionDeleteResult {
-  const root = join(cliStateRoot('claude-code'), 'projects')
-  if (!existsSync(root))
+  const roots = cliStateRoots('claude-code').map((root) => join(root, 'projects'))
+  if (roots.every((root) => !existsSync(root))) {
     return { ok: true, cliId: 'claude-code', id, deletedCount: 0, missing: true }
+  }
 
-  let file: string | null = null
-  let projectDir: string | null = null
-  for (const proj of readdirSync(root)) {
-    const dir = join(root, proj)
-    const candidate = join(dir, `${id}.jsonl`)
-    if (existsSync(candidate)) {
-      file = candidate
-      projectDir = dir
-      break
+  const matches: Array<{ file: string; projectDir: string; root: string }> = []
+  for (const r of roots) {
+    if (!existsSync(r)) continue
+    for (const proj of readdirSync(r)) {
+      const dir = join(r, proj)
+      const candidate = join(dir, `${id}.jsonl`)
+      if (existsSync(candidate)) {
+        matches.push({ file: candidate, projectDir: dir, root: r })
+      }
     }
   }
-  if (!file) return { ok: true, cliId: 'claude-code', id, deletedCount: 0, missing: true }
-  if (!isSafeSessionPath(file, root)) {
+  if (matches.length === 0) {
+    return { ok: true, cliId: 'claude-code', id, deletedCount: 0, missing: true }
+  }
+  if (matches.some(({ file, root }) => !isSafeSessionPath(file, root))) {
     return { ok: false, cliId: 'claude-code', id, deletedCount: 0, error: 'Invalid session path' }
   }
 
   try {
     let deletedCount = 0
-    unlinkSync(file)
-    deletedCount += 1
-    if (projectDir) {
+    for (const { file, projectDir, root } of matches) {
+      try {
+        unlinkSync(file)
+        deletedCount += 1
+      } catch (error) {
+        if (!isMissingFileError(error)) throw error
+      }
       for (const name of readdirSync(projectDir)) {
         if (!name.startsWith(`agent-${id}`) || !name.endsWith('.jsonl')) continue
         const agentFile = join(projectDir, name)
@@ -1313,15 +1342,23 @@ function deleteClaudeSession(id: string): SessionDeleteResult {
 }
 
 function deleteCodexSession(id: string): SessionDeleteResult {
-  const file = findCodexSessionFile(id)
-  if (!file) return { ok: true, cliId: 'codex', id, deletedCount: 0, missing: true }
-  if (!codexSessionRoots().some((root) => isSafeSessionPath(file, root))) {
+  const files = findCodexSessionFiles(id)
+  if (files.length === 0) return { ok: true, cliId: 'codex', id, deletedCount: 0, missing: true }
+  if (files.some((file) => !codexSessionRoots().some((root) => isSafeSessionPath(file, root)))) {
     return { ok: false, cliId: 'codex', id, deletedCount: 0, error: 'Invalid session path' }
   }
 
   try {
-    unlinkSync(file)
-    return { ok: true, cliId: 'codex', id, deletedCount: 1 }
+    let deletedCount = 0
+    for (const file of files) {
+      try {
+        unlinkSync(file)
+        deletedCount += 1
+      } catch (error) {
+        if (!isMissingFileError(error)) throw error
+      }
+    }
+    return { ok: true, cliId: 'codex', id, deletedCount }
   } catch (error) {
     if (isMissingFileError(error)) {
       return { ok: true, cliId: 'codex', id, deletedCount: 0, missing: true }
@@ -1331,15 +1368,55 @@ function deleteCodexSession(id: string): SessionDeleteResult {
 }
 
 function deletePiSession(id: string): SessionDeleteResult {
-  const root = join(cliStateRoot('pi'), 'sessions')
+  const roots = cliStateRoots('pi').map((root) => join(root, 'sessions'))
   if (!existsSync(id)) return { ok: true, cliId: 'pi', id, deletedCount: 0, missing: true }
-  if (!isSafeSessionPath(id, root)) {
+  if (!roots.some((root) => isSafeSessionPath(id, root))) {
     return { ok: false, cliId: 'pi', id, deletedCount: 0, error: 'Invalid session path' }
   }
 
   try {
-    unlinkSync(id)
-    return { ok: true, cliId: 'pi', id, deletedCount: 1 }
+    let logicalId: string | null = null
+    for (const value of readLines(id)) {
+      const entry = asRecord(value)
+      if (entry?.type === 'session' && typeof entry.id === 'string' && entry.id.trim()) {
+        logicalId = entry.id.trim()
+        break
+      }
+    }
+
+    const files = [id]
+    if (logicalId) {
+      const candidates: string[] = []
+      const walk = (dir: string): void => {
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const full = join(dir, entry.name)
+          if (entry.isDirectory()) walk(full)
+          else if (entry.name.endsWith('.jsonl') && full !== id) candidates.push(full)
+        }
+      }
+      for (const root of roots) {
+        if (existsSync(root)) walk(root)
+      }
+      for (const candidate of candidates) {
+        const sameSession = readLines(candidate).some((value) => {
+          const entry = asRecord(value)
+          return entry?.type === 'session' && entry.id === logicalId
+        })
+        if (sameSession) files.push(candidate)
+      }
+    }
+
+    let deletedCount = 0
+    for (const file of files) {
+      if (!roots.some((root) => isSafeSessionPath(file, root))) continue
+      try {
+        unlinkSync(file)
+        deletedCount += 1
+      } catch (error) {
+        if (!isMissingFileError(error)) throw error
+      }
+    }
+    return { ok: true, cliId: 'pi', id, deletedCount }
   } catch (error) {
     if (isMissingFileError(error))
       return { ok: true, cliId: 'pi', id, deletedCount: 0, missing: true }
@@ -1788,17 +1865,22 @@ function done(
 
 /** Claude: locate <id>.jsonl across projects/*, map message.content blocks. */
 function claudeTranscript(id: string): Transcript {
-  const root = join(cliStateRoot('claude-code'), 'projects')
-  let file: string | null = null
-  if (existsSync(root)) {
+  const roots = cliStateRoots('claude-code').map((root) => join(root, 'projects'))
+  const matches: FileRef[] = []
+  for (const root of roots) {
+    if (!existsSync(root)) continue
     for (const proj of readdirSync(root)) {
       const candidate = join(root, proj, `${id}.jsonl`)
       if (existsSync(candidate)) {
-        file = candidate
-        break
+        try {
+          matches.push({ full: candidate, id, mtimeMs: statSync(candidate).mtimeMs })
+        } catch {
+          /* ignore unreadable session files */
+        }
       }
     }
   }
+  const file = recentJsonl(matches)[0]?.full ?? null
   const msgs: TranscriptMessage[] = []
   if (!file) return done('claude-code', id, msgs)
   const fallbackTs = statSync(file).mtimeMs
@@ -2274,7 +2356,9 @@ async function hermesTranscript(id: string): Promise<Transcript> {
  * reads logs.json specifically. */
 function geminiTranscript(id: string): Transcript {
   const files: string[] = []
-  collectJsonFiles(join(cliStateRoot('gemini'), 'tmp'), files)
+  for (const root of cliStateRoots('gemini')) {
+    collectJsonFiles(join(root, 'tmp'), files)
+  }
   const msgs: TranscriptMessage[] = []
   let fallbackTs: number | undefined
   for (const file of files) {

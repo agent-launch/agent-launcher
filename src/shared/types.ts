@@ -7,7 +7,7 @@
 export const ALL_CLI_IDS = ['claude-code', 'codex', 'opencode', 'pi', 'hermes', 'gemini'] as const
 export type CliId = (typeof ALL_CLI_IDS)[number]
 
-export type InstallSource = 'sandbox' | 'system'
+export type InstallSource = 'system'
 export type CodexInstallKind =
   | 'standalone'
   | 'npm'
@@ -43,8 +43,13 @@ export interface DetectResult {
 /** Per-CLI install state persisted in config.json. */
 export interface CliInstallState {
   installed: boolean
-  /** Where the executable comes from. Legacy values are inferred on load. */
+  /** Where the executable comes from. Always normalized to 'system' on load.
+   * The legacy managed-install state is tracked by `legacyManaged`. */
   source?: InstallSource
+  /** True when the recorded binPath/nodeEntry lives under the app's own
+   * managed root (legacy app-managed installs). Derived from paths, not the
+   * persisted `source` field, so it survives SCHEMA normalization. */
+  legacyManaged?: boolean
   version?: string
   binPath?: string
   /** For node-npm CLIs (Pi): the bundled-node entry we exec. */
@@ -527,7 +532,11 @@ export interface CliUpdateStatus {
   configured: boolean
   /** Config points at files that no longer exist. */
   stale: boolean
+  /** Always 'system' in current builds; use `legacyManaged` for the legacy label. */
   source?: InstallSource
+  /** True for legacy app-managed installs whose binaries live under the app's
+   * managed root. Used by Settings to show the "legacy" source label. */
+  legacyManaged?: boolean
   currentVersion?: string
   latestVersion?: string
   updateAvailable: boolean

@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { withIsolatedHome } from '../helpers/isolated-main'
 
 describe('CLI environment builder', () => {
-  it('isolates sandbox installs and clears inherited managed auth vars', async () => {
-    await withIsolatedHome(async () => {
+  it('clears inherited managed auth vars and injects relay/model env vars', async () => {
+    await withIsolatedHome(async ({ home }) => {
       const { paths } = await import('../../src/main/sandbox')
       const { addProfile, setInstallState } = await import('../../src/main/store')
       const { buildCliEnv, resolvedEnvPreview } = await import('../../src/main/cli-env')
@@ -18,7 +18,6 @@ describe('CLI environment builder', () => {
 
         setInstallState('claude-code', {
           installed: true,
-          source: 'sandbox',
           binPath: join(paths.cliInstall('claude-code'), 'claude')
         })
         addProfile('claude-code', {
@@ -30,7 +29,7 @@ describe('CLI environment builder', () => {
         })
 
         const claudeEnv = buildCliEnv('claude-code')
-        expect(claudeEnv.CLAUDE_CONFIG_DIR).toBe(paths.cliConfig('claude-code'))
+        expect(claudeEnv.CLAUDE_CONFIG_DIR).toBeUndefined()
         expect(claudeEnv.ANTHROPIC_API_KEY).toBeUndefined()
         expect(claudeEnv.ANTHROPIC_BASE_URL).toBe('https://claude.example')
         expect(claudeEnv.ANTHROPIC_AUTH_TOKEN).toBe('sk-claude-1234')
@@ -46,36 +45,27 @@ describe('CLI environment builder', () => {
 
         setInstallState('codex', {
           installed: true,
-          source: 'sandbox',
-          binPath: join(paths.cliInstall('codex'), 'codex')
-        })
-        addProfile('codex', {
-          name: 'Codex Relay',
-          baseUrl: 'https://codex.example/v1',
-          apiKey: 'sk-codex',
-          model: 'gpt-5'
+          binPath: '/usr/local/bin/codex'
         })
         const codexEnv = buildCliEnv('codex')
         expect(codexEnv.OPENAI_API_KEY).toBeUndefined()
         expect(codexEnv.OPENAI_BASE_URL).toBeUndefined()
-        expect(codexEnv.CODEX_HOME).toBe(paths.cliConfig('codex'))
+        expect(codexEnv.CODEX_HOME).toBeUndefined()
 
         setInstallState('opencode', {
           installed: true,
-          source: 'sandbox',
-          binPath: join(paths.cliInstall('opencode'), 'opencode')
+          binPath: '/usr/local/bin/opencode'
         })
         const opencodeEnv = buildCliEnv('opencode')
-        expect(opencodeEnv.XDG_CONFIG_HOME).toBe(join(paths.cliConfig('opencode'), 'xdg-config'))
-        expect(opencodeEnv.OPENCODE_CONFIG).toBe(join(paths.cliConfig('opencode'), 'opencode.json'))
+        expect(opencodeEnv.XDG_CONFIG_HOME).toBe(join(home, '.config'))
+        expect(opencodeEnv.XDG_CONFIG_HOME).not.toContain(paths.cliConfig('opencode'))
+        expect(opencodeEnv.OPENCODE_CONFIG).toBeUndefined()
 
         setInstallState('pi', {
           installed: true,
-          source: 'sandbox',
-          binPath: join(paths.node, 'bin', 'node'),
-          nodeEntry: 'pi.js'
+          binPath: '/usr/local/bin/pi'
         })
-        expect(buildCliEnv('pi').PI_CODING_AGENT_DIR).toBe(paths.cliConfig('pi'))
+        expect(buildCliEnv('pi').PI_CODING_AGENT_DIR).toBeUndefined()
       } finally {
         process.env = previous
       }
@@ -111,6 +101,7 @@ describe('CLI environment builder', () => {
 
       const { buildCliEnv } = await import('../../src/main/cli-env')
       const geminiEnv = buildCliEnv('gemini')
+      expect(geminiEnv.GEMINI_CLI_HOME).toBeUndefined()
       expect(geminiEnv.GOOGLE_GEMINI_BASE_URL).toBe('https://gemini.example/v1')
       expect(geminiEnv.GEMINI_API_KEY).toBe('sk-gemini')
     })
@@ -134,21 +125,13 @@ describe('CLI environment builder', () => {
     })
   })
 
-  it('keeps system installs on system config locations', async () => {
+  it('sets HERMES_HOME for hermes installs', async () => {
     await withIsolatedHome(async ({ home }) => {
       const { setInstallState } = await import('../../src/main/store')
       const { buildCliEnv } = await import('../../src/main/cli-env')
 
-      setInstallState('opencode', {
-        installed: true,
-        source: 'system',
-        binPath: '/usr/local/bin/opencode'
-      })
-      expect(buildCliEnv('opencode').OPENCODE_CONFIG).toBeUndefined()
-
       setInstallState('hermes', {
         installed: true,
-        source: 'system',
         binPath: '/usr/local/bin/hermes'
       })
       expect(buildCliEnv('hermes').HERMES_HOME).toBe(join(home, '.hermes'))

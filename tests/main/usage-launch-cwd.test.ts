@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { withIsolatedHome, writeJsonl } from '../helpers/isolated-main'
@@ -6,27 +7,24 @@ import { withIsolatedHome, writeJsonl } from '../helpers/isolated-main'
 describe('usage scanning and launch cwd resolution', () => {
   it('aggregates recent token usage, costs, sessions, models, and daily buckets', async () => {
     await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { addPriceEntry, setInstallState } = await import('../../src/main/store')
       const { readUsage } = await import('../../src/main/usage')
       const now = new Date().toISOString()
       const codexId = '22222222-3333-4444-5555-666666666666'
-      const piFile = join(paths.cliConfig('pi'), 'sessions', 'repo', 'pi-usage.jsonl')
+      const piFile = join(systemCliConfigDir('pi'), 'sessions', 'repo', 'pi-usage.jsonl')
 
       setInstallState('claude-code', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('claude-code'), 'claude')
+        binPath: '/usr/local/bin/claude'
       })
       setInstallState('codex', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('codex'), 'codex')
+        binPath: '/usr/local/bin/codex'
       })
       setInstallState('pi', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('pi'), 'pi')
+        binPath: '/usr/local/bin/pi'
       })
 
       addPriceEntry('claude-code', {
@@ -45,45 +43,59 @@ describe('usage scanning and launch cwd resolution', () => {
         cacheReadPerMillion: 0.1
       })
 
-      writeJsonl(join(paths.cliConfig('claude-code'), 'projects', 'repo', 'claude-usage.jsonl'), [
-        { type: 'user', timestamp: now, message: { role: 'user', content: 'Count this session' } },
-        {
-          type: 'assistant',
-          timestamp: now,
-          message: {
-            id: 'msg-1',
-            role: 'assistant',
-            model: 'claude-3-5-sonnet-20241022',
-            usage: {
-              input_tokens: 1000,
-              output_tokens: 200,
-              cache_read_input_tokens: 300,
-              cache_creation_input_tokens: 100
-            },
-            content: 'Done'
+      writeJsonl(
+        join(systemCliConfigDir('claude-code'), 'projects', 'repo', 'claude-usage.jsonl'),
+        [
+          {
+            type: 'user',
+            timestamp: now,
+            message: { role: 'user', content: 'Count this session' }
+          },
+          {
+            type: 'assistant',
+            timestamp: now,
+            message: {
+              id: 'msg-1',
+              role: 'assistant',
+              model: 'claude-3-5-sonnet-20241022',
+              usage: {
+                input_tokens: 1000,
+                output_tokens: 200,
+                cache_read_input_tokens: 300,
+                cache_creation_input_tokens: 100
+              },
+              content: 'Done'
+            }
+          },
+          {
+            type: 'assistant',
+            timestamp: now,
+            message: {
+              id: 'msg-1',
+              role: 'assistant',
+              model: 'claude-3-5-sonnet-20241022',
+              stop_reason: 'end_turn',
+              usage: {
+                input_tokens: 1000,
+                output_tokens: 250,
+                cache_read_input_tokens: 300,
+                cache_creation_input_tokens: 100
+              },
+              content: 'Final replacement'
+            }
           }
-        },
-        {
-          type: 'assistant',
-          timestamp: now,
-          message: {
-            id: 'msg-1',
-            role: 'assistant',
-            model: 'claude-3-5-sonnet-20241022',
-            stop_reason: 'end_turn',
-            usage: {
-              input_tokens: 1000,
-              output_tokens: 250,
-              cache_read_input_tokens: 300,
-              cache_creation_input_tokens: 100
-            },
-            content: 'Final replacement'
-          }
-        }
-      ])
+        ]
+      )
 
       writeJsonl(
-        join(paths.cliConfig('codex'), 'sessions', '2026', '07', '08', `rollout-${codexId}.jsonl`),
+        join(
+          systemCliConfigDir('codex'),
+          'sessions',
+          '2026',
+          '07',
+          '08',
+          `rollout-${codexId}.jsonl`
+        ),
         [
           { type: 'session_meta', timestamp: now, payload: { session_id: codexId, cwd: '/repo' } },
           {
@@ -192,7 +204,95 @@ describe('usage scanning and launch cwd resolution', () => {
     })
   })
 
-  it('uses a valid launch cwd and falls back to the home directory for stale paths', async () => {
+  it('does not double-count usage copied into standard and legacy state roots', async () => {
+    await withIsolatedHome(async () => {
+      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
+      const { readUsage } = await import('../../src/main/usage')
+      const now = new Date().toISOString()
+      const codexId = '44444444-5555-6666-7777-888888888888'
+
+      const claudeRecords = [
+        { type: 'user', timestamp: now, message: { role: 'user', content: 'Claude duplicate' } },
+        {
+          type: 'assistant',
+          timestamp: now,
+          message: {
+            id: 'duplicate-message',
+            role: 'assistant',
+            model: 'claude-test',
+            usage: { input_tokens: 10, output_tokens: 2 }
+          }
+        }
+      ]
+      writeJsonl(
+        join(systemCliConfigDir('claude-code'), 'projects', 'repo', 'duplicate.jsonl'),
+        claudeRecords
+      )
+      writeJsonl(
+        join(paths.cliConfig('claude-code'), 'projects', 'repo', 'duplicate.jsonl'),
+        claudeRecords
+      )
+
+      const codexRecords = [
+        { type: 'session_meta', timestamp: now, payload: { session_id: codexId, cwd: '/repo' } },
+        {
+          type: 'event_msg',
+          timestamp: now,
+          payload: {
+            type: 'token_count',
+            info: {
+              model: 'codex-test',
+              total_token_usage: {
+                input_tokens: 20,
+                cached_input_tokens: 5,
+                output_tokens: 4
+              }
+            }
+          }
+        }
+      ]
+      writeJsonl(
+        join(systemCliConfigDir('codex'), 'sessions', `rollout-standard-${codexId}.jsonl`),
+        codexRecords
+      )
+      writeJsonl(
+        join(paths.cliConfig('codex'), 'sessions', `rollout-legacy-${codexId}.jsonl`),
+        codexRecords
+      )
+
+      const piRecords = [
+        { type: 'session', id: 'duplicate-pi', name: 'Pi duplicate' },
+        {
+          type: 'message',
+          timestamp: now,
+          message: {
+            role: 'assistant',
+            model: 'pi-test',
+            usage: { input: 3, output: 1 }
+          }
+        }
+      ]
+      writeJsonl(join(systemCliConfigDir('pi'), 'sessions', 'repo', 'duplicate.jsonl'), piRecords)
+      writeJsonl(join(paths.cliConfig('pi'), 'sessions', 'repo', 'duplicate.jsonl'), piRecords)
+
+      const result = await readUsage(7, 7)
+      expect(result.requestCount).toBe(3)
+      expect(result.sessionCount).toBe(3)
+      expect(result.tokens).toEqual({
+        inputTokens: 28,
+        outputTokens: 7,
+        cacheReadTokens: 5,
+        cacheCreationTokens: 0,
+        totalTokens: 40
+      })
+      for (const cliId of ['claude-code', 'codex', 'pi'] as const) {
+        expect(result.byCli.find((item) => item.cliId === cliId)?.requestCount).toBe(1)
+      }
+    })
+  })
+
+  it('uses a valid launch cwd and falls back to a per-CLI workspace for stale paths', async () => {
     await withIsolatedHome(async ({ home }) => {
       vi.resetModules()
       vi.doMock('node:os', async (importOriginal) => {
@@ -203,10 +303,28 @@ describe('usage scanning and launch cwd resolution', () => {
       const cwd = join(home, 'workspace')
       mkdirSync(cwd, { recursive: true })
       const { resolveLaunchCwd } = await import('../../src/main/launch-cwd')
+      const fallback = join(home, '.agent-launcher', 'workspaces', 'codex')
 
-      expect(resolveLaunchCwd(cwd)).toBe(cwd)
-      expect(resolveLaunchCwd(join(home, 'missing'))).toBe(home)
-      expect(resolveLaunchCwd('   ')).toBe(home)
+      expect(resolveLaunchCwd('codex', cwd)).toBe(cwd)
+      // Never fall back to the home directory: agents scanning `~` trigger a
+      // cascade of macOS TCC prompts attributed to Agent Launcher.
+      expect(resolveLaunchCwd('codex', join(home, 'missing'))).toBe(fallback)
+      expect(resolveLaunchCwd('codex', '   ')).toBe(fallback)
+      expect(resolveLaunchCwd('codex')).toBe(fallback)
+      expect(resolveLaunchCwd('claude-code')).toBe(
+        join(home, '.agent-launcher', 'workspaces', 'claude-code')
+      )
+    })
+  })
+
+  it('uses a temporary workspace when the app state root is unusable', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      writeFileSync(join(home, '.agent-launcher'), 'not a directory')
+      const { defaultWorkspaceForCli } = await import('../../src/main/launch-cwd')
+
+      expect(defaultWorkspaceForCli('codex')).toBe(
+        join(tmpdir(), 'agent-launcher-workspaces', 'codex')
+      )
     })
   })
 

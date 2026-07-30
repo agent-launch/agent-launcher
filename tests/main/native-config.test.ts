@@ -6,14 +6,13 @@ import { readJson, withIsolatedHome, writeJson, writeText } from '../helpers/iso
 describe('native config materialization', () => {
   it('writes Codex provider TOML plus auth.json and masks previews', async () => {
     await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { addProfile, setAuthMode, setInstallState } = await import('../../src/main/store')
       const { readNativeFiles, writeNativeConfig } = await import('../../src/main/native-config')
 
       setInstallState('codex', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('codex'), 'codex')
+        binPath: '/usr/local/bin/codex'
       })
       addProfile('codex', {
         name: 'Relay "One"',
@@ -23,13 +22,13 @@ describe('native config materialization', () => {
         model: 'gpt-5'
       })
       writeText(
-        join(paths.cliConfig('codex'), 'config.toml'),
+        join(systemCliConfigDir('codex'), 'config.toml'),
         'approval_policy = "on-request"\n[profiles.default]\nfoo = "bar"\n'
       )
 
       writeNativeConfig('codex')
 
-      const config = readFileSync(join(paths.cliConfig('codex'), 'config.toml'), 'utf8')
+      const config = readFileSync(join(systemCliConfigDir('codex'), 'config.toml'), 'utf8')
       expect(config).toContain('model_provider = "agentlauncher"')
       expect(config).toContain('model = "gpt-5"')
       expect(config).toContain('[profiles.default]')
@@ -38,7 +37,7 @@ describe('native config materialization', () => {
       expect(config).toContain('base_url = "https://relay.example/v1"')
       expect(config).toContain('requires_openai_auth = true')
       expect(config).not.toContain('experimental_bearer_token')
-      expect(readJson(join(paths.cliConfig('codex'), 'auth.json'))).toEqual({
+      expect(readJson(join(systemCliConfigDir('codex'), 'auth.json'))).toEqual({
         auth_mode: 'apikey',
         OPENAI_API_KEY: 'sk-1234567890'
       })
@@ -48,23 +47,22 @@ describe('native config materialization', () => {
 
       setAuthMode('codex', 'official')
       writeNativeConfig('codex')
-      const officialConfig = readFileSync(join(paths.cliConfig('codex'), 'config.toml'), 'utf8')
+      const officialConfig = readFileSync(join(systemCliConfigDir('codex'), 'config.toml'), 'utf8')
       expect(officialConfig).toContain('[profiles.default]')
       expect(officialConfig).not.toContain('agentlauncher')
-      expect(existsSync(join(paths.cliConfig('codex'), 'auth.json'))).toBe(false)
+      expect(existsSync(join(systemCliConfigDir('codex'), 'auth.json'))).toBe(false)
     })
   })
 
   it('merges Claude settings without preserving stale managed env vars', async () => {
     await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { addProfile, setAuthMode, setInstallState } = await import('../../src/main/store')
       const { writeNativeConfig } = await import('../../src/main/native-config')
 
       setInstallState('claude-code', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('claude-code'), 'claude')
+        binPath: '/usr/local/bin/claude'
       })
       addProfile('claude-code', {
         name: 'Claude Relay',
@@ -73,7 +71,7 @@ describe('native config materialization', () => {
         model: 'sonnet',
         opusModel: 'opus'
       })
-      writeJson(join(paths.cliConfig('claude-code'), 'settings.json'), {
+      writeJson(join(systemCliConfigDir('claude-code'), 'settings.json'), {
         env: {
           KEEP_ME: '1',
           ANTHROPIC_BASE_URL: 'https://old.example',
@@ -82,7 +80,7 @@ describe('native config materialization', () => {
       })
 
       writeNativeConfig('claude-code')
-      expect(readJson(join(paths.cliConfig('claude-code'), 'settings.json'))).toEqual({
+      expect(readJson(join(systemCliConfigDir('claude-code'), 'settings.json'))).toEqual({
         env: {
           KEEP_ME: '1',
           ANTHROPIC_BASE_URL: 'https://claude.example',
@@ -96,7 +94,7 @@ describe('native config materialization', () => {
 
       setAuthMode('claude-code', 'official')
       writeNativeConfig('claude-code')
-      expect(readJson(join(paths.cliConfig('claude-code'), 'settings.json'))).toEqual({
+      expect(readJson(join(systemCliConfigDir('claude-code'), 'settings.json'))).toEqual({
         env: { KEEP_ME: '1' }
       })
     })
@@ -104,14 +102,13 @@ describe('native config materialization', () => {
 
   it('writes opencode, Pi, and Hermes native files from active profiles', async () => {
     await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { addProfile, setInstallState } = await import('../../src/main/store')
       const { readNativeFiles, writeNativeConfig } = await import('../../src/main/native-config')
 
       setInstallState('opencode', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('opencode'), 'opencode')
+        binPath: '/usr/local/bin/opencode'
       })
       addProfile('opencode', {
         name: 'Open Relay',
@@ -119,11 +116,11 @@ describe('native config materialization', () => {
         apiKey: 'sk-open-1234',
         model: 'gpt-open'
       })
-      writeJson(join(paths.cliConfig('opencode'), 'opencode.json'), {
+      writeJson(join(systemCliConfigDir('opencode'), 'opencode.json'), {
         mcp: { fs: { command: 'node' } }
       })
       writeNativeConfig('opencode')
-      const opencode = readJson(join(paths.cliConfig('opencode'), 'opencode.json'))
+      const opencode = readJson(join(systemCliConfigDir('opencode'), 'opencode.json'))
       expect(opencode.mcp.fs.command).toBe('node')
       expect(opencode.provider.agentlauncher.options).toEqual({
         baseURL: 'https://open.example/v1',
@@ -133,9 +130,7 @@ describe('native config materialization', () => {
 
       setInstallState('pi', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.node, 'bin', 'node'),
-        nodeEntry: 'pi.js'
+        binPath: '/usr/local/bin/pi'
       })
       addProfile('pi', {
         name: 'Pi Relay',
@@ -145,21 +140,20 @@ describe('native config materialization', () => {
       })
       writeNativeConfig('pi')
       expect(
-        readJson(join(paths.cliConfig('pi'), 'models.json')).providers.agentlauncher
+        readJson(join(systemCliConfigDir('pi'), 'models.json')).providers.agentlauncher
       ).toMatchObject({
         baseUrl: 'https://pi.example/v1',
         apiKey: 'sk-pi-1234',
         api: 'openai-completions',
         models: [{ id: 'gpt-pi' }]
       })
-      expect(readJson(join(paths.cliConfig('pi'), 'settings.json'))).toEqual({
+      expect(readJson(join(systemCliConfigDir('pi'), 'settings.json'))).toEqual({
         defaultProvider: 'agentlauncher',
         defaultModel: 'gpt-pi'
       })
 
       setInstallState('hermes', {
         installed: true,
-        source: 'sandbox',
         binPath: '/usr/local/bin/hermes'
       })
       addProfile('hermes', {
@@ -169,16 +163,16 @@ describe('native config materialization', () => {
         model: 'gpt-hermes'
       })
       writeText(
-        join(paths.cliConfig('hermes'), 'config.yaml'),
+        join(systemCliConfigDir('hermes'), 'config.yaml'),
         'ui:\n  theme: dark\nmodel:\n  provider: old\n  default: old\n'
       )
       writeNativeConfig('hermes')
-      const hermesConfig = readFileSync(join(paths.cliConfig('hermes'), 'config.yaml'), 'utf8')
+      const hermesConfig = readFileSync(join(systemCliConfigDir('hermes'), 'config.yaml'), 'utf8')
       expect(hermesConfig).toContain('ui:\n  theme: dark')
       expect(hermesConfig).toContain('provider: custom')
       expect(hermesConfig).toContain('default: "gpt-hermes"')
       expect(hermesConfig).toContain('base_url: "https://hermes.example/v1"')
-      expect(readFileSync(join(paths.cliConfig('hermes'), '.env'), 'utf8')).toContain(
+      expect(readFileSync(join(systemCliConfigDir('hermes'), '.env'), 'utf8')).toContain(
         'AGENTLAUNCHER_OPENAI_API_KEY=sk-hermes-1234'
       )
       expect(

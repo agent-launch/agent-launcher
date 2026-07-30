@@ -83,7 +83,7 @@ describe('Codex macOS launch safety', () => {
     expect(
       cliLaunchBlockMessage(
         'codex',
-        { installed: true, source: 'sandbox', version: '0.144.5', binPath: '/sandbox/codex' },
+        { installed: true, version: '0.144.5', binPath: '/sandbox/codex' },
         'darwin'
       )
     ).toBeUndefined()

@@ -1,10 +1,9 @@
-// Ad-hoc smoke for transcript parsing. Copies a real on-disk session from the
-// user's actual CLI homes into the sandbox layout, then runs readTranscript and
-// prints a compact view. Run: npx tsx scripts/smoke-transcript.ts [claude-code|codex]
+// Ad-hoc smoke for transcript parsing. Reads a real on-disk session from the
+// CLI's standard home and prints a compact view.
+// Run: npx tsx scripts/smoke-transcript.ts [claude-code|codex]
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { mkdirSync, copyFileSync, readdirSync, statSync } from 'node:fs'
-import { paths } from '../src/main/sandbox'
+import { readdirSync, statSync } from 'node:fs'
 import { readTranscript } from '../src/main/sessions-history'
 import type { CliId } from '../src/shared/types'
 
@@ -49,9 +48,6 @@ async function main() {
       .replace(/\.jsonl$/, '')
       .split('/')
       .pop()!
-    const dest = join(paths.cliConfig('claude-code'), 'projects', 'smoke')
-    mkdirSync(dest, { recursive: true })
-    copyFileSync(src, join(dest, `${id}.jsonl`))
     console.log('claude id:', id)
     dump('claude-code', (await readTranscript('claude-code', id)).messages)
   } else if (which === 'codex') {
@@ -62,9 +58,6 @@ async function main() {
     if (!src) return console.log('no real codex sessions found')
     const uuid = src.match(/([0-9a-f-]{36})\.jsonl$/)?.[1]
     if (!uuid) throw new Error(`Could not read a Codex session id from ${src}`)
-    const dest = join(paths.cliConfig('codex'), 'sessions', 'smoke')
-    mkdirSync(dest, { recursive: true })
-    copyFileSync(src, join(dest, src.split('/').pop()!))
     console.log('codex uuid:', uuid)
     dump('codex', (await readTranscript('codex', uuid)).messages)
   }

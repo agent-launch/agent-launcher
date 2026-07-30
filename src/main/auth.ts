@@ -1,10 +1,10 @@
 import type { ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
 import type { WebContents } from 'electron'
 import { buildCliEnv } from './cli-env'
 import { cliLaunchBlockMessage, macosSecurityManualUpdateMessage } from './cli-launch-safety'
 import { detectSystemCli } from './install/installer'
+import { defaultWorkspaceForCli } from './launch-cwd'
 import { hasNativeConfig, writeNativeConfig } from './native-config'
 import { spawnProcess } from './process'
 import { loadConfig, setAuthMode, setInstallState } from './store'
@@ -39,7 +39,7 @@ async function installedBin(cliId: CliId): Promise<string | undefined> {
 
   const detection = await detectSystemCli(
     cliId,
-    install.source === 'system' ? install.binPath : undefined
+    !install.legacyManaged ? install.binPath : undefined
   )
   const selected = detection.selectedPath
   if (!selected || !existsSync(selected)) return undefined
@@ -96,7 +96,7 @@ async function runStatus(cliId: CliId, args: string[]): Promise<AuthStatus> {
   return new Promise((resolve) => {
     let output = ''
     const proc = spawnProcess(bin, args, {
-      cwd: homedir(),
+      cwd: defaultWorkspaceForCli(cliId),
       env: buildCliEnv(cliId) as NodeJS.ProcessEnv
     })
     proc.stdout?.setEncoding('utf8')
@@ -141,7 +141,7 @@ export async function startAuthLogin(
   }
 
   const proc = spawnProcess(bin, args, {
-    cwd: homedir(),
+    cwd: defaultWorkspaceForCli(cliId),
     env: buildCliEnv(cliId) as NodeJS.ProcessEnv
   })
   const id = `auth-${++seq}`

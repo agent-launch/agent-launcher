@@ -15,7 +15,6 @@ import type {
   CliId,
   CliLinkProgress,
   DetectResult,
-  InstallSource,
   SystemCliCandidate,
   SystemCliDetection
 } from '@shared/types'
@@ -222,7 +221,7 @@ interface CliInstallUi {
   phase?: CliLinkProgress['phase']
   message?: string
   version?: string
-  source?: InstallSource
+  legacyManaged?: boolean
   binPath?: string
   error?: string
   busy?: boolean
@@ -257,7 +256,7 @@ function useCliPathManager(onChanged: () => Promise<void> | void) {
             phase: 'done',
             message: t('onboarding.linkDone'),
             version: r.version,
-            source: r.source,
+            legacyManaged: false,
             binPath: r.binPath
           }
         : { busy: false, phase: 'error', error: r.error }
@@ -447,7 +446,7 @@ function LinkStep() {
         // Never probe a candidate that can trigger a macOS security dialog.
         // The row explains the required manual update instead.
         if (detected.macosSecurityRisk) return false
-        return !inst?.installed || inst.source !== 'system' || detected.status === 'stale'
+        return !inst?.installed || inst.legacyManaged || detected.status === 'stale'
       })
 
       setUi((prev) => {
@@ -457,22 +456,14 @@ function LinkStep() {
           const inst = cfg.install[id]
           const detected = result.systemClis?.[id]
           const staleSystemInstall =
-            inst?.source === 'system' &&
-            (detected?.status === 'stale' || detected?.macosSecurityRisk)
+            !inst?.legacyManaged && (detected?.status === 'stale' || detected?.macosSecurityRisk)
           const shouldAutoLink = autoLinks.includes(id)
-          const usableLegacyInstall = inst?.installed && inst.source === 'sandbox'
-          if (
-            inst?.installed &&
-            (inst.source === 'system' || usableLegacyInstall) &&
-            !staleSystemInstall &&
-            !shouldAutoLink &&
-            !next[id]?.busy
-          ) {
+          if (inst?.installed && !staleSystemInstall && !shouldAutoLink && !next[id]?.busy) {
             next[c.id] = {
               phase: 'done',
               message: t('settings.cliStatus.installed'),
               version: inst.version,
-              source: inst.source,
+              legacyManaged: inst.legacyManaged,
               binPath: inst.binPath
             }
           } else if (shouldAutoLink && !next[id]?.busy) {
@@ -481,7 +472,7 @@ function LinkStep() {
               busy: true,
               phase: 'link',
               message: t('onboarding.systemAvailable'),
-              source: 'system',
+              legacyManaged: false,
               binPath: detected?.selectedPath
             }
           }
@@ -527,7 +518,7 @@ function LinkStep() {
             phase: 'done',
             message: r.warning ?? t('onboarding.linkDone'),
             version: r.version,
-            source: r.source,
+            legacyManaged: false,
             binPath: r.binPath
           }
         : { busy: false, phase: 'error', error: r.error }
@@ -587,12 +578,9 @@ function LinkStep() {
                     <span style={{ color: 'var(--warning)' }}>{macSecurityWarning}</span>
                   ) : s.phase === 'done' ? (
                     <span style={{ color: 'var(--success)' }}>
-                      {t(
-                        s.source === 'system' ? 'onboarding.systemLinked' : 'onboarding.installed',
-                        {
-                          version: s.version && s.version !== 'installed' ? ` ${s.version}` : ''
-                        }
-                      )}
+                      {t(s.legacyManaged ? 'onboarding.installed' : 'onboarding.systemLinked', {
+                        version: s.version && s.version !== 'installed' ? ` ${s.version}` : ''
+                      })}
                     </span>
                   ) : s.busy ? (
                     (s.message ?? t('onboarding.linking'))

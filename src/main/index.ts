@@ -7,6 +7,9 @@ import { killAllAuth } from './auth'
 import { cancelAllUsageReads } from './usage-runner'
 import { cancelAllSessionLists } from './sessions-runner'
 import { registerAppUpdateIpc, startAppUpdateAutoCheck } from './app-update'
+import { hasNativeConfig, writeNativeConfig } from './native-config'
+import { loadConfig } from './store'
+import type { CliId } from '@shared/types'
 
 type MenuLocale = 'zh' | 'en'
 
@@ -204,6 +207,23 @@ app.whenReady().then(() => {
   })
   ipcMain.on('app:check-updates-request', sendCheckUpdates)
   ipcMain.on('app:open-about-request', sendOpenAbout)
+
+  // Legacy app-managed installs used to redirect each CLI's config home into
+  // ~/.agent-launcher/cli-config/<cliId>. We now use standard config dirs, so
+  // re-materialize relay/API-key settings for any remaining legacy installs so
+  // their first launch after upgrade still works. writeNativeConfig is merge-
+  // based and safe to call repeatedly.
+  const config = loadConfig()
+  for (const id of Object.keys(config.install) as CliId[]) {
+    const install = config.install[id]
+    if (install.installed && install.legacyManaged && hasNativeConfig(id)) {
+      try {
+        writeNativeConfig(id)
+      } catch (error) {
+        console.warn(`Failed to migrate ${id} native config:`, error)
+      }
+    }
+  }
 
   registerIpc()
   registerAppUpdateIpc()

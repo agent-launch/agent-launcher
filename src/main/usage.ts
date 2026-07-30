@@ -1,11 +1,10 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { isAbsolute, join, relative, resolve } from 'node:path'
-import { geminiUsageLogPath, hermesHomeDir } from './config-paths'
+import { basename, isAbsolute, join, relative, resolve } from 'node:path'
+import { cliStateRoots, geminiUsageLogPath, hermesHomeDir } from './config-paths'
 import { getSql, readSqliteSnapshot } from './sqlite'
-import { paths } from './sandbox'
 import { listSessions } from './sessions-history'
-import { getInstallSource, loadConfig } from './store'
+import { loadConfig } from './store'
 import type {
   CliId,
   CliPriceEntry,
@@ -51,25 +50,13 @@ const ZERO_COST: UsageCostTotals = {
   totalCost: 0
 }
 
-function cliStateRoot(cliId: CliId): string {
-  if (getInstallSource(cliId) !== 'system') return paths.cliConfig(cliId)
-  if (cliId === 'claude-code') return join(homedir(), '.claude')
-  if (cliId === 'codex') return join(homedir(), '.codex')
-  if (cliId === 'pi') return join(homedir(), '.pi', 'agent')
-  if (cliId === 'hermes') return hermesHomeDir()
-  return paths.cliConfig(cliId)
-}
-
 function opencodeDbPath(): string {
-  if (getInstallSource('opencode') !== 'system') {
-    return join(paths.cliConfig('opencode'), 'xdg-data', 'opencode', 'opencode.db')
-  }
   const dataHome = process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share')
   return join(dataHome, 'opencode', 'opencode.db')
 }
 
 function hermesDbPath(): string {
-  return join(cliStateRoot('hermes'), 'state.db')
+  return join(hermesHomeDir(), 'state.db')
 }
 
 function isPathInside(path: string, root: string): boolean {
@@ -237,12 +224,30 @@ function collectJsonlRecursive(dir: string, out: string[], maxDepth = 8, depth =
   }
 }
 
-function collectClaudeUsage(): UsageEntry[] {
-  const root = join(cliStateRoot('claude-code'), 'projects')
-  const files: string[] = []
-  collectJsonlRecursive(root, files)
-  const entries: UsageEntry[] = []
+function newestFilesByKey(files: string[], keyFor: (file: string) => string): string[] {
+  const selected = new Map<string, { file: string; mtimeMs: number }>()
   for (const file of files) {
+    let mtimeMs: number
+    try {
+      mtimeMs = statSync(file).mtimeMs
+    } catch {
+      continue
+    }
+    const key = keyFor(file)
+    const existing = selected.get(key)
+    if (!existing || mtimeMs > existing.mtimeMs) selected.set(key, { file, mtimeMs })
+  }
+  return [...selected.values()].map((entry) => entry.file)
+}
+
+function collectClaudeUsage(): UsageEntry[] {
+  const roots = cliStateRoots('claude-code').map((root) => join(root, 'projects'))
+  const files: string[] = []
+  for (const root of roots) {
+    collectJsonlRecursive(root, files)
+  }
+  const entries: UsageEntry[] = []
+  for (const file of newestFilesByKey(files, (value) => basename(value))) {
     let sessionId = file
       .replace(/\.jsonl$/, '')
       .split(/[\\/]/)
@@ -329,11 +334,18 @@ function codexDelta(prev: CodexCumulative | null, current: CodexCumulative): Cod
 }
 
 function collectCodexUsage(): UsageEntry[] {
-  const root = join(cliStateRoot('codex'), 'sessions')
+  const roots = cliStateRoots('codex').map((root) => join(root, 'sessions'))
   const files: string[] = []
-  collectJsonlRecursive(root, files)
+  for (const root of roots) {
+    collectJsonlRecursive(root, files)
+  }
   const entries: UsageEntry[] = []
-  for (const file of files) {
+  for (const file of newestFilesByKey(files, (value) => {
+    const name = basename(value, '.jsonl')
+    return (
+      name.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i)?.[1] ?? name
+    )
+  })) {
     let sessionId = file
       .replace(/\.jsonl$/, '')
       .split(/[\\/]/)
@@ -380,12 +392,23 @@ function collectCodexUsage(): UsageEntry[] {
 }
 
 function collectPiUsage(): UsageEntry[] {
-  const root = join(cliStateRoot('pi'), 'sessions')
+  const roots = cliStateRoots('pi').map((root) => join(root, 'sessions'))
   const files: string[] = []
-  collectJsonlRecursive(root, files)
+  for (const root of roots) {
+    collectJsonlRecursive(root, files)
+  }
   const entries: UsageEntry[] = []
-  for (const file of files) {
-    if (!isPathInside(file, root)) continue
+  const selectedFiles = newestFilesByKey(files, (file) => {
+    for (const raw of readJsonLines(file)) {
+      const record = asRecord(raw)
+      if (record?.type === 'session' && typeof record.id === 'string' && record.id.trim()) {
+        return record.id.trim()
+      }
+    }
+    return file
+  })
+  for (const file of selectedFiles) {
+    if (!roots.some((root) => isPathInside(file, root))) continue
     let sessionId = file
     let model = 'unknown'
     for (const raw of readJsonLines(file)) {

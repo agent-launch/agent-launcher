@@ -624,7 +624,7 @@ function isVersionNewer(latest?: string, current?: string): boolean {
 
 function cliFilesExist(id: CliId, install: CliInstallState): boolean {
   if (!install.binPath || !existsSync(install.binPath)) return false
-  if (install.source !== 'sandbox') return true
+  if (!install.legacyManaged) return true
   if (id === 'codex' && install.installKind === 'standalone') {
     const packageRoot = dirname(dirname(install.binPath))
     const helper = join(
@@ -685,13 +685,13 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
       const configured = install.installed
       const installed = configured && cliFilesExist(cliId, install)
       const stale = configured && !installed
-      const legacyManaged = install.source === 'sandbox'
+      const legacyManaged = install.legacyManaged === true
       try {
         // System binaries are also updated outside the app; re-probe the live
         // version instead of trusting the recorded one, so a finished update
         // (or an external one) clears the "update available" badge.
         let currentVersion = install.version
-        if (installed && install.source === 'system' && install.binPath) {
+        if (installed && !legacyManaged && install.binPath) {
           const realPath = await normalizePath(install.binPath)
           const inspection =
             cliId === 'codex' ? inspectCodexInstall(install.binPath, realPath) : undefined
@@ -721,6 +721,7 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
           configured,
           stale,
           source: install.source,
+          legacyManaged,
           currentVersion,
           latestVersion,
           updateAvailable: installed
@@ -736,6 +737,7 @@ export async function getCliUpdateStatuses(): Promise<CliUpdateStatus[]> {
           configured,
           stale,
           source: install.source,
+          legacyManaged,
           currentVersion: install.version,
           updateAvailable: installed && legacyManaged,
           binPath: install.binPath,

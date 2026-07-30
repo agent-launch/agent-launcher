@@ -4,17 +4,15 @@ import { describe, expect, it } from 'vitest'
 import { readJson, withIsolatedHome, writeJson, writeText } from '../helpers/isolated-main'
 
 describe('installed MCP and Skill resources', () => {
-  it('manages JSON MCP files for Claude Code sandbox config', async () => {
-    await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+  it('manages JSON MCP files for Claude Code config', async () => {
+    await withIsolatedHome(async ({ home }) => {
       const { setInstallState } = await import('../../src/main/store')
       const { addInstalledMcp, deleteInstalledMcp, updateInstalledMcp } =
         await import('../../src/main/installed-resources')
 
       setInstallState('claude-code', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('claude-code'), 'claude')
+        binPath: '/usr/local/bin/claude'
       })
       let entries = addInstalledMcp('claude-code', {
         name: 'fs',
@@ -46,9 +44,9 @@ describe('installed MCP and Skill resources', () => {
         transport: 'http',
         url: 'https://mcp.example/api'
       })
-      expect(
-        readJson(join(paths.cliConfig('claude-code'), '.claude.json')).mcpServers.remote.url
-      ).toBe('https://mcp.example/api')
+      expect(readJson(join(home, '.claude.json')).mcpServers.remote.url).toBe(
+        'https://mcp.example/api'
+      )
 
       entries = deleteInstalledMcp('claude-code', entries[0].id)
       expect(entries).toEqual([])
@@ -57,17 +55,16 @@ describe('installed MCP and Skill resources', () => {
 
   it('manages Codex TOML MCP blocks and lists plugin-bundled MCP servers as read-only', async () => {
     await withIsolatedHome(async ({ home }) => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { setInstallState } = await import('../../src/main/store')
       const { addInstalledMcp, deleteInstalledMcp, listInstalledMcp, updateInstalledMcp } =
         await import('../../src/main/installed-resources')
 
       setInstallState('codex', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('codex'), 'codex')
+        binPath: '/usr/local/bin/codex'
       })
-      writeText(join(paths.cliConfig('codex'), 'config.toml'), '')
+      writeText(join(systemCliConfigDir('codex'), 'config.toml'), '')
       let entries = addInstalledMcp('codex', {
         name: 'my.server',
         command: 'node',
@@ -80,7 +77,7 @@ describe('installed MCP and Skill resources', () => {
         args: 'server.js --flag',
         configKind: 'codex-toml'
       })
-      expect(readFileSync(join(paths.cliConfig('codex'), 'config.toml'), 'utf8')).toContain(
+      expect(readFileSync(join(systemCliConfigDir('codex'), 'config.toml'), 'utf8')).toContain(
         '[mcp_servers."my.server"]'
       )
 
@@ -103,7 +100,7 @@ describe('installed MCP and Skill resources', () => {
         }
       })
       writeText(
-        join(paths.cliConfig('codex'), 'config.toml'),
+        join(systemCliConfigDir('codex'), 'config.toml'),
         `[marketplaces.local]\nsource_type = "local"\nsource = "${pluginRoot}"\n\n[plugins."browser@local"]\nenabled = true\n`
       )
 
@@ -123,7 +120,7 @@ describe('installed MCP and Skill resources', () => {
       // Toggling a plugin server makes Codex materialize a same-name override
       // in config.toml — the list must dedupe to the toml entry only.
       writeText(
-        join(paths.cliConfig('codex'), 'config.toml'),
+        join(systemCliConfigDir('codex'), 'config.toml'),
         `[marketplaces.local]\nsource_type = "local"\nsource = "${pluginRoot}"\n\n[plugins."browser@local"]\nenabled = true\n\n[mcp_servers.browser]\ncommand = "node"\nargs = ["server.js"]\ndisabled = true\n`
       )
       const deduped = listInstalledMcp('codex')
@@ -138,14 +135,13 @@ describe('installed MCP and Skill resources', () => {
 
   it('manages Hermes YAML MCP servers', async () => {
     await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { setInstallState } = await import('../../src/main/store')
       const { addInstalledMcp, deleteInstalledMcp, updateInstalledMcp } =
         await import('../../src/main/installed-resources')
 
       setInstallState('hermes', {
         installed: true,
-        source: 'sandbox',
         binPath: '/usr/local/bin/hermes'
       })
       let entries = addInstalledMcp('hermes', {
@@ -160,7 +156,7 @@ describe('installed MCP and Skill resources', () => {
         transport: 'http',
         url: 'https://mcp.example/search'
       })
-      expect(readFileSync(join(paths.cliConfig('hermes'), 'config.yaml'), 'utf8')).toContain(
+      expect(readFileSync(join(systemCliConfigDir('hermes'), 'config.yaml'), 'utf8')).toContain(
         'mcp_servers:'
       )
 
@@ -184,7 +180,7 @@ describe('installed MCP and Skill resources', () => {
 
   it('lists, reads, updates, and deletes local Skill files safely', async () => {
     await withIsolatedHome(async () => {
-      const { paths } = await import('../../src/main/sandbox')
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { setInstallState } = await import('../../src/main/store')
       const {
         deleteInstalledSkill,
@@ -195,10 +191,9 @@ describe('installed MCP and Skill resources', () => {
 
       setInstallState('codex', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('codex'), 'codex')
+        binPath: '/usr/local/bin/codex'
       })
-      const skillPath = join(paths.cliConfig('codex'), 'skills', 'writer', 'SKILL.md')
+      const skillPath = join(systemCliConfigDir('codex'), 'skills', 'writer', 'SKILL.md')
       writeText(skillPath, '---\nname: Writer\ndescription: Draft text\n---\nUse concise prose.\n')
 
       let skills = listInstalledSkills('codex')
@@ -223,27 +218,17 @@ describe('installed MCP and Skill resources', () => {
     })
   })
 
-  it('keeps sandbox and system Skill roots separate', async () => {
-    await withIsolatedHome(async ({ home }) => {
-      const { paths } = await import('../../src/main/sandbox')
+  it('reads Skills from the standard CLI config directory', async () => {
+    await withIsolatedHome(async () => {
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { setInstallState } = await import('../../src/main/store')
       const { listInstalledSkills } = await import('../../src/main/installed-resources')
 
-      const sandboxSkill = join(paths.cliConfig('codex'), 'skills', 'sandbox-writer', 'SKILL.md')
-      const systemSkill = join(home, '.codex', 'skills', 'system-writer', 'SKILL.md')
-      writeText(sandboxSkill, '---\nname: Sandbox Writer\n---\n')
-      writeText(systemSkill, '---\nname: System Writer\n---\n')
+      const skillPath = join(systemCliConfigDir('codex'), 'skills', 'system-writer', 'SKILL.md')
+      writeText(skillPath, '---\nname: System Writer\n---\n')
 
       setInstallState('codex', {
         installed: true,
-        source: 'sandbox',
-        binPath: join(paths.cliInstall('codex'), 'codex')
-      })
-      expect(listInstalledSkills('codex').map((skill) => skill.name)).toEqual(['Sandbox Writer'])
-
-      setInstallState('codex', {
-        installed: true,
-        source: 'system',
         binPath: '/usr/local/bin/codex'
       })
       expect(listInstalledSkills('codex').map((skill) => skill.name)).toEqual(['System Writer'])

@@ -93,7 +93,7 @@ function resolveTarget(
     : []
   // Legacy managed Pi installs run through bundled Node + their JS entry. A
   // current system Pi install is already an executable wrapper.
-  if (install.nodeEntry && install.source !== 'system') {
+  if (install.nodeEntry && install.legacyManaged) {
     const extra: string[] = [...embeddedArgs, ...(resume ?? []), ...yolo]
     if (opts.cliId === 'pi') {
       const profile = getActiveProfile('pi')
@@ -135,7 +135,7 @@ function prepareCliLaunch(
   embedded = false,
   embeddedVersion?: string
 ): { cwd: string; file: string; args: string[]; env: NodeJS.ProcessEnv } {
-  const cwd = resolveLaunchCwd(opts.cwd)
+  const cwd = resolveLaunchCwd(opts.cliId, opts.cwd)
   const target = resolveTarget({ ...opts, mode: 'cli' }, embedded, embeddedVersion)
 
   if (hasNativeConfig(opts.cliId) && opts.cliId !== 'claude-code') {
@@ -227,7 +227,7 @@ async function currentEmbeddedCliVersion(opts: SpawnOptions): Promise<string | u
     process.platform !== 'win32' ||
     opts.mode !== 'cli' ||
     (opts.cliId !== 'codex' && opts.cliId !== 'opencode') ||
-    install.source !== 'system' ||
+    install.legacyManaged ||
     !install.binPath
   ) {
     return install.version
@@ -257,7 +257,11 @@ export async function createSession(wc: WebContents, opts: SpawnOptions): Promis
   const version = await currentEmbeddedCliVersion(opts)
   const prepared =
     opts.mode === 'shell'
-      ? { cwd: resolveLaunchCwd(opts.cwd), ...resolveTarget(opts), env: buildCliEnv(opts.cliId) }
+      ? {
+          cwd: resolveLaunchCwd(opts.cliId, opts.cwd),
+          ...resolveTarget(opts),
+          env: buildCliEnv(opts.cliId)
+        }
       : prepareCliLaunch(opts, true, version)
 
   const target = windowsShellTarget(prepared.file, prepared.args)
