@@ -132,6 +132,10 @@ describe('sessions history and transcripts', () => {
   })
 
   it('deletes a gemini session by the 1-based startTime-ascending index gemini-cli itself expects', async () => {
+    // The fake `gemini` binary below is a #!/bin/sh script; Windows has no
+    // shebang support, so this is skipped there like the other fake-binary
+    // process tests in this repo (see platform-process.test.ts).
+    if (process.platform === 'win32') return
     await withIsolatedHome(async ({ home }) => {
       const { chmodSync, mkdirSync, writeFileSync: writeFile } = await import('node:fs')
       const { paths } = await import('../../src/main/sandbox')

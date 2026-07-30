@@ -1343,7 +1343,8 @@ function collectGeminiChatFiles(): string[] {
         const chatsDir = join(root, projectDir.name, 'chats')
         try {
           for (const entry of readdirSync(chatsDir, { withFileTypes: true })) {
-            if (entry.isFile() && entry.name.endsWith('.jsonl')) out.push(join(chatsDir, entry.name))
+            if (entry.isFile() && entry.name.endsWith('.jsonl'))
+              out.push(join(chatsDir, entry.name))
           }
         } catch {
           /* no chats/ dir for this project — nothing to add */
