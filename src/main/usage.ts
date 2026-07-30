@@ -247,7 +247,13 @@ function collectClaudeUsage(): UsageEntry[] {
     collectJsonlRecursive(root, files)
   }
   const entries: UsageEntry[] = []
-  for (const file of newestFilesByKey(files, (value) => basename(value))) {
+  // Key by the last two path segments (encoded-cwd / session-id) so unrelated
+  // sessions in different project dirs are not deduplicated, while exact
+  // migrated duplicates across standard/legacy roots are still collapsed.
+  for (const file of newestFilesByKey(files, (value) => {
+    const normalized = value.replace(/\\/g, '/').replace(/\.jsonl$/, '')
+    return normalized.split('/').filter(Boolean).slice(-2).join('/')
+  })) {
     let sessionId = file
       .replace(/\.jsonl$/, '')
       .split(/[\\/]/)

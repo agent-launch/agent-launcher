@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { paths } from './sandbox'
@@ -53,6 +52,7 @@ export function cliConfigDir(cliId: CliId): string {
 /**
  * Read-only state dirs left behind by deprecated app-managed installs, which
  * redirected each CLI's config home into ~/.agent-launcher/cli-config/<id>.
+ * Callers are responsible for skipping roots that no longer exist on disk.
  * SQLite-backed opencode/Hermes state is intentionally not merged.
  */
 export function cliStateRoots(cliId: CliId): string[] {
@@ -61,5 +61,5 @@ export function cliStateRoots(cliId: CliId): string[] {
   // Mirror the old GEMINI_CLI_HOME semantics: state landed at <home>/.gemini.
   const legacy =
     cliId === 'gemini' ? join(paths.cliConfig('gemini'), '.gemini') : paths.cliConfig(cliId)
-  return existsSync(legacy) ? [primary, legacy] : [primary]
+  return [primary, legacy]
 }

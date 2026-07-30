@@ -647,22 +647,27 @@ function codexSessionRoots(): string[] {
 }
 
 function codexSessionNames(): Map<string, string> {
-  const names = new Map<string, string>()
+  const byId = new Map<string, { name: string; mtimeMs: number }>()
   for (const root of cliStateRoots('codex')) {
     const file = join(root, 'session_index.jsonl')
-    if (!existsSync(file)) continue
-    const rootNames = new Map<string, string>()
+    let fileMtime: number
+    try {
+      fileMtime = statSync(file).mtimeMs
+    } catch {
+      continue
+    }
     for (const value of readLines(file)) {
       const entry = asRecord(value)
       const id = displayTitleCandidate(entry?.id)
       const name = displayTitleCandidate(entry?.thread_name ?? entry?.threadName)
-      if (id && name) rootNames.set(id, name)
-    }
-    for (const [id, name] of rootNames) {
-      if (!names.has(id)) names.set(id, name)
+      if (!id || !name) continue
+      const existing = byId.get(id)
+      if (!existing || fileMtime > existing.mtimeMs) {
+        byId.set(id, { name, mtimeMs: fileMtime })
+      }
     }
   }
-  return names
+  return new Map([...byId.entries()].map(([id, v]) => [id, v.name]))
 }
 
 function createCodexAppServerClient(): CodexAppServerClient {

@@ -85,17 +85,63 @@ function DirectorySelect({
   onChange: (key: string) => void
 }) {
   const [open, setOpen] = useState(false)
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
-  const selected = options.find((o) => o.key === value) ?? options[0]
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const selectedIndex = Math.max(
+    0,
+    options.findIndex((o) => o.key === value)
+  )
+  const selected = options[selectedIndex] ?? options[0]
 
   useEffect(() => {
     if (!open) return
+    setHighlightedIndex(selectedIndex)
     const onPointerDown = (event: PointerEvent) => {
       if (rootRef.current?.contains(event.target as Node)) return
       setOpen(false)
     }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setOpen(false)
+        triggerRef.current?.focus()
+        return
+      }
+      if (!open) return
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault()
+          setHighlightedIndex((i) => Math.min(options.length - 1, i + 1))
+          break
+        case 'ArrowUp':
+          event.preventDefault()
+          setHighlightedIndex((i) => Math.max(0, i - 1))
+          break
+        case 'Home':
+          event.preventDefault()
+          setHighlightedIndex(0)
+          break
+        case 'End':
+          event.preventDefault()
+          setHighlightedIndex(options.length - 1)
+          break
+        case 'Enter':
+        case ' ': {
+          event.preventDefault()
+          const option = options[highlightedIndex]
+          if (option) {
+            onChange(option.key)
+            setOpen(false)
+            triggerRef.current?.focus()
+          }
+          break
+        }
+        case 'Tab':
+          setOpen(false)
+          break
+      }
     }
     window.addEventListener('pointerdown', onPointerDown, true)
     window.addEventListener('keydown', onKeyDown)
@@ -103,15 +149,27 @@ function DirectorySelect({
       window.removeEventListener('pointerdown', onPointerDown, true)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [open, options, highlightedIndex, selectedIndex, onChange])
+
+  useEffect(() => {
+    optionRefs.current[highlightedIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [highlightedIndex])
 
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((current) => !current)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            setOpen(true)
+          }
+        }}
         aria-expanded={open}
-        aria-haspopup="menu"
+        aria-haspopup="listbox"
+        aria-controls={open ? 'directory-select-listbox' : undefined}
         title={selected?.cwd ?? selected?.label}
         className="no-drag flex h-8 max-w-[240px] items-center gap-2 rounded-md border border-border-weak bg-surface/95 px-3 text-left text-[13px] text-text-strong transition-[background,border-color,box-shadow] hover:border-border-selected/70 hover:bg-surface"
       >
@@ -121,24 +179,34 @@ function DirectorySelect({
       </button>
       {open && (
         <div
-          role="menu"
+          id="directory-select-listbox"
+          role="listbox"
+          aria-activedescendant={`directory-option-${options[highlightedIndex]?.key}`}
           className="absolute left-0 top-[calc(100%+6px)] z-50 max-h-72 w-[min(320px,calc(100vw-32px))] overflow-y-auto rounded-lg border border-border-weak bg-stronger p-1 text-[13px] shadow-[0_8px_18px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.05)]"
         >
-          {options.map((option) => (
+          {options.map((option, index) => (
             <button
               key={option.key}
+              ref={(el) => {
+                optionRefs.current[index] = el
+              }}
               type="button"
-              role="menuitemradio"
-              aria-checked={option.key === value}
+              role="option"
+              id={`directory-option-${option.key}`}
+              aria-selected={option.key === value}
               title={option.cwd ?? option.label}
+              onMouseEnter={() => setHighlightedIndex(index)}
               onClick={() => {
                 onChange(option.key)
                 setOpen(false)
+                triggerRef.current?.focus()
               }}
               className={`flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left transition-colors ${
-                option.key === value
-                  ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
-                  : 'text-text-base hover:bg-selection hover:text-text-strong'
+                index === highlightedIndex
+                  ? 'bg-selection text-text-strong'
+                  : option.key === value
+                    ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
+                    : 'text-text-base hover:bg-selection hover:text-text-strong'
               }`}
             >
               {option.key === value ? (

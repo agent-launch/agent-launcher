@@ -365,19 +365,19 @@ describe('sessions history and transcripts', () => {
         { type: 'session_meta', payload: { session_id: codexId, cwd: '/repo' } },
         { type: 'event_msg', payload: { type: 'user_message', message: 'Newer Codex copy' } }
       ])
-      writeJsonl(join(systemCliConfigDir('codex'), 'session_index.jsonl'), [
-        { id: codexId, thread_name: 'Standard Codex title' }
-      ])
-      writeJsonl(join(paths.cliConfig('codex'), 'session_index.jsonl'), [
-        { id: codexId, thread_name: 'Legacy Codex title' }
-      ])
+      const standardCodexIndex = join(systemCliConfigDir('codex'), 'session_index.jsonl')
+      const legacyCodexIndex = join(paths.cliConfig('codex'), 'session_index.jsonl')
+      writeJsonl(standardCodexIndex, [{ id: codexId, thread_name: 'Standard Codex title' }])
+      writeJsonl(legacyCodexIndex, [{ id: codexId, thread_name: 'Legacy Codex title' }])
       utimesSync(standardCodex, oldTime, oldTime)
       utimesSync(legacyCodex, newTime, newTime)
+      utimesSync(standardCodexIndex, oldTime, oldTime)
+      utimesSync(legacyCodexIndex, newTime, newTime)
 
       const codexSessions = (await listSessions('codex')).filter(
         (session) => session.id === codexId
       )
-      expect(codexSessions).toMatchObject([{ name: 'Standard Codex title' }])
+      expect(codexSessions).toMatchObject([{ name: 'Legacy Codex title' }])
       await expect(readTranscript('codex', codexId)).resolves.toMatchObject({
         messages: [{ parts: [{ text: 'Newer Codex copy' }] }]
       })
