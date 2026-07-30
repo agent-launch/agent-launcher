@@ -160,6 +160,9 @@ const api = {
   cli: {
     link: (id: CliId, opts?: CliLinkOptions): Promise<CliLinkResult> =>
       ipcRenderer.invoke('cli:link', id, opts),
+    /** One-click install for a CLI that was not detected. Progress arrives on
+     * the same channel as linking (`onLinkProgress`). */
+    install: (id: CliId): Promise<CliLinkResult> => ipcRenderer.invoke('cli:install', id),
     status: (): Promise<CliUpdateStatus[]> => ipcRenderer.invoke('cli:status'),
     cleanupCli: (id: CliId, binPath: string): Promise<CleanupCliResult> =>
       ipcRenderer.invoke('cli:cleanup', id, binPath),
