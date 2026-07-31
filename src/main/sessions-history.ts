@@ -10,7 +10,7 @@ import {
   writeFileSync
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, isAbsolute, join, normalize, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from 'node:path'
 import type { ChildProcess } from 'node:child_process'
 import { StringDecoder } from 'node:string_decoder'
 import type initSqlJs from 'sql.js'
@@ -110,11 +110,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 function runCaptured(
   file: string,
   args: string[],
-  options: { env?: NodeJS.ProcessEnv; timeoutMs?: number } = {}
+  options: { env?: NodeJS.ProcessEnv; timeoutMs?: number; cwd?: string } = {}
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawnProcess(file, args, {
       env: options.env,
+      cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe']
     })
     let stdout = ''
@@ -1245,51 +1246,159 @@ async function listHermes(): Promise<SessionInfo[]> {
   return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-/** Gemini: each project's tmp/<hash>/logs.json is a JSON array of
- * {sessionId, messageId, timestamp, type, message} entries — per gemini-cli's
- * own Logger, only USER prompts are recorded there, grouped across projects
- * by sessionId. gemini-cli's ChatRecordingService separately writes full
- * two-sided transcripts (assistant replies, tool calls) to
- * tmp/<hash>/chats/session-<ts>-<uuid8>.jsonl; listing/reading from there
- * instead is a known follow-up (would also fix geminiTranscript below). */
-function listGemini(): SessionInfo[] {
-  const files: string[] = []
-  for (const root of cliStateRoots('gemini')) {
-    collectJsonFiles(join(root, 'tmp'), files)
+/** Gemini: each project's tmp/<hash>/chats/session-<ts>-<uuid8>.jsonl is
+ * gemini-cli's ChatRecordingService log — a session-header line
+ * ({sessionId, startTime, lastUpdated, kind}) followed by
+ * `{"$set": {"messages": [...], "lastUpdated": ...}}` patch lines.
+ *
+ * This used to read the separate, lighter tmp/<hash>/logs.json (a plain
+ * {sessionId, messageId, timestamp, message} array covering only the user
+ * side). That sessionId lives in an unrelated id-space from what gemini-cli's
+ * own `--resume` actually looks up — confirmed by reproducing a real
+ * "Error resuming session: Invalid session identifier" against a real
+ * install, where gemini-cli names this exact chats/ directory as where it
+ * searched. Reading the chats/ header directly instead means the id we hand
+ * back to resumeArgs is the one `--resume` actually recognizes.
+ *
+ * Message accumulation across multiple $set lines is handled by de-duping on
+ * message id (Map preserves insertion order) rather than assuming
+ * replace-whole-array vs. append-only $set semantics — only a
+ * single-message (session just started, no reply yet) example was available
+ * to verify directly, so this is deliberately tolerant of either shape.
+ *
+ * The ignored-content/resumability rules below (isGeminiIgnoredUserContent,
+ * isGeminiResumableMessage) and the assistant message type ("gemini", not
+ * "assistant"/"model") are copied from gemini-cli's own bundled source
+ * (isIgnoredUserContent/isResumableMessageRecord/SessionSelector in its
+ * packages/core dist) — read directly since gemini-cli is open source,
+ * rather than inferred from example data. gemini-cli's own `--list-sessions`
+ * / `--resume` hide any session with no resumable message (e.g. one that
+ * only ever got the auto-injected context message and no real reply), so
+ * listGemini() applies the same filter — otherwise this list would offer a
+ * session that gemini-cli's own `--resume` would then refuse. */
+function isGeminiIgnoredUserContent(trimmedContent: string): boolean {
+  return (
+    trimmedContent.length === 0 ||
+    trimmedContent.startsWith('/') ||
+    trimmedContent.startsWith('?') ||
+    trimmedContent.startsWith('<session_context>') ||
+    trimmedContent.startsWith('<hook_context>')
+  )
+}
+
+function isGeminiResumableMessage(message: {
+  type?: string
+  content?: unknown
+  toolCalls?: unknown[]
+  thoughts?: unknown[]
+}): boolean {
+  const text = extractTextFromContent(message.content)?.trim() ?? ''
+  if (message.type === 'user') return !isGeminiIgnoredUserContent(text)
+  if (message.type === 'gemini') {
+    return (
+      text.length > 0 || (message.toolCalls?.length ?? 0) > 0 || (message.thoughts?.length ?? 0) > 0
+    )
   }
-  const bySession = new Map<string, { firstMessage?: string; updatedAt: number }>()
-  for (const file of files) {
-    if (basename(file) !== 'logs.json') continue
-    let entries: unknown
+  return false
+}
+function parseGeminiChatFile(
+  file: string
+):
+  | { sessionId: string; startTime: number; updatedAt: number; messages: Record<string, any>[] }
+  | undefined {
+  const lines = readLines(file)
+  const header = asRecord(lines[0])
+  if (!header || typeof header.sessionId !== 'string') return undefined
+  const sessionId = header.sessionId
+  const startTime = normalizeTs(header.startTime) ?? normalizeTs(header.lastUpdated) ?? 0
+  let updatedAt = Math.max(startTime, normalizeTs(header.lastUpdated) ?? 0)
+  const messagesById = new Map<string, Record<string, any>>()
+  for (const raw of lines.slice(1)) {
+    const patch = asRecord(asRecord(raw)?.$set)
+    if (!patch) continue
+    updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
+    for (const m of Array.isArray(patch.messages) ? patch.messages : []) {
+      const message = asRecord(m)
+      if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+    }
+  }
+  if (updatedAt <= 0) {
     try {
-      entries = JSON.parse(readFileSync(file, 'utf8'))
+      updatedAt = statSync(file).mtimeMs
     } catch {
-      continue
-    }
-    if (!Array.isArray(entries)) continue
-    let fileMtime: number | undefined
-    for (const rec of entries) {
-      const o = asRecord(rec)
-      const sessionId = typeof o?.sessionId === 'string' ? o.sessionId : undefined
-      if (!o || !sessionId) continue
-      fileMtime ??= statSync(file).mtimeMs
-      const ts = normalizeTs(o.timestamp) ?? fileMtime
-      const text = typeof o.message === 'string' ? o.message : undefined
-      const existing = bySession.get(sessionId)
-      bySession.set(sessionId, {
-        firstMessage: existing?.firstMessage ?? text,
-        updatedAt: Math.max(existing?.updatedAt ?? 0, ts)
-      })
+      updatedAt = Date.now()
     }
   }
-  return [...bySession.entries()]
-    .map(([id, v]) => ({
-      id,
-      cliId: 'gemini' as CliId,
-      name: displayTitle(v.firstMessage, 'Gemini session'),
-      updatedAt: v.updatedAt
-    }))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
+  return {
+    sessionId,
+    startTime: startTime || updatedAt,
+    updatedAt,
+    messages: [...messagesById.values()]
+  }
+}
+
+function collectGeminiChatFiles(): string[] {
+  const out: string[] = []
+  for (const stateRoot of cliStateRoots('gemini')) {
+    const root = join(stateRoot, 'tmp')
+    if (!existsSync(root)) continue
+    try {
+      for (const projectDir of readdirSync(root, { withFileTypes: true })) {
+        if (!projectDir.isDirectory()) continue
+        const chatsDir = join(root, projectDir.name, 'chats')
+        try {
+          for (const entry of readdirSync(chatsDir, { withFileTypes: true })) {
+            if (entry.isFile() && entry.name.endsWith('.jsonl'))
+              out.push(join(chatsDir, entry.name))
+          }
+        } catch {
+          /* no chats/ dir for this project — nothing to add */
+        }
+      }
+    } catch {
+      /* ignore unreadable tmp root */
+    }
+  }
+  return out
+}
+
+/** The plain-text cwd gemini-cli itself wrote for this project — sibling to
+ * chats/, one level up from the session file. */
+function readGeminiProjectRoot(chatFile: string): string | undefined {
+  try {
+    const cwd = readFileSync(join(dirname(dirname(chatFile)), '.project_root'), 'utf8').trim()
+    return cwd || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** First real user-typed message — skips gemini-cli's own auto-injected
+ * wrappers and slash/`?` commands via the same isGeminiIgnoredUserContent
+ * rule it uses itself. */
+function firstGeminiUserMessage(messages: Record<string, any>[]): string | undefined {
+  for (const message of messages) {
+    if (message.type !== 'user') continue
+    const text = extractTextFromContent(message.content)?.trim()
+    if (text && !isGeminiIgnoredUserContent(text)) return text
+  }
+  return undefined
+}
+
+function listGemini(): SessionInfo[] {
+  const out: SessionInfo[] = []
+  for (const file of collectGeminiChatFiles()) {
+    const parsed = parseGeminiChatFile(file)
+    if (!parsed || !parsed.messages.some(isGeminiResumableMessage)) continue
+    out.push({
+      id: parsed.sessionId,
+      cliId: 'gemini',
+      name: displayTitle(firstGeminiUserMessage(parsed.messages), 'Gemini session'),
+      updatedAt: parsed.updatedAt,
+      cwd: readGeminiProjectRoot(file)
+    })
+  }
+  return out.sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 function deleteClaudeSession(id: string): SessionDeleteResult {
@@ -1611,6 +1720,72 @@ async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
   }
 }
 
+/** Gemini has no direct "delete this session file" flow of its own — its
+ * `--delete-session <index>` takes a 1-based position within the target
+ * project's resumable sessions ordered by startTime ascending, exactly the
+ * ordering SessionSelector.listSessions()/getSessionFiles() compute
+ * internally (see the comment above parseGeminiChatFile) — so the index is
+ * computed here rather than by shelling out to `--list-sessions` first. */
+async function deleteGeminiSession(id: string): Promise<SessionDeleteResult> {
+  const parsedFiles = collectGeminiChatFiles()
+    .map((file) => ({ file, parsed: parseGeminiChatFile(file) }))
+    .filter(
+      (
+        entry
+      ): entry is { file: string; parsed: NonNullable<ReturnType<typeof parseGeminiChatFile>> } =>
+        !!entry.parsed
+    )
+  const target = parsedFiles.find((entry) => entry.parsed.sessionId === id)
+  if (!target) return { ok: true, cliId: 'gemini', id, deletedCount: 0, missing: true }
+
+  const projectChatsDir = dirname(target.file)
+  const projectSessions = parsedFiles
+    .filter(
+      (entry) =>
+        dirname(entry.file) === projectChatsDir &&
+        entry.parsed.messages.some(isGeminiResumableMessage)
+    )
+    .sort((a, b) => a.parsed.startTime - b.parsed.startTime)
+  const index = projectSessions.findIndex((entry) => entry.parsed.sessionId === id)
+  // Not in the resumable set — listGemini() never would have surfaced it
+  // for the user to click delete on in the first place.
+  if (index === -1) return { ok: true, cliId: 'gemini', id, deletedCount: 0, missing: true }
+
+  const install = loadConfig().install.gemini
+  if (!install.installed || !install.binPath || !existsSync(install.binPath)) {
+    return {
+      ok: false,
+      cliId: 'gemini',
+      id,
+      deletedCount: 0,
+      error: 'Gemini CLI command not found; cannot invoke the official session delete'
+    }
+  }
+
+  // gemini-cli uses cwd to decide which project's session list to enumerate,
+  // so a wrong guess here could make --delete-session <index> hit an
+  // unrelated session in a different project. Refuse rather than guess.
+  const projectRoot = readGeminiProjectRoot(target.file)
+  if (!projectRoot) {
+    return {
+      ok: false,
+      cliId: 'gemini',
+      id,
+      deletedCount: 0,
+      error: "Cannot determine this session's project root; refusing to guess a delete cwd"
+    }
+  }
+
+  const result = await runCaptured(install.binPath, ['--delete-session', String(index + 1)], {
+    env: buildCliEnv('gemini'),
+    cwd: projectRoot,
+    timeoutMs: SESSION_DELETE_TIMEOUT_MS
+  })
+  return result.code === 0
+    ? { ok: true, cliId: 'gemini', id, deletedCount: 1 }
+    : { ok: false, cliId: 'gemini', id, deletedCount: 0, error: compactProcessError(result) }
+}
+
 export async function deleteSession(cliId: CliId, id: string): Promise<SessionDeleteResult> {
   const sessionId = id.trim()
   if (!sessionId) return { ok: false, cliId, id, deletedCount: 0, error: 'Session ID is required' }
@@ -1621,6 +1796,7 @@ export async function deleteSession(cliId: CliId, id: string): Promise<SessionDe
     if (cliId === 'pi') return deletePiSession(sessionId)
     if (cliId === 'opencode') return await deleteOpencodeSession(sessionId)
     if (cliId === 'hermes') return await deleteHermesSession(sessionId)
+    if (cliId === 'gemini') return await deleteGeminiSession(sessionId)
     return {
       ok: false,
       cliId,
@@ -2355,39 +2531,35 @@ async function hermesTranscript(id: string): Promise<Transcript> {
   return done('hermes', id, msgs, false, fallbackTs)
 }
 
-/** Gemini: logs.json only records the USER side (see listGemini), so this
- * transcript is one-sided — not because the upstream format lacks the other
- * side (chats/*.jsonl has it, see listGemini's comment), but because this
- * reads logs.json specifically. */
+/** Gemini: reads the same chats/*.jsonl this CLI's session id now comes from
+ * (see listGemini/parseGeminiChatFile) instead of the old one-sided
+ * logs.json, so this is two-sided where the previous version only ever had
+ * the user's half. Role mapping (`type: "gemini"` → assistant) and the
+ * info/error/warning skip come from gemini-cli's own
+ * convertSessionToClientHistory, read directly from its bundled source.
+ *
+ * Known gap: a `type: "gemini"` message that only has toolCalls/thoughts and
+ * no text (which isGeminiResumableMessage still counts as resumable) is
+ * silently dropped here rather than rendered — this only shows the text
+ * side of the transcript, not tool calls. Follow-up if that turns out to
+ * matter in practice. */
 function geminiTranscript(id: string): Transcript {
-  const files: string[] = []
-  for (const root of cliStateRoots('gemini')) {
-    collectJsonFiles(join(root, 'tmp'), files)
-  }
-  const msgs: TranscriptMessage[] = []
-  let fallbackTs: number | undefined
-  for (const file of files) {
-    if (basename(file) !== 'logs.json') continue
-    let entries: unknown
-    try {
-      entries = JSON.parse(readFileSync(file, 'utf8'))
-    } catch {
-      continue
+  for (const file of collectGeminiChatFiles()) {
+    const parsed = parseGeminiChatFile(file)
+    if (!parsed || parsed.sessionId !== id) continue
+    const msgs: TranscriptMessage[] = []
+    for (const message of parsed.messages) {
+      if (message.type === 'info' || message.type === 'error' || message.type === 'warning')
+        continue
+      const text = extractTextFromContent(message.content)?.trim()
+      if (!text) continue
+      if (message.type === 'user' && isGeminiIgnoredUserContent(text)) continue
+      const role: TranscriptRole = message.type === 'gemini' ? 'assistant' : 'user'
+      pushPart(msgs, role, { kind: 'text', text }, normalizeTs(message.timestamp))
     }
-    if (!Array.isArray(entries)) continue
-    const matching = entries
-      .map((rec) => asRecord(rec))
-      .filter((o): o is Record<string, any> => !!o && o.sessionId === id)
-      .sort((a, b) => (Number(a.messageId) || 0) - (Number(b.messageId) || 0))
-    if (!matching.length) continue
-    fallbackTs = statSync(file).mtimeMs
-    for (const o of matching) {
-      if (typeof o.message === 'string')
-        pushPart(msgs, 'user', { kind: 'text', text: o.message }, normalizeTs(o.timestamp))
-    }
-    break
+    return done('gemini', id, msgs, false, parsed.updatedAt)
   }
-  return done('gemini', id, msgs, false, fallbackTs)
+  return done('gemini', id, [])
 }
 
 /** Read a session's conversation as a normalized, read-only transcript. */
