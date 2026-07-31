@@ -88,6 +88,7 @@ function DirectorySelect({
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const listboxRef = useRef<HTMLDivElement | null>(null)
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
   const selectedIndex = Math.max(
     0,
@@ -95,9 +96,28 @@ function DirectorySelect({
   )
   const selected = options[selectedIndex] ?? options[0]
 
-  useEffect(() => {
+  const scrollOptionIntoView = useCallback((index: number) => {
+    const listbox = listboxRef.current
+    const option = optionRefs.current[index]
+    if (!listbox || !option) return
+
+    const optionTop = option.offsetTop
+    const optionBottom = optionTop + option.offsetHeight
+    if (optionTop < listbox.scrollTop) {
+      listbox.scrollTop = optionTop
+    } else if (optionBottom > listbox.scrollTop + listbox.clientHeight) {
+      listbox.scrollTop = optionBottom - listbox.clientHeight
+    }
+  }, [])
+
+  useLayoutEffect(() => {
     if (!open) return
     setHighlightedIndex(selectedIndex)
+    scrollOptionIntoView(selectedIndex)
+  }, [open, selectedIndex, scrollOptionIntoView])
+
+  useEffect(() => {
+    if (!open) return
     const onPointerDown = (event: PointerEvent) => {
       if (rootRef.current?.contains(event.target as Node)) return
       setOpen(false)
@@ -111,21 +131,29 @@ function DirectorySelect({
       }
       if (!open) return
       switch (event.key) {
-        case 'ArrowDown':
+        case 'ArrowDown': {
           event.preventDefault()
-          setHighlightedIndex((i) => Math.min(options.length - 1, i + 1))
+          const next = Math.min(options.length - 1, highlightedIndex + 1)
+          setHighlightedIndex(next)
+          requestAnimationFrame(() => scrollOptionIntoView(next))
           break
-        case 'ArrowUp':
+        }
+        case 'ArrowUp': {
           event.preventDefault()
-          setHighlightedIndex((i) => Math.max(0, i - 1))
+          const next = Math.max(0, highlightedIndex - 1)
+          setHighlightedIndex(next)
+          requestAnimationFrame(() => scrollOptionIntoView(next))
           break
+        }
         case 'Home':
           event.preventDefault()
           setHighlightedIndex(0)
+          requestAnimationFrame(() => scrollOptionIntoView(0))
           break
         case 'End':
           event.preventDefault()
           setHighlightedIndex(options.length - 1)
+          requestAnimationFrame(() => scrollOptionIntoView(options.length - 1))
           break
         case 'Enter':
         case ' ': {
@@ -149,11 +177,7 @@ function DirectorySelect({
       window.removeEventListener('pointerdown', onPointerDown, true)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, options, highlightedIndex, selectedIndex, onChange])
-
-  useEffect(() => {
-    optionRefs.current[highlightedIndex]?.scrollIntoView({ block: 'nearest' })
-  }, [highlightedIndex])
+  }, [open, options, highlightedIndex, onChange, scrollOptionIntoView])
 
   return (
     <div ref={rootRef} className="relative">
@@ -179,10 +203,11 @@ function DirectorySelect({
       </button>
       {open && (
         <div
+          ref={listboxRef}
           id="directory-select-listbox"
           role="listbox"
           aria-activedescendant={`directory-option-${options[highlightedIndex]?.key}`}
-          className="absolute left-0 top-[calc(100%+6px)] z-50 max-h-72 w-[min(320px,calc(100vw-32px))] overflow-y-auto rounded-lg border border-border-weak bg-stronger p-1 text-[13px] shadow-[0_8px_18px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.05)]"
+          className="absolute left-0 top-[calc(100%+6px)] z-50 max-h-72 w-[min(320px,calc(100vw-32px))] overflow-y-auto overscroll-contain rounded-lg border border-border-weak bg-stronger p-1 text-[13px] shadow-[0_8px_18px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.05)]"
         >
           {options.map((option, index) => (
             <button
