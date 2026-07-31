@@ -1286,7 +1286,12 @@ function isGeminiIgnoredUserContent(trimmedContent: string): boolean {
   )
 }
 
-function isGeminiResumableMessage(message: Record<string, any>): boolean {
+function isGeminiResumableMessage(message: {
+  type?: string
+  content?: unknown
+  toolCalls?: unknown[]
+  thoughts?: unknown[]
+}): boolean {
   const text = extractTextFromContent(message.content)?.trim() ?? ''
   if (message.type === 'user') return !isGeminiIgnoredUserContent(text)
   if (message.type === 'gemini') {
@@ -1361,7 +1366,7 @@ function collectGeminiChatFiles(): string[] {
  * chats/, one level up from the session file. */
 function readGeminiProjectRoot(chatFile: string): string | undefined {
   try {
-    const cwd = readFileSync(join(chatFile, '..', '..', '.project_root'), 'utf8').trim()
+    const cwd = readFileSync(join(dirname(dirname(chatFile)), '.project_root'), 'utf8').trim()
     return cwd || undefined
   } catch {
     return undefined
@@ -1722,20 +1727,26 @@ async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
  * internally (see the comment above parseGeminiChatFile) — so the index is
  * computed here rather than by shelling out to `--list-sessions` first. */
 async function deleteGeminiSession(id: string): Promise<SessionDeleteResult> {
-  const files = collectGeminiChatFiles()
-  const targetFile = files.find((file) => parseGeminiChatFile(file)?.sessionId === id)
-  if (!targetFile) return { ok: true, cliId: 'gemini', id, deletedCount: 0, missing: true }
-
-  const projectChatsDir = dirname(targetFile)
-  const projectSessions = files
-    .filter((file) => dirname(file) === projectChatsDir)
-    .map((file) => parseGeminiChatFile(file))
+  const parsedFiles = collectGeminiChatFiles()
+    .map((file) => ({ file, parsed: parseGeminiChatFile(file) }))
     .filter(
-      (parsed): parsed is NonNullable<typeof parsed> =>
-        !!parsed && parsed.messages.some(isGeminiResumableMessage)
+      (
+        entry
+      ): entry is { file: string; parsed: NonNullable<ReturnType<typeof parseGeminiChatFile>> } =>
+        !!entry.parsed
     )
-    .sort((a, b) => a.startTime - b.startTime)
-  const index = projectSessions.findIndex((s) => s.sessionId === id)
+  const target = parsedFiles.find((entry) => entry.parsed.sessionId === id)
+  if (!target) return { ok: true, cliId: 'gemini', id, deletedCount: 0, missing: true }
+
+  const projectChatsDir = dirname(target.file)
+  const projectSessions = parsedFiles
+    .filter(
+      (entry) =>
+        dirname(entry.file) === projectChatsDir &&
+        entry.parsed.messages.some(isGeminiResumableMessage)
+    )
+    .sort((a, b) => a.parsed.startTime - b.parsed.startTime)
+  const index = projectSessions.findIndex((entry) => entry.parsed.sessionId === id)
   // Not in the resumable set — listGemini() never would have surfaced it
   // for the user to click delete on in the first place.
   if (index === -1) return { ok: true, cliId: 'gemini', id, deletedCount: 0, missing: true }
@@ -1751,9 +1762,23 @@ async function deleteGeminiSession(id: string): Promise<SessionDeleteResult> {
     }
   }
 
+  // gemini-cli uses cwd to decide which project's session list to enumerate,
+  // so a wrong guess here could make --delete-session <index> hit an
+  // unrelated session in a different project. Refuse rather than guess.
+  const projectRoot = readGeminiProjectRoot(target.file)
+  if (!projectRoot) {
+    return {
+      ok: false,
+      cliId: 'gemini',
+      id,
+      deletedCount: 0,
+      error: "Cannot determine this session's project root; refusing to guess a delete cwd"
+    }
+  }
+
   const result = await runCaptured(install.binPath, ['--delete-session', String(index + 1)], {
     env: buildCliEnv('gemini'),
-    cwd: readGeminiProjectRoot(targetFile) ?? homedir(),
+    cwd: projectRoot,
     timeoutMs: SESSION_DELETE_TIMEOUT_MS
   })
   return result.code === 0
@@ -2511,7 +2536,13 @@ async function hermesTranscript(id: string): Promise<Transcript> {
  * logs.json, so this is two-sided where the previous version only ever had
  * the user's half. Role mapping (`type: "gemini"` → assistant) and the
  * info/error/warning skip come from gemini-cli's own
- * convertSessionToClientHistory, read directly from its bundled source. */
+ * convertSessionToClientHistory, read directly from its bundled source.
+ *
+ * Known gap: a `type: "gemini"` message that only has toolCalls/thoughts and
+ * no text (which isGeminiResumableMessage still counts as resumable) is
+ * silently dropped here rather than rendered — this only shows the text
+ * side of the transcript, not tool calls. Follow-up if that turns out to
+ * matter in practice. */
 function geminiTranscript(id: string): Transcript {
   for (const file of collectGeminiChatFiles()) {
     const parsed = parseGeminiChatFile(file)
