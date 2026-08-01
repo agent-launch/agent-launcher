@@ -29,6 +29,7 @@ import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
+import { reconcileNewSessionTabs as reconcileTabPatches } from '@/components/shell/reconcileTabs'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 import { SettingsSidebar } from '@/components/settings/SettingsSidebar'
 import { TranscriptView } from '@/components/transcript/TranscriptView'
@@ -57,6 +58,11 @@ interface WorkspaceTab {
   session?: SessionInfo
   mode?: 'cli' | 'shell'
   status: 'running' | 'idle' | 'exited'
+  /** When this tab was opened — used to match a freshly-started session
+   * (opened with no resumeId) back to its own history entry once the CLI
+   * persists it, so resuming it later reuses this tab instead of opening
+   * a duplicate. See reconcileNewSessionTabs. */
+  createdAt: number
 }
 
 interface SessionState {
@@ -304,6 +310,19 @@ export function Shell() {
     window.api.config.get().then(setCfg)
   }, [view, activeCli])
 
+  // See reconcileTabs.ts for what/why. Thin wrapper: the matching itself is
+  // a pure function (independently unit-testable); this just applies the
+  // resulting patch to tab state.
+  const reconcileNewSessionTabs = useCallback((cliId: CliId, sessions: SessionInfo[]) => {
+    setTabs((current) => {
+      const patches = reconcileTabPatches(current, cliId, sessions)
+      if (patches.size === 0) return current
+      return current.map((tab) =>
+        patches.has(tab.id) ? { ...tab, resumeId: patches.get(tab.id) } : tab
+      )
+    })
+  }, [])
+
   // Read the CLI's own saved sessions (Claude/Codex conversation history).
   const refreshSessions = useCallback(async () => {
     const cliId = activeCliId
@@ -325,8 +344,10 @@ export function Shell() {
     }, SESSION_LOADING_DELAY_MS)
     try {
       const nextSessions = await window.api.sessions.list(requestId, cliId)
-      if (sessionLoadIdRef.current === loadId && nextSessions)
+      if (sessionLoadIdRef.current === loadId && nextSessions) {
         setSessionState({ cliId, items: nextSessions, loaded: true })
+        reconcileNewSessionTabs(cliId, nextSessions)
+      }
     } catch {
       if (sessionLoadIdRef.current === loadId) {
         setSessionState({ cliId, items: [], loaded: true })
@@ -341,7 +362,7 @@ export function Shell() {
         setShowSessionLoading(false)
       }
     }
-  }, [activeCliId])
+  }, [activeCliId, reconcileNewSessionTabs])
 
   useEffect(() => {
     if (view === 'run' && !activeTab) refreshSessions()
@@ -428,19 +449,23 @@ export function Shell() {
   )
 
   const openTab = (
-    tab: Omit<WorkspaceTab, 'id' | 'status'> & {
+    tab: Omit<WorkspaceTab, 'id' | 'status' | 'createdAt'> & {
       status?: WorkspaceTab['status']
     }
   ) => {
     const next: WorkspaceTab = {
       ...tab,
       id: newKey(),
-      status: tab.status ?? (tab.kind === 'transcript' ? 'idle' : 'running')
+      status: tab.status ?? (tab.kind === 'transcript' ? 'idle' : 'running'),
+      createdAt: Date.now()
     }
     setTabs((current) => [...current, next])
     activateTab(next)
   }
 
+  // A tab opened via "New Session" starts with no resumeId — the CLI hasn't
+  // assigned/persisted a session id yet, so there's nothing to record. Once
+  // the session list refreshes and a new entry shows up for this cliId, back
   const closeTab = useCallback(
     (id: string) => {
       const index = tabs.findIndex((tab) => tab.id === id)
