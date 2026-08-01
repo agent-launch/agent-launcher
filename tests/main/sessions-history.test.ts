@@ -131,6 +131,71 @@ describe('sessions history and transcripts', () => {
     })
   })
 
+  it('reads a live message appended as a bare line, not wrapped in $set', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { listSessions, readTranscript } = await import('../../src/main/sessions-history')
+      const projectDir = join(home, '.gemini', 'tmp', 'agent-launcher')
+      writeText(join(projectDir, '.project_root'), 'D:\\a\\agent-launcher\\agent-launcher')
+
+      // Verbatim shape captured from a real gemini-cli 0.53.1 run (fresh
+      // install, `gemini -p "hello" --yolo --skip-trust`, real
+      // chats/*.jsonl inspected directly on a GitHub Actions windows-latest
+      // runner): the "hello" line is a bare {id, type, content} record, NOT
+      // wrapped in $set — only the context-injection line and the metadata
+      // resave use $set. An earlier version of parseGeminiChatFile only
+      // looked inside $set.messages, so this line was silently dropped and
+      // the session looked contentless (see the comment above
+      // parseGeminiChatFile).
+      writeJsonl(join(projectDir, 'chats', 'session-2026-08-01T00-16-de76c90b.jsonl'), [
+        {
+          sessionId: 'de76c90b-0a7c-4295-9df2-17f914ca4668',
+          projectHash: '4c41897800f26c19076d552a595a13ac1bf9e078bec2b98b791e00cae121727e',
+          startTime: '2026-08-01T00:16:33.369Z',
+          lastUpdated: '2026-08-01T00:16:33.369Z',
+          kind: 'main'
+        },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'd04923d38bb0f6017037e74183378ef4',
+                timestamp: '2026-08-01T00:16:33.371Z',
+                type: 'user',
+                content: [
+                  { text: '<session_context>\nThis is the Gemini CLI.\n</session_context>' }
+                ]
+              }
+            ],
+            lastUpdated: '2026-08-01T00:16:33.371Z'
+          }
+        },
+        {
+          id: '1d338b41-8c34-4041-a950-362e94bca360',
+          timestamp: '2026-08-01T00:16:33.826Z',
+          type: 'user',
+          content: [{ text: 'hello' }]
+        },
+        { $set: { lastUpdated: '2026-08-01T00:16:33.827Z' } }
+      ])
+
+      const sessions = await listSessions('gemini')
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0]).toMatchObject({
+        id: 'de76c90b-0a7c-4295-9df2-17f914ca4668',
+        name: 'hello'
+      })
+
+      const transcript = await readTranscript('gemini', sessions[0].id)
+      expect(transcript.messages).toEqual([
+        {
+          role: 'user',
+          parts: [{ kind: 'text', text: 'hello' }],
+          ts: new Date('2026-08-01T00:16:33.826Z').getTime()
+        }
+      ])
+    })
+  })
+
   it('deletes a gemini session by the 1-based startTime-ascending index gemini-cli itself expects', async () => {
     // The fake `gemini` binary below is a #!/bin/sh script; Windows has no
     // shebang support, so this is skipped there like the other fake-binary

@@ -1260,11 +1260,18 @@ async function listHermes(): Promise<SessionInfo[]> {
  * searched. Reading the chats/ header directly instead means the id we hand
  * back to resumeArgs is the one `--resume` actually recognizes.
  *
- * Message accumulation across multiple $set lines is handled by de-duping on
- * message id (Map preserves insertion order) rather than assuming
- * replace-whole-array vs. append-only $set semantics — only a
- * single-message (session just started, no reply yet) example was available
- * to verify directly, so this is deliberately tolerant of either shape.
+ * Confirmed against a real gemini-cli 0.53.1 run (a fresh install, headless
+ * `-p` prompt, real chats/*.jsonl output inspected directly): new messages
+ * added during a live conversation are appended as their own bare
+ * `{id, type, content, ...}` line, NOT wrapped in `$set` — `$set.messages`
+ * is only used for the initial context-injection line and periodic
+ * metadata-only resaves. Missing the bare-line case (an earlier version of
+ * this code only looked inside $set.messages) meant every session with real
+ * back-and-forth looked contentless to isGeminiResumableMessage and got
+ * hidden from history entirely — this, not anything OS-specific, was the
+ * root cause behind session-history staying empty after a real exchange.
+ * Message accumulation (both shapes) is de-duped on message id (Map
+ * preserves insertion order).
  *
  * The ignored-content/resumability rules below (isGeminiIgnoredUserContent,
  * isGeminiResumableMessage) and the assistant message type ("gemini", not
@@ -1314,12 +1321,26 @@ function parseGeminiChatFile(
   let updatedAt = Math.max(startTime, normalizeTs(header.lastUpdated) ?? 0)
   const messagesById = new Map<string, Record<string, any>>()
   for (const raw of lines.slice(1)) {
-    const patch = asRecord(asRecord(raw)?.$set)
-    if (!patch) continue
-    updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
-    for (const m of Array.isArray(patch.messages) ? patch.messages : []) {
-      const message = asRecord(m)
-      if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+    const record = asRecord(raw)
+    if (!record) continue
+    const patch = asRecord(record.$set)
+    if (patch) {
+      updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
+      for (const m of Array.isArray(patch.messages) ? patch.messages : []) {
+        const message = asRecord(m)
+        if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+      }
+      continue
+    }
+    // Confirmed against a real gemini-cli 0.53.1 run: a message added during
+    // a live conversation is appended as its own bare {id, type, content, ...}
+    // line, not wrapped in $set — only the initial context injection and
+    // periodic metadata-only updates use $set.messages. Missing this meant
+    // every session with real back-and-forth looked contentless to
+    // isGeminiResumableMessage and got hidden from history entirely.
+    if (typeof record.id === 'string' && typeof record.type === 'string') {
+      messagesById.set(record.id, record)
+      updatedAt = Math.max(updatedAt, normalizeTs(record.timestamp) ?? 0)
     }
   }
   if (updatedAt <= 0) {
