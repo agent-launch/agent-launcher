@@ -1260,18 +1260,28 @@ async function listHermes(): Promise<SessionInfo[]> {
  * searched. Reading the chats/ header directly instead means the id we hand
  * back to resumeArgs is the one `--resume` actually recognizes.
  *
- * Confirmed against a real gemini-cli 0.53.1 run (a fresh install, headless
- * `-p` prompt, real chats/*.jsonl output inspected directly): new messages
- * added during a live conversation are appended as their own bare
- * `{id, type, content, ...}` line, NOT wrapped in `$set` — `$set.messages`
- * is only used for the initial context-injection line and periodic
- * metadata-only resaves. Missing the bare-line case (an earlier version of
- * this code only looked inside $set.messages) meant every session with real
- * back-and-forth looked contentless to isGeminiResumableMessage and got
- * hidden from history entirely — this, not anything OS-specific, was the
- * root cause behind session-history staying empty after a real exchange.
- * Message accumulation (both shapes) is de-duped on message id (Map
- * preserves insertion order).
+ * The reconciliation in parseGeminiChatFile below is ported directly from
+ * gemini-cli's own loadConversationRecord (packages/core, read from its
+ * bundled source), not inferred, after two rounds of getting this wrong:
+ * a bare `{id, ...}` line is an individual message appended live (not
+ * wrapped in $set — only the initial context-injection line and periodic
+ * metadata-only resaves use $set), a `$set.messages` array REPLACES the
+ * accumulated set rather than merging into it, and `$rewindTo` drops a
+ * message id and everything appended after it (regenerate/undo).
+ *
+ * Confirmed against real gemini-cli 0.53.x runs (fresh installs, headless
+ * `-p` prompts, real chats/*.jsonl inspected directly, cross-checked against
+ * the real `gemini --list-sessions`/`--resume` binary as the oracle — not
+ * just our own reader): missing the bare-line case entirely made every
+ * session with real back-and-forth look contentless and get hidden from
+ * history — this, not anything OS-specific, was the root cause of
+ * session-history staying empty after a real exchange. Separately, treating
+ * $set.messages as a merge instead of a replace was also verified wrong: a
+ * real captured file where a later $set re-sent only the context message
+ * caused gemini-cli's own --list-sessions to correctly treat that session as
+ * non-resumable (and delete the file) even though "hello" had been appended
+ * in between — matching that (not preserving "hello") is the correct
+ * behavior, since it's what --resume/--delete-session would themselves see.
  *
  * The ignored-content/resumability rules below (isGeminiIgnoredUserContent,
  * isGeminiResumableMessage) and the assistant message type ("gemini", not
@@ -1323,24 +1333,60 @@ function parseGeminiChatFile(
   for (const raw of lines.slice(1)) {
     const record = asRecord(raw)
     if (!record) continue
-    const patch = asRecord(record.$set)
-    if (patch) {
-      updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
-      for (const m of Array.isArray(patch.messages) ? patch.messages : []) {
-        const message = asRecord(m)
-        if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+
+    // $rewindTo (regenerate/undo): drop that message id and every id
+    // inserted after it (Map iteration = insertion order, matching
+    // gemini-cli's own messagesMap here exactly), or clear everything if
+    // the id isn't present. Ported directly from gemini-cli's
+    // loadConversationRecord — not observed in a captured file yet, but
+    // it's a real record shape its own reader handles, so dropping it
+    // silently (as an earlier version of this code did) would leave
+    // regenerated/edited turns showing stale content.
+    if (typeof record.$rewindTo === 'string') {
+      const rewindId = record.$rewindTo
+      let found = false
+      const idsToDelete: string[] = []
+      for (const id of messagesById.keys()) {
+        if (id === rewindId) found = true
+        if (found) idsToDelete.push(id)
+      }
+      if (found) {
+        for (const id of idsToDelete) messagesById.delete(id)
+      } else {
+        messagesById.clear()
       }
       continue
     }
-    // Confirmed against a real gemini-cli 0.53.1 run: a message added during
-    // a live conversation is appended as its own bare {id, type, content, ...}
-    // line, not wrapped in $set — only the initial context injection and
-    // periodic metadata-only updates use $set.messages. Missing this meant
-    // every session with real back-and-forth looked contentless to
-    // isGeminiResumableMessage and got hidden from history entirely.
-    if (typeof record.id === 'string' && typeof record.type === 'string') {
+
+    // Bare {id, ...} lines are individual messages appended directly during
+    // a live conversation — confirmed against a real gemini-cli 0.53.1 run
+    // (fresh install, real chats/*.jsonl inspected directly). Checked before
+    // $set below, matching gemini-cli's own isMessageRecord-before-
+    // isMetadataUpdateRecord dispatch order.
+    if (typeof record.id === 'string') {
       messagesById.set(record.id, record)
       updatedAt = Math.max(updatedAt, normalizeTs(record.timestamp) ?? 0)
+      continue
+    }
+
+    const patch = asRecord(record.$set)
+    if (patch) {
+      updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
+      // A `messages` array here REPLACES the accumulated set rather than
+      // merging into it — confirmed by feeding a real captured file (one
+      // where a later $set re-sent only the auto-injected context message)
+      // straight into a real gemini-cli install: its own --list-sessions
+      // treated that session as having no resumable content and deleted
+      // the file, even though a real user message had been appended in
+      // between. Merging instead of replacing would make us disagree with
+      // what gemini-cli's own --resume/--delete-session would actually do.
+      if (Array.isArray(patch.messages)) {
+        messagesById.clear()
+        for (const m of patch.messages) {
+          const message = asRecord(m)
+          if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+        }
+      }
     }
   }
   if (updatedAt <= 0) {
