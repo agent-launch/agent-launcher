@@ -328,22 +328,47 @@ describe('sessions history and transcripts', () => {
       mkdirSync(realProjectCwd, { recursive: true })
       writeText(join(projectDir, '.project_root'), realProjectCwd)
 
-      const chatEntry = (sessionId: string, isoTime: string, text: string) => [
-        { sessionId, startTime: isoTime, lastUpdated: isoTime, kind: 'main' },
+      // Verbatim shape captured from two real gemini-cli 0.53.0 sessions run
+      // locally (`gemini -p "first question"` then `gemini -p "second
+      // question"` in the same project) — bare {id, type, content} messages,
+      // not wrapped in $set (see parseGeminiChatFile's comment). Cross-
+      // checked against the real binary itself: `gemini --list-sessions`
+      // showed these in this exact 1/2 order, and `gemini --delete-session 2`
+      // deleted the "second question" file, leaving "first question" — the
+      // same result this test asserts our own index computation produces.
+      const chatEntry = (
+        sessionId: string,
+        startTime: string,
+        msgId: string,
+        msgTime: string,
+        text: string
+      ) => [
+        { sessionId, startTime, lastUpdated: startTime, kind: 'main' },
         {
           $set: {
-            messages: [{ id: 'm1', timestamp: isoTime, type: 'user', content: [{ text }] }],
-            lastUpdated: isoTime
+            messages: [
+              {
+                id: 'ctx-msg',
+                timestamp: startTime,
+                type: 'user',
+                content: [
+                  { text: '<session_context>\nThis is the Gemini CLI.\n</session_context>' }
+                ]
+              }
+            ],
+            lastUpdated: startTime
           }
-        }
+        },
+        { id: msgId, timestamp: msgTime, type: 'user', content: [{ text }] },
+        { $set: { lastUpdated: msgTime } }
       ]
-      // Older session first, newer second — startTime-ascending index of the
-      // second (newer) one should be 2.
       writeJsonl(
         join(projectDir, 'chats', 'session-a.jsonl'),
         chatEntry(
           '11111111-1111-1111-1111-111111111111',
           '2026-07-01T00:00:00.000Z',
+          '97140920-8d23-449d-82f9-72e9512c3708',
+          '2026-07-01T00:00:00.500Z',
           'first question'
         )
       )
@@ -352,6 +377,8 @@ describe('sessions history and transcripts', () => {
         chatEntry(
           '22222222-2222-2222-2222-222222222222',
           '2026-07-02T00:00:00.000Z',
+          'b951c86b-e8ed-4c86-aee1-fc2ac714f9ed',
+          '2026-07-02T00:00:00.500Z',
           'second question'
         )
       )
