@@ -543,9 +543,16 @@ export function Shell() {
       title: t('shell.newSessionTitle', { name: active.name })
     })
 
-  const startNewSession = () => {
-    if (renderTranscript && chatSupported) startChat()
-    else start('cli')
+  const startNewSession = async () => {
+    // Resolve the cwd this session will actually launch into up front (the
+    // same default resolveLaunchCwd falls back to on the main-process side
+    // when none is picked) so the tab carries a real cwd from the start —
+    // needed for reconcileNewSessionTabs to later match it back to its own
+    // history entry by cwd. Leaving cwd undefined here would never match
+    // the concrete cwd the persisted session ends up reporting.
+    const cwd = await window.api.sessions.defaultWorkspace(activeCliId)
+    if (renderTranscript && chatSupported) startChat(cwd)
+    else start('cli', cwd)
   }
 
   const backToHistory = () => {
