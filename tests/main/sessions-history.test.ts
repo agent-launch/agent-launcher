@@ -258,11 +258,14 @@ describe('sessions history and transcripts', () => {
       const { readTranscript } = await import('../../src/main/sessions-history')
       const projectDir = join(home, '.gemini', 'tmp', 'rewind-project')
 
-      // $rewindTo isn't in any real capture yet, but it's a record shape
-      // gemini-cli's own loadConversationRecord explicitly handles (used on
-      // regenerate/edit-and-resend) — ported from that source rather than
-      // guessed. Semantics: drop the target message id and every id
-      // inserted after it, in insertion order.
+      // $rewindTo (regenerate/edit-and-resend) semantics: drop the target
+      // message id and every id inserted after it, in insertion order.
+      // Cross-checked against the real gemini-cli binary itself, not just
+      // its source: fed this exact q1/a1-old/$rewindTo/a1-new sequence into
+      // a real local install and resumed it — gemini-cli's own subsequent
+      // full-history resave reconstructed the message list as
+      // [context, q1, a1-new], correctly excluding a1-old. That matches
+      // this test's expected output exactly.
       writeJsonl(join(projectDir, 'chats', 'session-2026-08-01T00-00-rewind001.jsonl'), [
         {
           sessionId: 'rewind0001-0000-0000-0000-000000000001',
