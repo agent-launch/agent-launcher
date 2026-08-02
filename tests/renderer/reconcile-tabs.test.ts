@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   reconcileNewSessionTabs,
   findVanishedSessionTabs,
+  closeTabsById,
   type ReconcilableTab
 } from '../../src/renderer/src/components/shell/reconcileTabs'
 import type { SessionInfo } from '../../src/shared/types'
@@ -141,5 +142,50 @@ describe('findVanishedSessionTabs', () => {
     ]
     const sessions = [session({ id: 'sess-2' })]
     expect(findVanishedSessionTabs(tabs, 'gemini', sessions)).toEqual(new Set(['tab-1', 'tab-3']))
+  })
+})
+
+describe('closeTabsById', () => {
+  it('removes the given tabs and leaves activeTabId untouched if it was not among them', () => {
+    const tabs = [tab({ id: 'tab-1' }), tab({ id: 'tab-2' })]
+    const result = closeTabsById(tabs, 'tab-2', new Set(['tab-1']))
+    expect(result.tabs.map((t) => t.id)).toEqual(['tab-2'])
+    expect(result.activeTabId).toBe('tab-2')
+    expect(result.activatedCliId).toBeUndefined()
+  })
+
+  it('returns the same tabs array reference when nothing is closed', () => {
+    const tabs = [tab({ id: 'tab-1' })]
+    const result = closeTabsById(tabs, 'tab-1', new Set())
+    expect(result.tabs).toBe(tabs)
+  })
+
+  it('falls back to the previous tab when the active tab is closed', () => {
+    // Mirrors closeTab's own fallback rule (see Shell.tsx) so closing a
+    // vanished-session tab behaves the same as the user closing it by hand.
+    const tabs = [tab({ id: 'tab-1' }), tab({ id: 'tab-2' }), tab({ id: 'tab-3' })]
+    const result = closeTabsById(tabs, 'tab-2', new Set(['tab-2']))
+    expect(result.tabs.map((t) => t.id)).toEqual(['tab-1', 'tab-3'])
+    expect(result.activeTabId).toBe('tab-1')
+  })
+
+  it('falls back to the first remaining tab when the closed active tab was first', () => {
+    const tabs = [tab({ id: 'tab-1' }), tab({ id: 'tab-2' })]
+    const result = closeTabsById(tabs, 'tab-1', new Set(['tab-1']))
+    expect(result.activeTabId).toBe('tab-2')
+  })
+
+  it('falls back to no active tab when every tab is closed', () => {
+    const tabs = [tab({ id: 'tab-1' })]
+    const result = closeTabsById(tabs, 'tab-1', new Set(['tab-1']))
+    expect(result.tabs).toEqual([])
+    expect(result.activeTabId).toBeNull()
+    expect(result.activatedCliId).toBeUndefined()
+  })
+
+  it("reports the fallback tab's cliId so the caller can switch the active CLI", () => {
+    const tabs = [tab({ id: 'tab-1', cliId: 'codex' }), tab({ id: 'tab-2', cliId: 'gemini' })]
+    const result = closeTabsById(tabs, 'tab-2', new Set(['tab-2']))
+    expect(result.activatedCliId).toBe('codex')
   })
 })

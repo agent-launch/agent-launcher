@@ -62,14 +62,15 @@ export function reconcileNewSessionTabs<T extends ReconcilableTab>(
  * which can fire even for a session that had real content, if gemini-cli's
  * in-memory tracking of that session drifted from what's on disk (observed
  * after a resume). The tab itself keeps running and showing its last
- * rendered output either way, so nothing in the UI otherwise signals that
+ * rendered output either way, so without checking, nothing signals that
  * this conversation is no longer saved.
  *
  * Returns the set of tab ids whose resumeId no longer has a matching entry
- * in the freshly-fetched session list for this cliId — i.e. tabs to flag as
- * "not saved" in the UI. A tab whose session reappears (e.g. a transient
- * listing hiccup) should have this cleared on the next call; callers should
- * treat "not in this set" as "not missing", not just skip updating.
+ * in the freshly-fetched session list for this cliId. The chosen behavior is
+ * to close these tabs (see closeVanishedSessionTabs in Shell.tsx) — keeping
+ * open tabs and history in sync takes priority over preserving a tab the app
+ * can't actually guarantee still corresponds to anything recoverable, since
+ * the app doesn't control when the CLI deletes its own files.
  */
 export function findVanishedSessionTabs<T extends ReconcilableTab>(
   tabs: T[],
@@ -83,4 +84,30 @@ export function findVanishedSessionTabs<T extends ReconcilableTab>(
     if (!liveIds.has(tab.resumeId)) vanished.add(tab.id)
   }
   return vanished
+}
+
+/**
+ * Removes the given tab ids and, if the currently active tab was among
+ * them, picks a fallback the same way closing a tab by hand does: the tab
+ * that was just before it, else the first remaining tab, else none. Pure —
+ * callers apply `tabs`/`activeTabId` to state and, if `activatedCliId` is
+ * set, also switch the active CLI to match the fallback tab.
+ */
+export function closeTabsById<T extends ReconcilableTab>(
+  tabs: T[],
+  activeTabId: string | null,
+  idsToClose: Set<string>
+): { tabs: T[]; activeTabId: string | null; activatedCliId?: CliId } {
+  if (idsToClose.size === 0) return { tabs, activeTabId }
+  const next = tabs.filter((tab) => !idsToClose.has(tab.id))
+  if (!activeTabId || !idsToClose.has(activeTabId)) {
+    return { tabs: next, activeTabId }
+  }
+  const closedIndex = tabs.findIndex((tab) => tab.id === activeTabId)
+  const fallback = next[Math.max(0, closedIndex - 1)] ?? next[0] ?? null
+  return {
+    tabs: next,
+    activeTabId: fallback?.id ?? null,
+    activatedCliId: fallback?.cliId
+  }
 }

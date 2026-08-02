@@ -19,7 +19,6 @@ import {
   Plus,
   SlidersHorizontal,
   Trash2,
-  TriangleAlert,
   X
 } from 'lucide-react'
 import { useAppStore, type ShellView } from '@/store/app'
@@ -32,7 +31,8 @@ import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
 import {
   reconcileNewSessionTabs as reconcileTabPatches,
-  findVanishedSessionTabs
+  findVanishedSessionTabs,
+  closeTabsById
 } from '@/components/shell/reconcileTabs'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 import { SettingsSidebar } from '@/components/settings/SettingsSidebar'
@@ -67,12 +67,6 @@ interface WorkspaceTab {
    * persists it, so resuming it later reuses this tab instead of opening
    * a duplicate. See reconcileNewSessionTabs. */
   createdAt: number
-  /** True once this tab's resumeId no longer has a matching entry in the
-   * CLI's own session list — e.g. gemini-cli deleted its own session file
-   * on process exit. The tab keeps running either way; this is purely a
-   * "heads up, this conversation isn't saved" signal. See
-   * findVanishedSessionTabs. */
-  sessionMissing?: boolean
 }
 
 interface SessionState {
@@ -334,22 +328,29 @@ export function Shell() {
   }, [])
 
   // A tab's own session can vanish out from under it (see
-  // findVanishedSessionTabs) — flag it so the tab UI can show a "not saved"
-  // indicator instead of looking indistinguishable from a normal live tab.
-  const markVanishedSessionTabs = useCallback((cliId: CliId, sessions: SessionInfo[]) => {
-    setTabs((current) => {
-      const vanished = findVanishedSessionTabs(current, cliId, sessions)
-      let changed = false
-      const next = current.map((tab) => {
-        if (tab.cliId !== cliId || !tab.resumeId) return tab
-        const missing = vanished.has(tab.id)
-        if (!!tab.sessionMissing === missing) return tab
-        changed = true
-        return { ...tab, sessionMissing: missing }
+  // findVanishedSessionTabs) — most notably gemini-cli deleting its own
+  // session file on process exit if it decides the conversation isn't
+  // resumable. Rather than leave a tab open that no longer corresponds to
+  // anything in history (a tab/history split the app can't actually
+  // guarantee — we don't control when the CLI deletes its own files), close
+  // it, same as if the user had closed it themselves: history and open tabs
+  // stay in sync, at the cost of losing whatever was only ever live in that
+  // tab's terminal buffer and never made it to disk. TerminalView/ChatView
+  // already kill the underlying process on unmount, so removing the tab is
+  // sufficient cleanup.
+  const closeVanishedSessionTabs = useCallback(
+    (cliId: CliId, sessions: SessionInfo[]) => {
+      setTabs((current) => {
+        const vanished = findVanishedSessionTabs(current, cliId, sessions)
+        const result = closeTabsById(current, activeTabId, vanished)
+        if (result.tabs === current) return current
+        setActiveTabId(result.activeTabId)
+        if (result.activatedCliId) setActiveCli(result.activatedCliId)
+        return result.tabs
       })
-      return changed ? next : current
-    })
-  }, [])
+    },
+    [activeTabId, setActiveCli]
+  )
 
   // Read the CLI's own saved sessions (Claude/Codex conversation history).
   const refreshSessions = useCallback(async () => {
@@ -375,7 +376,7 @@ export function Shell() {
       if (sessionLoadIdRef.current === loadId && nextSessions) {
         setSessionState({ cliId, items: nextSessions, loaded: true })
         reconcileNewSessionTabs(cliId, nextSessions)
-        markVanishedSessionTabs(cliId, nextSessions)
+        closeVanishedSessionTabs(cliId, nextSessions)
       }
     } catch {
       if (sessionLoadIdRef.current === loadId) {
@@ -391,7 +392,7 @@ export function Shell() {
         setShowSessionLoading(false)
       }
     }
-  }, [activeCliId, reconcileNewSessionTabs, markVanishedSessionTabs])
+  }, [activeCliId, reconcileNewSessionTabs, closeVanishedSessionTabs])
 
   useEffect(() => {
     if (view === 'run' && !activeTab) refreshSessions()
@@ -866,7 +867,6 @@ export function Shell() {
                   closeTitle={t('shell.closeTab')}
                   runningLabel={t('shell.tabRunning')}
                   exitedLabel={t('shell.tabExited')}
-                  sessionMissingLabel={t('shell.sessionNotSaved')}
                   backToHistoryLabel={t('shell.backToHistory')}
                   onBackToHistory={backToHistory}
                   leadingInset={isMac && sidebarCollapsed ? MAC_COLLAPSED_TAB_INSET : 0}
@@ -1196,7 +1196,6 @@ function WorkspaceTabs({
   closeTitle,
   runningLabel,
   exitedLabel,
-  sessionMissingLabel,
   backToHistoryLabel,
   onBackToHistory,
   leadingInset
@@ -1212,7 +1211,6 @@ function WorkspaceTabs({
   closeTitle: string
   runningLabel: string
   exitedLabel: string
-  sessionMissingLabel: string
   backToHistoryLabel: string
   onBackToHistory: () => void
   leadingInset: number
@@ -1272,14 +1270,6 @@ function WorkspaceTabs({
                 <span className="grid size-4 shrink-0 place-items-center rounded-[4px] border border-border-weak bg-surface-weak">
                   <CliIcon cliId={tab.cliId} size={12} />
                 </span>
-                {tab.sessionMissing && (
-                  <span
-                    className="grid size-3.5 shrink-0 place-items-center text-warning"
-                    title={sessionMissingLabel}
-                  >
-                    <TriangleAlert size={11} />
-                  </span>
-                )}
                 <span className="min-w-0 flex-1 truncate">{tab.title}</span>
                 <span className="grid size-3.5 shrink-0 place-items-center" title={statusTitle}>
                   <span
