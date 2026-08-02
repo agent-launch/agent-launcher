@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   reconcileNewSessionTabs,
+  findVanishedSessionTabs,
   type ReconcilableTab
 } from '../../src/renderer/src/components/shell/reconcileTabs'
 import type { SessionInfo } from '../../src/shared/types'
@@ -96,5 +97,49 @@ describe('reconcileNewSessionTabs', () => {
     const tabs = [tab({ id: 'tab-1', kind: 'transcript', createdAt: 1000 })]
     const sessions = [session({ id: 'sess-1', updatedAt: 1500 })]
     expect(reconcileNewSessionTabs(tabs, 'gemini', sessions).size).toBe(0)
+  })
+})
+
+describe('findVanishedSessionTabs', () => {
+  it('flags a resumed tab whose session no longer appears in the fresh list', () => {
+    // Reproduces a real, observed case: gemini-cli deletes its own session
+    // file on process exit if it judges the conversation "not resumable"
+    // (deleteCurrentSessionIfNotResumableAsync), which can fire even for a
+    // session with real content if gemini-cli's own in-memory tracking
+    // drifted from disk after a resume. The tab keeps running regardless,
+    // so nothing else would tell the user this conversation isn't saved.
+    const tabs = [tab({ id: 'tab-1', resumeId: 'sess-1' })]
+    expect(findVanishedSessionTabs(tabs, 'gemini', [])).toEqual(new Set(['tab-1']))
+  })
+
+  it('does not flag a tab whose session is still present', () => {
+    const tabs = [tab({ id: 'tab-1', resumeId: 'sess-1' })]
+    const sessions = [session({ id: 'sess-1' })]
+    expect(findVanishedSessionTabs(tabs, 'gemini', sessions).size).toBe(0)
+  })
+
+  it('ignores a tab with no resumeId — nothing to have vanished', () => {
+    const tabs = [tab({ id: 'tab-1' })]
+    expect(findVanishedSessionTabs(tabs, 'gemini', []).size).toBe(0)
+  })
+
+  it('ignores an exited tab even if its session is gone', () => {
+    const tabs = [tab({ id: 'tab-1', resumeId: 'sess-1', status: 'exited' })]
+    expect(findVanishedSessionTabs(tabs, 'gemini', []).size).toBe(0)
+  })
+
+  it('ignores tabs for a different cliId', () => {
+    const tabs = [tab({ id: 'tab-1', cliId: 'codex', resumeId: 'sess-1' })]
+    expect(findVanishedSessionTabs(tabs, 'gemini', []).size).toBe(0)
+  })
+
+  it('flags multiple vanished tabs independently', () => {
+    const tabs = [
+      tab({ id: 'tab-1', resumeId: 'sess-1' }),
+      tab({ id: 'tab-2', resumeId: 'sess-2' }),
+      tab({ id: 'tab-3', resumeId: 'sess-3' })
+    ]
+    const sessions = [session({ id: 'sess-2' })]
+    expect(findVanishedSessionTabs(tabs, 'gemini', sessions)).toEqual(new Set(['tab-1', 'tab-3']))
   })
 })

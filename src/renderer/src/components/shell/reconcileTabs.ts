@@ -53,3 +53,34 @@ export function reconcileNewSessionTabs<T extends ReconcilableTab>(
   }
   return patches
 }
+
+/**
+ * A tab's own backing session file can disappear out from under it without
+ * the tab closing — most notably, gemini-cli deletes its own session file
+ * on process exit if it judges the conversation "not resumable"
+ * (deleteCurrentSessionIfNotResumableAsync in its own ChatRecordingService),
+ * which can fire even for a session that had real content, if gemini-cli's
+ * in-memory tracking of that session drifted from what's on disk (observed
+ * after a resume). The tab itself keeps running and showing its last
+ * rendered output either way, so nothing in the UI otherwise signals that
+ * this conversation is no longer saved.
+ *
+ * Returns the set of tab ids whose resumeId no longer has a matching entry
+ * in the freshly-fetched session list for this cliId — i.e. tabs to flag as
+ * "not saved" in the UI. A tab whose session reappears (e.g. a transient
+ * listing hiccup) should have this cleared on the next call; callers should
+ * treat "not in this set" as "not missing", not just skip updating.
+ */
+export function findVanishedSessionTabs<T extends ReconcilableTab>(
+  tabs: T[],
+  cliId: CliId,
+  sessions: SessionInfo[]
+): Set<string> {
+  const liveIds = new Set(sessions.map((s) => s.id))
+  const vanished = new Set<string>()
+  for (const tab of tabs) {
+    if (tab.cliId !== cliId || !tab.resumeId || tab.status === 'exited') continue
+    if (!liveIds.has(tab.resumeId)) vanished.add(tab.id)
+  }
+  return vanished
+}
