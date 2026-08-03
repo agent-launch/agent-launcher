@@ -311,7 +311,32 @@ export function killSession(id: string): void {
   if (!s) return
   clearCodexInterrupt(s)
   try {
-    s.proc.kill()
+    // node-pty's default kill signal (SIGHUP) is catchable, which lets
+    // gemini-cli run its own exit-time cleanup — deleting the current
+    // session's file if it judges it "not resumable". That judgment reads
+    // gemini-cli's own in-memory conversation state, which has been observed
+    // drifting from what's actually on disk after a resume, so a genuinely-
+    // resumable session can get deleted for real when we end its tab or the
+    // app quits. SIGKILL can't be caught, so it skips that cleanup — but
+    // `/usr/local/bin/gemini`'s shebang wrapper re-execs itself as a *child*
+    // process (to raise --max-old-space-size), so the pty's direct child
+    // (proc.pid) is only that thin wrapper; the real gemini-cli process
+    // doing the actual work is its child. Signaling just proc.pid leaves
+    // that real process orphaned and still running, and it then runs its own
+    // (catchable) exit cleanup on its own terms. node-pty starts its child in
+    // a new session, so proc.pid also doubles as the process group id —
+    // signal the whole group (negative pid) to reach that child too. Not
+    // supported on Windows (node-pty throws if a signal is passed there, and
+    // negative pids aren't a Windows concept).
+    if (s.cliId === 'gemini' && process.platform !== 'win32') {
+      try {
+        process.kill(-s.proc.pid, 'SIGKILL')
+      } catch {
+        s.proc.kill('SIGKILL')
+      }
+    } else {
+      s.proc.kill()
+    }
   } catch {
     /* already dead */
   }
