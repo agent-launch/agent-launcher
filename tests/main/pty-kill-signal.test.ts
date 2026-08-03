@@ -13,6 +13,9 @@ describe('killSession signal choice', () => {
     // proc.pid leaves that real process orphaned, still running its own
     // (catchable) exit cleanup. node-pty starts its child in a new session,
     // so proc.pid doubles as the process group id — must kill the group.
+    // Windows doesn't support custom signals or negative pids, so pty.ts
+    // skips the group-kill there entirely — nothing to test on that platform.
+    if (process.platform === 'win32') return
     await withIsolatedHome(async () => {
       const procKill = vi.fn()
       vi.doMock('@lydell/node-pty', () => ({
@@ -48,6 +51,9 @@ describe('killSession signal choice', () => {
   })
 
   it('falls back to killing just the pty process if group-kill fails', async () => {
+    // Windows doesn't support custom signals or negative pids, so pty.ts
+    // skips the group-kill there entirely — nothing to test on that platform.
+    if (process.platform === 'win32') return
     await withIsolatedHome(async () => {
       const procKill = vi.fn()
       vi.doMock('@lydell/node-pty', () => ({
