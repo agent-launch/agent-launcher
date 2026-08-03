@@ -428,14 +428,14 @@ export function Shell() {
   const sessionsLoaded = sessionState.cliId === activeCliId && sessionState.loaded
   const showSessionSkeleton = showSessionLoading && !sessionsLoaded
 
-  const [selectedDirectory, setSelectedDirectory] = useState<string>('all')
+  const [selectedDirectory, setSelectedDirectory] = useState<string>('')
 
   useEffect(() => {
-    setSelectedDirectory('all')
+    setSelectedDirectory('')
   }, [activeCliId])
 
   const directoryOptions = useMemo(() => {
-    const options: DirectoryOption[] = [{ key: 'all', label: t('shell.allDirectories'), cwd: null }]
+    const options: DirectoryOption[] = []
     const seen = new Set<string>()
     let hasUnassociated = false
     for (const s of visibleSessions) {
@@ -456,12 +456,14 @@ export function Shell() {
 
   useEffect(() => {
     if (!directoryOptions.some((option) => option.key === selectedDirectory)) {
-      setSelectedDirectory('all')
+      // No "all directories" entry any more, so fall back to the first listed
+      // directory — the most recent session's cwd.
+      setSelectedDirectory(directoryOptions[0]?.key ?? '')
     }
   }, [directoryOptions, selectedDirectory])
 
   const filteredSessions = useMemo(() => {
-    if (selectedDirectory === 'all') return visibleSessions
+    if (!selectedDirectory) return []
     if (selectedDirectory === '__none__') return visibleSessions.filter((s) => !s.cwd?.trim())
     return visibleSessions.filter((s) => s.cwd?.trim() === selectedDirectory)
   }, [visibleSessions, selectedDirectory])
@@ -953,11 +955,13 @@ export function Shell() {
                             {loadingSessions ? t('shell.loadingSessions') : t('shell.refresh')}
                           </button>
                         </div>
-                        <DirectorySelect
-                          options={directoryOptions}
-                          value={selectedDirectory}
-                          onChange={setSelectedDirectory}
-                        />
+                        {directoryOptions.length > 0 && (
+                          <DirectorySelect
+                            options={directoryOptions}
+                            value={selectedDirectory}
+                            onChange={setSelectedDirectory}
+                          />
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {activeCliId === 'hermes' && (

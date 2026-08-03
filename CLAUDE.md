@@ -62,6 +62,8 @@ The app detects existing system commands, lets users choose among duplicate path
 
 Reads each CLI's **own** on-disk conversation history so users can resume — each CLI stores it differently: Claude/Codex/Pi use JSONL (different dir layouts and title fields), Gemini writes JSON log arrays, and **opencode and Hermes use SQLite DBs read via `sql.js`/WASM** (Hermes merged with its JSON session files). `resumeArgs()` maps a session id back to the CLI's resume flag. Adding a CLI means adding both a `list*` reader and a `resumeArgs` case.
 
+Gemini is the one CLI whose history records no `cwd`: the project is implied by the `<state>/tmp/<identifier>/` bucket the log sits in. `src/main/gemini-projects.ts` maps a bucket back to a directory — `.project_root` marker, then `projects.json` slug registry, then (for legacy `sha256(path)` buckets) hash-verified candidate paths. Candidates are guesses; only an exact hash match is accepted, so a bad guess can never mislabel a session.
+
 ### Renderer
 
 React 19 + Zustand + Tailwind v4. `App.tsx` shows `Onboarding` (first-run detection, linking, and configuration) until `onboarded`, then `Shell`. `store/app.ts` is the only persisted client store (localStorage). The CLI catalog (`data/clis.ts`) and provider/relay presets (`data/providers.ts`) are static data. Terminal UI is xterm.js in `components/terminal/TerminalView.tsx`. Frameless window with a custom `Titlebar` (window controls go through `window:*` IPC in `index.ts`).

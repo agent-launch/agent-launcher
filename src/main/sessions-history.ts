@@ -19,6 +19,7 @@ import { assertCliLaunchAllowed } from './cli-launch-safety'
 import { defaultWorkspaceForCli } from './launch-cwd'
 import { getSql, readSqliteSnapshot } from './sqlite'
 import { cliStateRoots, hermesHomeDir } from './config-paths'
+import { geminiProjectResolver } from './gemini-projects'
 import { decodeProcessOutput, spawnProcess } from './process'
 import { loadConfig } from './store'
 import type {
@@ -1246,12 +1247,12 @@ async function listHermes(): Promise<SessionInfo[]> {
   return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
-/** Gemini: each project's tmp/<hash>/chats/session-<ts>-<uuid8>.jsonl is
+/** Gemini: each project's tmp/<id>/chats/session-<ts>-<uuid8>.jsonl is
  * gemini-cli's ChatRecordingService log — a session-header line
  * ({sessionId, startTime, lastUpdated, kind}) followed by
  * `{"$set": {"messages": [...], "lastUpdated": ...}}` patch lines.
  *
- * This used to read the separate, lighter tmp/<hash>/logs.json (a plain
+ * This used to read the separate, lighter tmp/<id>/logs.json (a plain
  * {sessionId, messageId, timestamp, message} array covering only the user
  * side). That sessionId lives in an unrelated id-space from what gemini-cli's
  * own `--resume` actually looks up — confirmed by reproducing a real
@@ -1282,6 +1283,13 @@ async function listHermes(): Promise<SessionInfo[]> {
  * non-resumable (and delete the file) even though "hello" had been appended
  * in between — matching that (not preserving "hello") is the correct
  * behavior, since it's what --resume/--delete-session would themselves see.
+ *
+ * The `tmp/<id>` bucket is the only record of which project a session belongs
+ * to — nothing inside the chats file carries a path — so cwd is resolved from
+ * the bucket via gemini-projects.ts. A sessionId can appear under more than one
+ * bucket; we attribute it to the bucket holding its newest entry, and if that
+ * bucket's project directory cannot be resolved the session is treated as
+ * unassociated rather than inheriting an older, possibly stale cwd.
  *
  * The ignored-content/resumability rules below (isGeminiIgnoredUserContent,
  * isGeminiResumableMessage) and the assistant message type ("gemini", not
@@ -1404,19 +1412,22 @@ function parseGeminiChatFile(
   }
 }
 
-function collectGeminiChatFiles(): string[] {
-  const out: string[] = []
+function collectGeminiChatFiles(): Array<{ file: string; projectDir: string; stateRoot: string }> {
+  const out: Array<{ file: string; projectDir: string; stateRoot: string }> = []
   for (const stateRoot of cliStateRoots('gemini')) {
     const root = join(stateRoot, 'tmp')
     if (!existsSync(root)) continue
     try {
       for (const projectDir of readdirSync(root, { withFileTypes: true })) {
-        if (!projectDir.isDirectory()) continue
+        // gemini-cli also keeps its global bin dir under tmp/ (Storage.getGlobalBinDir).
+        // It is not a project bucket and has no chats/.
+        if (!projectDir.isDirectory() && !projectDir.isSymbolicLink()) continue
+        if (projectDir.name === 'bin') continue
         const chatsDir = join(root, projectDir.name, 'chats')
         try {
           for (const entry of readdirSync(chatsDir, { withFileTypes: true })) {
             if (entry.isFile() && entry.name.endsWith('.jsonl'))
-              out.push(join(chatsDir, entry.name))
+              out.push({ file: join(chatsDir, entry.name), projectDir: projectDir.name, stateRoot })
           }
         } catch {
           /* no chats/ dir for this project — nothing to add */
@@ -1427,17 +1438,6 @@ function collectGeminiChatFiles(): string[] {
     }
   }
   return out
-}
-
-/** The plain-text cwd gemini-cli itself wrote for this project — sibling to
- * chats/, one level up from the session file. */
-function readGeminiProjectRoot(chatFile: string): string | undefined {
-  try {
-    const cwd = readFileSync(join(dirname(dirname(chatFile)), '.project_root'), 'utf8').trim()
-    return cwd || undefined
-  } catch {
-    return undefined
-  }
 }
 
 /** First real user-typed message — skips gemini-cli's own auto-injected
@@ -1452,20 +1452,55 @@ function firstGeminiUserMessage(messages: Record<string, any>[]): string | undef
   return undefined
 }
 
+/** The plain-text cwd gemini-cli itself wrote for this project — sibling to
+ * chats/, one level up from the session file. Falls back to the slug registry
+ * and then legacy sha256(path) matching via gemini-projects.ts when the marker
+ * is absent.
+ *
+ * The resolver is created once per listing and reused across buckets so the
+ * legacy-hash candidate scan (which walks the filesystem) is not repeated for
+ * every session. */
+function createGeminiProjectRootReader(): (
+  stateRoot: string,
+  projectDir: string
+) => string | undefined {
+  const cache = new Map<string, ReturnType<typeof geminiProjectResolver>>()
+  return (stateRoot, projectDir) => {
+    const bucketDir = join(stateRoot, 'tmp', projectDir)
+    try {
+      const marker = readFileSync(join(bucketDir, '.project_root'), 'utf8').trim()
+      if (marker) return marker
+    } catch {
+      /* fall through to registry / hash recovery */
+    }
+    let resolver = cache.get(stateRoot)
+    if (!resolver) {
+      resolver = geminiProjectResolver(stateRoot)
+      cache.set(stateRoot, resolver)
+    }
+    return resolver.resolve(bucketDir, projectDir)
+  }
+}
+
 function listGemini(): SessionInfo[] {
-  const out: SessionInfo[] = []
-  for (const file of collectGeminiChatFiles()) {
+  const readProjectRoot = createGeminiProjectRootReader()
+  const byId = new Map<string, SessionInfo>()
+  for (const { file, projectDir, stateRoot } of collectGeminiChatFiles()) {
     const parsed = parseGeminiChatFile(file)
     if (!parsed || !parsed.messages.some(isGeminiResumableMessage)) continue
-    out.push({
-      id: parsed.sessionId,
-      cliId: 'gemini',
-      name: displayTitle(firstGeminiUserMessage(parsed.messages), 'Gemini session'),
-      updatedAt: parsed.updatedAt,
-      cwd: readGeminiProjectRoot(file)
-    })
+    const cwd = readProjectRoot(stateRoot, projectDir)
+    const existing = byId.get(parsed.sessionId)
+    if (!existing || parsed.updatedAt > existing.updatedAt) {
+      byId.set(parsed.sessionId, {
+        id: parsed.sessionId,
+        cliId: 'gemini',
+        name: displayTitle(firstGeminiUserMessage(parsed.messages), 'Gemini session'),
+        updatedAt: parsed.updatedAt,
+        cwd
+      })
+    }
   }
-  return out.sort((a, b) => b.updatedAt - a.updatedAt)
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 
 function deleteClaudeSession(id: string): SessionDeleteResult {
@@ -1795,12 +1830,21 @@ async function deleteHermesSession(id: string): Promise<SessionDeleteResult> {
  * computed here rather than by shelling out to `--list-sessions` first. */
 async function deleteGeminiSession(id: string): Promise<SessionDeleteResult> {
   const parsedFiles = collectGeminiChatFiles()
-    .map((file) => ({ file, parsed: parseGeminiChatFile(file) }))
+    .map(({ file, projectDir, stateRoot }) => ({
+      file,
+      projectDir,
+      stateRoot,
+      parsed: parseGeminiChatFile(file)
+    }))
     .filter(
       (
         entry
-      ): entry is { file: string; parsed: NonNullable<ReturnType<typeof parseGeminiChatFile>> } =>
-        !!entry.parsed
+      ): entry is {
+        file: string
+        projectDir: string
+        stateRoot: string
+        parsed: NonNullable<ReturnType<typeof parseGeminiChatFile>>
+      } => !!entry.parsed
     )
   const target = parsedFiles.find((entry) => entry.parsed.sessionId === id)
   if (!target) return { ok: true, cliId: 'gemini', id, deletedCount: 0, missing: true }
@@ -1832,7 +1876,8 @@ async function deleteGeminiSession(id: string): Promise<SessionDeleteResult> {
   // gemini-cli uses cwd to decide which project's session list to enumerate,
   // so a wrong guess here could make --delete-session <index> hit an
   // unrelated session in a different project. Refuse rather than guess.
-  const projectRoot = readGeminiProjectRoot(target.file)
+  const readProjectRoot = createGeminiProjectRootReader()
+  const projectRoot = readProjectRoot(target.stateRoot, target.projectDir)
   if (!projectRoot) {
     return {
       ok: false,
@@ -2611,7 +2656,7 @@ async function hermesTranscript(id: string): Promise<Transcript> {
  * side of the transcript, not tool calls. Follow-up if that turns out to
  * matter in practice. */
 function geminiTranscript(id: string): Transcript {
-  for (const file of collectGeminiChatFiles()) {
+  for (const { file } of collectGeminiChatFiles()) {
     const parsed = parseGeminiChatFile(file)
     if (!parsed || parsed.sessionId !== id) continue
     const msgs: TranscriptMessage[] = []
