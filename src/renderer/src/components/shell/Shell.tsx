@@ -713,13 +713,14 @@ export function Shell() {
         )
         return
       }
-      let remainingItems: SessionInfo[] = []
-      setSessionState((current) => {
-        remainingItems = current.items.filter(
-          (entry) => entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id
-        )
-        return { ...current, items: remainingItems }
-      })
+      // Computed synchronously (not inside the setSessionState updater below)
+      // because that updater isn't guaranteed to run before the next line —
+      // relying on it left remainingItems as [], which made every open tab
+      // for this cliId look vanished instead of just the deleted one.
+      const remainingItems = sessionState.items.filter(
+        (entry) => entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id
+      )
+      setSessionState((current) => ({ ...current, items: remainingItems }))
       // Deleting via the button is just another way a session can vanish out
       // from under an open tab (see closeVanishedSessionTabs) — this path
       // updates sessionState directly rather than going through
