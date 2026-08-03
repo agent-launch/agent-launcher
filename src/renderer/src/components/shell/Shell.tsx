@@ -295,6 +295,12 @@ export function Shell() {
   const sessionLoadIdRef = useRef(0)
   const activeSessionRequestRef = useRef<string | null>(null)
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null
+  // Always-current mirror of activeTabId for callbacks (closeVanishedSessionTabs)
+  // that need the latest value without risking a stale closure read.
+  const activeTabIdRef = useRef(activeTabId)
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId
+  }, [activeTabId])
 
   const setView = useCallback(
     (next: ShellView) => {
@@ -328,28 +334,43 @@ export function Shell() {
   }, [])
 
   // A tab's own session can vanish out from under it (see
-  // findVanishedSessionTabs) — most notably gemini-cli deleting its own
-  // session file on process exit if it decides the conversation isn't
-  // resumable. Rather than leave a tab open that no longer corresponds to
-  // anything in history (a tab/history split the app can't actually
-  // guarantee — we don't control when the CLI deletes its own files), close
-  // it, same as if the user had closed it themselves: history and open tabs
-  // stay in sync, at the cost of losing whatever was only ever live in that
-  // tab's terminal buffer and never made it to disk. TerminalView/ChatView
-  // already kill the underlying process on unmount, so removing the tab is
-  // sufficient cleanup.
+  // findVanishedSessionTabs) — gemini-cli deletes its own session file on
+  // process exit if it decides the conversation isn't resumable. Rather than
+  // leave a tab open that no longer corresponds to anything in history (a
+  // tab/history split the app can't actually guarantee — we don't control
+  // when the CLI deletes its own files), close it, same as if the user had
+  // closed it themselves: history and open tabs stay in sync, at the cost of
+  // losing whatever was only ever live in that tab's terminal buffer and
+  // never made it to disk. TerminalView/ChatView already kill the underlying
+  // process on unmount, so removing the tab is sufficient cleanup.
+  //
+  // General-purpose (not gemini-specific) — also used to close a tab right
+  // after its session is explicitly deleted via the delete button, which is
+  // safe for every CLI since we just deleted that session ourselves. Callers
+  // reacting to a passive session-list refresh (rather than an explicit
+  // delete) should scope the cliId they pass to gemini — see refreshSessions
+  // — since that path exists for gemini's own self-deleting-files quirk, not
+  // a general guarantee that other CLIs' sessions won't transiently vanish
+  // from a bad read.
   const closeVanishedSessionTabs = useCallback(
     (cliId: CliId, sessions: SessionInfo[]) => {
+      // setTabs's updater must stay pure — it only computes the next tabs
+      // array. The activeTabId/activeCli side effects it depends on are
+      // captured here and applied afterward, not from inside the updater.
+      let sideEffect: { activeTabId: string | null; activatedCliId?: CliId } | undefined
       setTabs((current) => {
         const vanished = findVanishedSessionTabs(current, cliId, sessions)
-        const result = closeTabsById(current, activeTabId, vanished)
+        const result = closeTabsById(current, activeTabIdRef.current, vanished)
         if (result.tabs === current) return current
-        setActiveTabId(result.activeTabId)
-        if (result.activatedCliId) setActiveCli(result.activatedCliId)
+        sideEffect = { activeTabId: result.activeTabId, activatedCliId: result.activatedCliId }
         return result.tabs
       })
+      if (sideEffect) {
+        setActiveTabId(sideEffect.activeTabId)
+        if (sideEffect.activatedCliId) setActiveCli(sideEffect.activatedCliId)
+      }
     },
-    [activeTabId, setActiveCli]
+    [setActiveCli]
   )
 
   // Read the CLI's own saved sessions (Claude/Codex conversation history).
@@ -376,7 +397,11 @@ export function Shell() {
       if (sessionLoadIdRef.current === loadId && nextSessions) {
         setSessionState({ cliId, items: nextSessions, loaded: true })
         reconcileNewSessionTabs(cliId, nextSessions)
-        closeVanishedSessionTabs(cliId, nextSessions)
+        // Only gemini is known to delete its own session files out from
+        // under an open tab — a passive refresh for any other CLI shouldn't
+        // close a tab just because that CLI's list happened to come back
+        // without it this time.
+        if (cliId === 'gemini') closeVanishedSessionTabs(cliId, nextSessions)
       }
     } catch {
       if (sessionLoadIdRef.current === loadId) {
