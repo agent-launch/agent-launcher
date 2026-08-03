@@ -454,8 +454,16 @@ export function Shell() {
   const showSessionSkeleton = showSessionLoading && !sessionsLoaded
 
   const [selectedDirectory, setSelectedDirectory] = useState<string>('')
+  // Whether the user has explicitly picked a directory for the current CLI —
+  // as long as they haven't (or their pick has since disappeared), the
+  // selection keeps following directoryOptions[0] (the most recent session's
+  // directory) as new sessions arrive, so e.g. a just-created "New Session"
+  // in a different directory doesn't silently stay hidden behind whatever
+  // directory happened to be selected before it existed.
+  const directoryManuallyPickedRef = useRef(false)
 
   useEffect(() => {
+    directoryManuallyPickedRef.current = false
     setSelectedDirectory('')
   }, [activeCliId])
 
@@ -480,12 +488,19 @@ export function Shell() {
   }, [visibleSessions, t])
 
   useEffect(() => {
-    if (!directoryOptions.some((option) => option.key === selectedDirectory)) {
-      // No "all directories" entry any more, so fall back to the first listed
-      // directory — the most recent session's cwd.
-      setSelectedDirectory(directoryOptions[0]?.key ?? '')
-    }
+    const stillValid = directoryOptions.some((option) => option.key === selectedDirectory)
+    if (directoryManuallyPickedRef.current && stillValid) return
+    if (!stillValid) directoryManuallyPickedRef.current = false
+    // No "all directories" entry any more, so fall back to the first listed
+    // directory — the most recent session's cwd.
+    const next = directoryOptions[0]?.key ?? ''
+    if (next !== selectedDirectory) setSelectedDirectory(next)
   }, [directoryOptions, selectedDirectory])
+
+  const selectDirectory = useCallback((key: string) => {
+    directoryManuallyPickedRef.current = true
+    setSelectedDirectory(key)
+  }, [])
 
   const filteredSessions = useMemo(() => {
     if (!selectedDirectory) return []
@@ -984,7 +999,7 @@ export function Shell() {
                           <DirectorySelect
                             options={directoryOptions}
                             value={selectedDirectory}
-                            onChange={setSelectedDirectory}
+                            onChange={selectDirectory}
                           />
                         )}
                       </div>
