@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { vi } from 'vitest'
@@ -6,7 +6,11 @@ import { vi } from 'vitest'
 export async function withIsolatedHome<T>(
   run: (ctx: { home: string }) => Promise<T> | T
 ): Promise<T> {
-  const home = mkdtempSync(join(tmpdir(), 'agent-launcher-test-'))
+  // On Windows os.tmpdir() can return a short 8.3 path (e.g. RUNNER~1). That
+  // breaks any test that round-trips a path through a flattened/sanitized name
+  // and then walks the filesystem by name. realpathSync resolves the long name.
+  const tmpRoot = process.platform === 'win32' ? realpathSync(tmpdir()) : tmpdir()
+  const home = mkdtempSync(join(tmpRoot, 'agent-launcher-test-'))
   const isolatedEnv = {
     HOME: home,
     XDG_CONFIG_HOME: join(home, '.config'),
