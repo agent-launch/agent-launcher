@@ -155,7 +155,9 @@ const api = {
     transcript: (id: CliId, sid: string): Promise<Transcript> =>
       ipcRenderer.invoke('sessions:transcript', id, sid),
     delete: (id: CliId, sid: string): Promise<SessionDeleteResult> =>
-      ipcRenderer.invoke('sessions:delete', id, sid)
+      ipcRenderer.invoke('sessions:delete', id, sid),
+    defaultWorkspace: (id: CliId): Promise<string> =>
+      ipcRenderer.invoke('sessions:defaultWorkspace', id)
   },
   cli: {
     link: (id: CliId, opts?: CliLinkOptions): Promise<CliLinkResult> =>

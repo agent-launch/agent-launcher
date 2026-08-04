@@ -11,13 +11,10 @@ describe('sessions history and transcripts', () => {
       const projectDir = join(home, '.gemini', 'tmp', 'my-project')
       writeText(join(projectDir, '.project_root'), '/Users/tester/my-project')
 
-      // Header + first-message shape verified against a real gemini-cli
-      // install; the "gemini" role type and resumability/ignored-content
-      // rules below are copied from gemini-cli's own bundled source (see
-      // parseGeminiChatFile's comment). The multi-$set accumulation shape
-      // itself (whether $set replaces vs. appends messages) is still
-      // untested against a real multi-turn exchange, hence the id-dedup
-      // approach that's tolerant of either.
+      // Realistic shape: $set.messages only for the initial context
+      // injection; the real question and reply are bare appended lines
+      // (see parseGeminiChatFile's comment — confirmed against real
+      // gemini-cli runs and cross-checked against the real binary itself).
       writeJsonl(join(projectDir, 'chats', 'session-2026-07-22T04-25-247f2185.jsonl'), [
         {
           sessionId: '247f2185-f58d-4847-bcca-227f7b325f81',
@@ -34,29 +31,22 @@ describe('sessions history and transcripts', () => {
                 timestamp: '2026-07-22T04:25:09.903Z',
                 type: 'user',
                 content: [{ text: '<session_context>\nignored setup text\n</session_context>' }]
-              },
-              {
-                id: 'real-question',
-                timestamp: '2026-07-22T04:25:20.000Z',
-                type: 'user',
-                content: [{ text: 'What does this repo do?' }]
               }
             ],
-            lastUpdated: '2026-07-22T04:25:20.000Z'
+            lastUpdated: '2026-07-22T04:25:09.903Z'
           }
         },
         {
-          $set: {
-            messages: [
-              {
-                id: 'model-reply',
-                timestamp: '2026-07-22T04:25:21.000Z',
-                type: 'gemini',
-                content: [{ text: 'It is a CLI launcher.' }]
-              }
-            ],
-            lastUpdated: '2026-07-22T04:25:21.000Z'
-          }
+          id: 'real-question',
+          timestamp: '2026-07-22T04:25:20.000Z',
+          type: 'user',
+          content: [{ text: 'What does this repo do?' }]
+        },
+        {
+          id: 'model-reply',
+          timestamp: '2026-07-22T04:25:21.000Z',
+          type: 'gemini',
+          content: [{ text: 'It is a CLI launcher.' }]
         }
       ])
 
@@ -131,6 +121,195 @@ describe('sessions history and transcripts', () => {
     })
   })
 
+  it('reads a live message appended as a bare line, not wrapped in $set', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { listSessions, readTranscript } = await import('../../src/main/sessions-history')
+      const projectDir = join(home, '.gemini', 'tmp', 'agent-launcher')
+      writeText(join(projectDir, '.project_root'), 'D:\\a\\agent-launcher\\agent-launcher')
+
+      // Verbatim shape captured from a real gemini-cli 0.53.1 run (fresh
+      // install, `gemini -p "hello" --yolo --skip-trust`, real
+      // chats/*.jsonl inspected directly on a GitHub Actions windows-latest
+      // runner): the "hello" line is a bare {id, type, content} record, NOT
+      // wrapped in $set — only the context-injection line and the metadata
+      // resave use $set. An earlier version of parseGeminiChatFile only
+      // looked inside $set.messages, so this line was silently dropped and
+      // the session looked contentless (see the comment above
+      // parseGeminiChatFile).
+      writeJsonl(join(projectDir, 'chats', 'session-2026-08-01T00-16-de76c90b.jsonl'), [
+        {
+          sessionId: 'de76c90b-0a7c-4295-9df2-17f914ca4668',
+          projectHash: '4c41897800f26c19076d552a595a13ac1bf9e078bec2b98b791e00cae121727e',
+          startTime: '2026-08-01T00:16:33.369Z',
+          lastUpdated: '2026-08-01T00:16:33.369Z',
+          kind: 'main'
+        },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'd04923d38bb0f6017037e74183378ef4',
+                timestamp: '2026-08-01T00:16:33.371Z',
+                type: 'user',
+                content: [
+                  { text: '<session_context>\nThis is the Gemini CLI.\n</session_context>' }
+                ]
+              }
+            ],
+            lastUpdated: '2026-08-01T00:16:33.371Z'
+          }
+        },
+        {
+          id: '1d338b41-8c34-4041-a950-362e94bca360',
+          timestamp: '2026-08-01T00:16:33.826Z',
+          type: 'user',
+          content: [{ text: 'hello' }]
+        },
+        { $set: { lastUpdated: '2026-08-01T00:16:33.827Z' } }
+      ])
+
+      const sessions = await listSessions('gemini')
+      expect(sessions).toHaveLength(1)
+      expect(sessions[0]).toMatchObject({
+        id: 'de76c90b-0a7c-4295-9df2-17f914ca4668',
+        name: 'hello'
+      })
+
+      const transcript = await readTranscript('gemini', sessions[0].id)
+      expect(transcript.messages).toEqual([
+        {
+          role: 'user',
+          parts: [{ kind: 'text', text: 'hello' }],
+          ts: new Date('2026-08-01T00:16:33.826Z').getTime()
+        }
+      ])
+    })
+  })
+
+  it('treats a later full $set.messages replace as wiping earlier bare messages, matching real gemini-cli', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { listSessions } = await import('../../src/main/sessions-history')
+      const projectDir = join(home, '.gemini', 'tmp', 'agent-launcher')
+
+      // Verbatim shape captured from a real gemini-cli 0.53.1 run on a
+      // GitHub Actions windows-latest runner (one line more than the
+      // "reads a live message..." test above): after the bare "hello"
+      // message, a $set re-sent `messages` containing ONLY the
+      // auto-injected context message. Fed this exact file into a real
+      // local gemini-cli install and confirmed empirically: its own
+      // `--list-sessions` reports "No previous sessions found for this
+      // project" and deletes the file — i.e. $set.messages replaces the
+      // accumulated set rather than merging into it, so "hello" is
+      // correctly gone. Matching that (not preserving "hello") is the
+      // correct behavior here, not a regression.
+      writeJsonl(join(projectDir, 'chats', 'session-2026-08-01T00-16-de76c90b.jsonl'), [
+        {
+          sessionId: 'de76c90b-0a7c-4295-9df2-17f914ca4668',
+          projectHash: '4c41897800f26c19076d552a595a13ac1bf9e078bec2b98b791e00cae121727e',
+          startTime: '2026-08-01T00:16:33.369Z',
+          lastUpdated: '2026-08-01T00:16:33.369Z',
+          kind: 'main'
+        },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'd04923d38bb0f6017037e74183378ef4',
+                timestamp: '2026-08-01T00:16:33.371Z',
+                type: 'user',
+                content: [
+                  { text: '<session_context>\nThis is the Gemini CLI.\n</session_context>' }
+                ]
+              }
+            ],
+            lastUpdated: '2026-08-01T00:16:33.371Z'
+          }
+        },
+        {
+          id: '1d338b41-8c34-4041-a950-362e94bca360',
+          timestamp: '2026-08-01T00:16:33.826Z',
+          type: 'user',
+          content: [{ text: 'hello' }]
+        },
+        { $set: { lastUpdated: '2026-08-01T00:16:33.827Z' } },
+        {
+          $set: {
+            messages: [
+              {
+                id: 'd04923d38bb0f6017037e74183378ef4',
+                timestamp: '2026-08-01T00:16:33.371Z',
+                type: 'user',
+                content: [
+                  { text: '<session_context>\nThis is the Gemini CLI.\n</session_context>' }
+                ]
+              }
+            ],
+            lastUpdated: '2026-08-01T00:16:34.057Z'
+          }
+        }
+      ])
+
+      expect(await listSessions('gemini')).toEqual([])
+    })
+  })
+
+  it('rewinds messages via $rewindTo, dropping a message id and everything appended after it', async () => {
+    await withIsolatedHome(async ({ home }) => {
+      const { readTranscript } = await import('../../src/main/sessions-history')
+      const projectDir = join(home, '.gemini', 'tmp', 'rewind-project')
+
+      // $rewindTo (regenerate/edit-and-resend) semantics: drop the target
+      // message id and every id inserted after it, in insertion order.
+      // Cross-checked against the real gemini-cli binary itself, not just
+      // its source: fed this exact q1/a1-old/$rewindTo/a1-new sequence into
+      // a real local install and resumed it — gemini-cli's own subsequent
+      // full-history resave reconstructed the message list as
+      // [context, q1, a1-new], correctly excluding a1-old. That matches
+      // this test's expected output exactly.
+      writeJsonl(join(projectDir, 'chats', 'session-2026-08-01T00-00-rewind001.jsonl'), [
+        {
+          sessionId: 'rewind0001-0000-0000-0000-000000000001',
+          startTime: '2026-08-01T00:00:00.000Z',
+          lastUpdated: '2026-08-01T00:00:00.000Z',
+          kind: 'main'
+        },
+        {
+          id: 'q1',
+          timestamp: '2026-08-01T00:00:01.000Z',
+          type: 'user',
+          content: [{ text: 'first question' }]
+        },
+        {
+          id: 'a1-old',
+          timestamp: '2026-08-01T00:00:02.000Z',
+          type: 'gemini',
+          content: [{ text: 'stale, regenerated-away answer' }]
+        },
+        { $rewindTo: 'a1-old' },
+        {
+          id: 'a1-new',
+          timestamp: '2026-08-01T00:00:03.000Z',
+          type: 'gemini',
+          content: [{ text: 'the regenerated answer' }]
+        }
+      ])
+
+      const transcript = await readTranscript('gemini', 'rewind0001-0000-0000-0000-000000000001')
+      expect(transcript.messages).toEqual([
+        {
+          role: 'user',
+          parts: [{ kind: 'text', text: 'first question' }],
+          ts: new Date('2026-08-01T00:00:01.000Z').getTime()
+        },
+        {
+          role: 'assistant',
+          parts: [{ kind: 'text', text: 'the regenerated answer' }],
+          ts: new Date('2026-08-01T00:00:03.000Z').getTime()
+        }
+      ])
+    })
+  })
+
   it('deletes a gemini session by the 1-based startTime-ascending index gemini-cli itself expects', async () => {
     // The fake `gemini` binary below is a #!/bin/sh script; Windows has no
     // shebang support, so this is skipped there like the other fake-binary
@@ -149,22 +328,47 @@ describe('sessions history and transcripts', () => {
       mkdirSync(realProjectCwd, { recursive: true })
       writeText(join(projectDir, '.project_root'), realProjectCwd)
 
-      const chatEntry = (sessionId: string, isoTime: string, text: string) => [
-        { sessionId, startTime: isoTime, lastUpdated: isoTime, kind: 'main' },
+      // Verbatim shape captured from two real gemini-cli 0.53.0 sessions run
+      // locally (`gemini -p "first question"` then `gemini -p "second
+      // question"` in the same project) — bare {id, type, content} messages,
+      // not wrapped in $set (see parseGeminiChatFile's comment). Cross-
+      // checked against the real binary itself: `gemini --list-sessions`
+      // showed these in this exact 1/2 order, and `gemini --delete-session 2`
+      // deleted the "second question" file, leaving "first question" — the
+      // same result this test asserts our own index computation produces.
+      const chatEntry = (
+        sessionId: string,
+        startTime: string,
+        msgId: string,
+        msgTime: string,
+        text: string
+      ) => [
+        { sessionId, startTime, lastUpdated: startTime, kind: 'main' },
         {
           $set: {
-            messages: [{ id: 'm1', timestamp: isoTime, type: 'user', content: [{ text }] }],
-            lastUpdated: isoTime
+            messages: [
+              {
+                id: 'ctx-msg',
+                timestamp: startTime,
+                type: 'user',
+                content: [
+                  { text: '<session_context>\nThis is the Gemini CLI.\n</session_context>' }
+                ]
+              }
+            ],
+            lastUpdated: startTime
           }
-        }
+        },
+        { id: msgId, timestamp: msgTime, type: 'user', content: [{ text }] },
+        { $set: { lastUpdated: msgTime } }
       ]
-      // Older session first, newer second — startTime-ascending index of the
-      // second (newer) one should be 2.
       writeJsonl(
         join(projectDir, 'chats', 'session-a.jsonl'),
         chatEntry(
           '11111111-1111-1111-1111-111111111111',
           '2026-07-01T00:00:00.000Z',
+          '97140920-8d23-449d-82f9-72e9512c3708',
+          '2026-07-01T00:00:00.500Z',
           'first question'
         )
       )
@@ -173,6 +377,8 @@ describe('sessions history and transcripts', () => {
         chatEntry(
           '22222222-2222-2222-2222-222222222222',
           '2026-07-02T00:00:00.000Z',
+          'b951c86b-e8ed-4c86-aee1-fc2ac714f9ed',
+          '2026-07-02T00:00:00.500Z',
           'second question'
         )
       )

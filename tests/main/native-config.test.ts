@@ -180,4 +180,37 @@ describe('native config materialization', () => {
       ).toContain('sk-…1234')
     })
   })
+
+  it('forces off gemini-cli auto-update in settings.json without disturbing other fields', async () => {
+    await withIsolatedHome(async () => {
+      const { systemCliConfigDir } = await import('../../src/main/config-paths')
+      const { setInstallState } = await import('../../src/main/store')
+      const { readNativeFiles, writeNativeConfig } = await import('../../src/main/native-config')
+
+      setInstallState('gemini', {
+        installed: true,
+        binPath: '/usr/local/bin/gemini'
+      })
+      writeJson(join(systemCliConfigDir('gemini'), 'settings.json'), {
+        general: { vimMode: true, enableAutoUpdate: true, enableAutoUpdateNotification: true },
+        ui: { theme: 'Dracula' }
+      })
+
+      writeNativeConfig('gemini')
+
+      expect(readJson(join(systemCliConfigDir('gemini'), 'settings.json'))).toEqual({
+        general: {
+          vimMode: true,
+          enableAutoUpdate: false,
+          enableAutoUpdateNotification: false
+        },
+        ui: { theme: 'Dracula' }
+      })
+
+      const preview = readNativeFiles('gemini')
+      expect(preview.files.find((file) => file.name === 'settings.json')?.content).toContain(
+        '"enableAutoUpdate": false'
+      )
+    })
+  })
 })

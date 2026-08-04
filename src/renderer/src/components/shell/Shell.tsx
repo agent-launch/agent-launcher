@@ -29,6 +29,11 @@ import { TerminalView } from '@/components/terminal/TerminalView'
 import { ConfigView } from '@/components/config/ConfigView'
 import { CliIcon } from '@/components/CliIcon'
 import { Sidebar } from '@/components/shell/Sidebar'
+import {
+  reconcileNewSessionTabs as reconcileTabPatches,
+  findVanishedSessionTabs,
+  closeTabsById
+} from '@/components/shell/reconcileTabs'
 import { SettingsPage } from '@/components/settings/SettingsPage'
 import { SettingsSidebar } from '@/components/settings/SettingsSidebar'
 import { TranscriptView } from '@/components/transcript/TranscriptView'
@@ -57,6 +62,11 @@ interface WorkspaceTab {
   session?: SessionInfo
   mode?: 'cli' | 'shell'
   status: 'running' | 'idle' | 'exited'
+  /** When this tab was opened — used to match a freshly-started session
+   * (opened with no resumeId) back to its own history entry once the CLI
+   * persists it, so resuming it later reuses this tab instead of opening
+   * a duplicate. See reconcileNewSessionTabs. */
+  createdAt: number
 }
 
 interface SessionState {
@@ -285,6 +295,12 @@ export function Shell() {
   const sessionLoadIdRef = useRef(0)
   const activeSessionRequestRef = useRef<string | null>(null)
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null
+  // Always-current mirror of activeTabId for callbacks (closeVanishedSessionTabs)
+  // that need the latest value without risking a stale closure read.
+  const activeTabIdRef = useRef(activeTabId)
+  useEffect(() => {
+    activeTabIdRef.current = activeTabId
+  }, [activeTabId])
 
   const setView = useCallback(
     (next: ShellView) => {
@@ -303,6 +319,59 @@ export function Shell() {
   useEffect(() => {
     window.api.config.get().then(setCfg)
   }, [view, activeCli])
+
+  // See reconcileTabs.ts for what/why. Thin wrapper: the matching itself is
+  // a pure function (independently unit-testable); this just applies the
+  // resulting patch to tab state.
+  const reconcileNewSessionTabs = useCallback((cliId: CliId, sessions: SessionInfo[]) => {
+    setTabs((current) => {
+      const patches = reconcileTabPatches(current, cliId, sessions)
+      if (patches.size === 0) return current
+      return current.map((tab) =>
+        patches.has(tab.id) ? { ...tab, resumeId: patches.get(tab.id) } : tab
+      )
+    })
+  }, [])
+
+  // A tab's own session can vanish out from under it (see
+  // findVanishedSessionTabs) — gemini-cli deletes its own session file on
+  // process exit if it decides the conversation isn't resumable. Rather than
+  // leave a tab open that no longer corresponds to anything in history (a
+  // tab/history split the app can't actually guarantee — we don't control
+  // when the CLI deletes its own files), close it, same as if the user had
+  // closed it themselves: history and open tabs stay in sync, at the cost of
+  // losing whatever was only ever live in that tab's terminal buffer and
+  // never made it to disk. TerminalView/ChatView already kill the underlying
+  // process on unmount, so removing the tab is sufficient cleanup.
+  //
+  // General-purpose (not gemini-specific) — also used to close a tab right
+  // after its session is explicitly deleted via the delete button, which is
+  // safe for every CLI since we just deleted that session ourselves. Callers
+  // reacting to a passive session-list refresh (rather than an explicit
+  // delete) should scope the cliId they pass to gemini — see refreshSessions
+  // — since that path exists for gemini's own self-deleting-files quirk, not
+  // a general guarantee that other CLIs' sessions won't transiently vanish
+  // from a bad read.
+  const closeVanishedSessionTabs = useCallback(
+    (cliId: CliId, sessions: SessionInfo[]) => {
+      // setTabs's updater must stay pure — it only computes the next tabs
+      // array. The activeTabId/activeCli side effects it depends on are
+      // captured here and applied afterward, not from inside the updater.
+      let sideEffect: { activeTabId: string | null; activatedCliId?: CliId } | undefined
+      setTabs((current) => {
+        const vanished = findVanishedSessionTabs(current, cliId, sessions)
+        const result = closeTabsById(current, activeTabIdRef.current, vanished)
+        if (result.tabs === current) return current
+        sideEffect = { activeTabId: result.activeTabId, activatedCliId: result.activatedCliId }
+        return result.tabs
+      })
+      if (sideEffect) {
+        setActiveTabId(sideEffect.activeTabId)
+        if (sideEffect.activatedCliId) setActiveCli(sideEffect.activatedCliId)
+      }
+    },
+    [setActiveCli]
+  )
 
   // Read the CLI's own saved sessions (Claude/Codex conversation history).
   const refreshSessions = useCallback(async () => {
@@ -325,8 +394,15 @@ export function Shell() {
     }, SESSION_LOADING_DELAY_MS)
     try {
       const nextSessions = await window.api.sessions.list(requestId, cliId)
-      if (sessionLoadIdRef.current === loadId && nextSessions)
+      if (sessionLoadIdRef.current === loadId && nextSessions) {
         setSessionState({ cliId, items: nextSessions, loaded: true })
+        reconcileNewSessionTabs(cliId, nextSessions)
+        // Only gemini is known to delete its own session files out from
+        // under an open tab — a passive refresh for any other CLI shouldn't
+        // close a tab just because that CLI's list happened to come back
+        // without it this time.
+        if (cliId === 'gemini') closeVanishedSessionTabs(cliId, nextSessions)
+      }
     } catch {
       if (sessionLoadIdRef.current === loadId) {
         setSessionState({ cliId, items: [], loaded: true })
@@ -341,7 +417,7 @@ export function Shell() {
         setShowSessionLoading(false)
       }
     }
-  }, [activeCliId])
+  }, [activeCliId, reconcileNewSessionTabs, closeVanishedSessionTabs])
 
   useEffect(() => {
     if (view === 'run' && !activeTab) refreshSessions()
@@ -430,19 +506,23 @@ export function Shell() {
   )
 
   const openTab = (
-    tab: Omit<WorkspaceTab, 'id' | 'status'> & {
+    tab: Omit<WorkspaceTab, 'id' | 'status' | 'createdAt'> & {
       status?: WorkspaceTab['status']
     }
   ) => {
     const next: WorkspaceTab = {
       ...tab,
       id: newKey(),
-      status: tab.status ?? (tab.kind === 'transcript' ? 'idle' : 'running')
+      status: tab.status ?? (tab.kind === 'transcript' ? 'idle' : 'running'),
+      createdAt: Date.now()
     }
     setTabs((current) => [...current, next])
     activateTab(next)
   }
 
+  // A tab opened via "New Session" starts with no resumeId — the CLI hasn't
+  // assigned/persisted a session id yet, so there's nothing to record. Once
+  // the session list refreshes and a new entry shows up for this cliId, back
   const closeTab = useCallback(
     (id: string) => {
       const index = tabs.findIndex((tab) => tab.id === id)
@@ -520,9 +600,16 @@ export function Shell() {
       title: t('shell.newSessionTitle', { name: active.name })
     })
 
-  const startNewSession = () => {
-    if (renderTranscript && chatSupported) startChat()
-    else start('cli')
+  const startNewSession = async () => {
+    // Resolve the cwd this session will actually launch into up front (the
+    // same default resolveLaunchCwd falls back to on the main-process side
+    // when none is picked) so the tab carries a real cwd from the start —
+    // needed for reconcileNewSessionTabs to later match it back to its own
+    // history entry by cwd. Leaving cwd undefined here would never match
+    // the concrete cwd the persisted session ends up reporting.
+    const cwd = await window.api.sessions.defaultWorkspace(activeCliId)
+    if (renderTranscript && chatSupported) startChat(cwd)
+    else start('cli', cwd)
   }
 
   const backToHistory = () => {
@@ -653,12 +740,19 @@ export function Shell() {
         )
         return
       }
-      setSessionState((current) => ({
-        ...current,
-        items: current.items.filter(
-          (entry) => entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id
-        )
-      }))
+      // Computed synchronously (not inside the setSessionState updater below)
+      // because that updater isn't guaranteed to run before the next line —
+      // relying on it left remainingItems as [], which made every open tab
+      // for this cliId look vanished instead of just the deleted one.
+      const remainingItems = sessionState.items.filter(
+        (entry) => entry.cliId !== deleteTarget.cliId || entry.id !== deleteTarget.id
+      )
+      setSessionState((current) => ({ ...current, items: remainingItems }))
+      // Deleting via the button is just another way a session can vanish out
+      // from under an open tab (see closeVanishedSessionTabs) — this path
+      // updates sessionState directly rather than going through
+      // refreshSessions, so it needs its own call to keep tabs in sync.
+      closeVanishedSessionTabs(deleteTarget.cliId, remainingItems)
       setDeleteTarget(null)
     } catch (error) {
       setDeleteError(

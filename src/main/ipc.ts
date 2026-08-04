@@ -12,6 +12,7 @@ import {
 import { paths } from './sandbox'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { deleteSession, readTranscript } from './sessions-history'
+import { defaultWorkspaceForCli } from './launch-cwd'
 import { detectEnvironment } from './install/detect'
 import {
   cleanupSystemCli,
@@ -131,6 +132,12 @@ export function registerIpc(): void {
   ipcMain.handle('sessions:cancel', (_e, requestId: string) => cancelSessionList(requestId))
   ipcMain.handle('sessions:transcript', (_e, id: CliId, sid: string) => readTranscript(id, sid))
   ipcMain.handle('sessions:delete', (_e, id: CliId, sid: string) => deleteSession(id, sid))
+  // Lets the renderer know what cwd a directory-less "New Session" will
+  // actually launch into, so the tab it opens can be tagged with that same
+  // cwd up front — needed to later match this tab back to its own history
+  // entry (see reconcileNewSessionTabs in Shell.tsx), since resolveLaunchCwd
+  // picks this same default whenever no directory is chosen.
+  ipcMain.handle('sessions:defaultWorkspace', (_e, id: CliId) => defaultWorkspaceForCli(id))
 
   // ---- PTY terminal ----
   ipcMain.handle('pty:create', (e, opts: SpawnOptions) => createSession(e.sender, opts))

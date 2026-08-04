@@ -13,6 +13,12 @@ import type { CliId, NativeFiles } from '@shared/types'
  *   - opencode: opencode.json (custom provider via @ai-sdk/openai-compatible)
  *   - pi:       models.json (custom provider)
  *   - Hermes:   config.yaml + .env (custom OpenAI-compatible provider)
+ *   - Gemini:   settings.json — not provider config (gemini stays env-var
+ *               only for that), just disables gemini-cli's own silent
+ *               self-update. That update can restart the process mid-launch,
+ *               which trips gemini-cli's own exit-time cleanup of "not
+ *               resumable" sessions and has been observed deleting/
+ *               overwriting real session files out from under an open tab.
  */
 export function hasNativeConfig(cliId: CliId): boolean {
   return (
@@ -20,7 +26,8 @@ export function hasNativeConfig(cliId: CliId): boolean {
     cliId === 'codex' ||
     cliId === 'opencode' ||
     cliId === 'pi' ||
-    cliId === 'hermes'
+    cliId === 'hermes' ||
+    cliId === 'gemini'
   )
 }
 
@@ -393,6 +400,19 @@ function mergedClaudeSettings(existing: Record<string, any>): Record<string, any
   }
 }
 
+/** Forces off gemini-cli's own silent self-update, preserving whatever else
+ * the user (or gemini-cli itself) has in its settings.json. */
+function mergedGeminiSettings(existing: Record<string, any>): Record<string, any> {
+  return {
+    ...existing,
+    general: {
+      ...objectValue(existing.general),
+      enableAutoUpdate: false,
+      enableAutoUpdateNotification: false
+    }
+  }
+}
+
 /** Write a CLI's native config files from its active profile. */
 export function writeNativeConfig(cliId: CliId): void {
   const dir = cliConfigDir(cliId)
@@ -452,6 +472,9 @@ export function writeNativeConfig(cliId: CliId): void {
     const existing = existsSync(configPath) ? readFileSync(configPath, 'utf8') : ''
     writeFileSync(configPath, mergeHermesYaml(existing), { mode: 0o600 })
     syncHermesEnv(dir)
+  } else if (cliId === 'gemini') {
+    const settingsPath = join(dir, 'settings.json')
+    writeJsonObject(settingsPath, mergedGeminiSettings(readJsonObject(settingsPath)))
   }
 }
 
@@ -517,7 +540,15 @@ export function readNativeFiles(cliId: CliId): NativeFiles {
                   })(),
                   '.env': hermesEnvPreview()
                 }
-              : {}
+              : cliId === 'gemini'
+                ? {
+                    'settings.json': JSON.stringify(
+                      mergedGeminiSettings(readJsonObject(join(dir, 'settings.json'))),
+                      null,
+                      2
+                    )
+                  }
+                : {}
   const files = Object.entries(names).map(([name, generated]) => {
     const full = join(dir, name)
     const content =

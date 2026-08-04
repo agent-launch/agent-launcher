@@ -1261,18 +1261,35 @@ async function listHermes(): Promise<SessionInfo[]> {
  * searched. Reading the chats/ header directly instead means the id we hand
  * back to resumeArgs is the one `--resume` actually recognizes.
  *
+ * The reconciliation in parseGeminiChatFile below is ported directly from
+ * gemini-cli's own loadConversationRecord (packages/core, read from its
+ * bundled source), not inferred, after two rounds of getting this wrong:
+ * a bare `{id, ...}` line is an individual message appended live (not
+ * wrapped in $set — only the initial context-injection line and periodic
+ * metadata-only resaves use $set), a `$set.messages` array REPLACES the
+ * accumulated set rather than merging into it, and `$rewindTo` drops a
+ * message id and everything appended after it (regenerate/undo).
+ *
+ * Confirmed against real gemini-cli 0.53.x runs (fresh installs, headless
+ * `-p` prompts, real chats/*.jsonl inspected directly, cross-checked against
+ * the real `gemini --list-sessions`/`--resume` binary as the oracle — not
+ * just our own reader): missing the bare-line case entirely made every
+ * session with real back-and-forth look contentless and get hidden from
+ * history — this, not anything OS-specific, was the root cause of
+ * session-history staying empty after a real exchange. Separately, treating
+ * $set.messages as a merge instead of a replace was also verified wrong: a
+ * real captured file where a later $set re-sent only the context message
+ * caused gemini-cli's own --list-sessions to correctly treat that session as
+ * non-resumable (and delete the file) even though "hello" had been appended
+ * in between — matching that (not preserving "hello") is the correct
+ * behavior, since it's what --resume/--delete-session would themselves see.
+ *
  * The `tmp/<id>` bucket is the only record of which project a session belongs
  * to — nothing inside the chats file carries a path — so cwd is resolved from
  * the bucket via gemini-projects.ts. A sessionId can appear under more than one
  * bucket; we attribute it to the bucket holding its newest entry, and if that
  * bucket's project directory cannot be resolved the session is treated as
  * unassociated rather than inheriting an older, possibly stale cwd.
- *
- * Message accumulation across multiple $set lines is handled by de-duping on
- * message id (Map preserves insertion order) rather than assuming
- * replace-whole-array vs. append-only $set semantics — only a
- * single-message (session just started, no reply yet) example was available
- * to verify directly, so this is deliberately tolerant of either shape.
  *
  * The ignored-content/resumability rules below (isGeminiIgnoredUserContent,
  * isGeminiResumableMessage) and the assistant message type ("gemini", not
@@ -1322,12 +1339,62 @@ function parseGeminiChatFile(
   let updatedAt = Math.max(startTime, normalizeTs(header.lastUpdated) ?? 0)
   const messagesById = new Map<string, Record<string, any>>()
   for (const raw of lines.slice(1)) {
-    const patch = asRecord(asRecord(raw)?.$set)
-    if (!patch) continue
-    updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
-    for (const m of Array.isArray(patch.messages) ? patch.messages : []) {
-      const message = asRecord(m)
-      if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+    const record = asRecord(raw)
+    if (!record) continue
+
+    // $rewindTo (regenerate/undo): drop that message id and every id
+    // inserted after it (Map iteration = insertion order, matching
+    // gemini-cli's own messagesMap here exactly), or clear everything if
+    // the id isn't present. Ported directly from gemini-cli's
+    // loadConversationRecord — not observed in a captured file yet, but
+    // it's a real record shape its own reader handles, so dropping it
+    // silently (as an earlier version of this code did) would leave
+    // regenerated/edited turns showing stale content.
+    if (typeof record.$rewindTo === 'string') {
+      const rewindId = record.$rewindTo
+      let found = false
+      const idsToDelete: string[] = []
+      for (const id of messagesById.keys()) {
+        if (id === rewindId) found = true
+        if (found) idsToDelete.push(id)
+      }
+      if (found) {
+        for (const id of idsToDelete) messagesById.delete(id)
+      } else {
+        messagesById.clear()
+      }
+      continue
+    }
+
+    // Bare {id, ...} lines are individual messages appended directly during
+    // a live conversation — confirmed against a real gemini-cli 0.53.1 run
+    // (fresh install, real chats/*.jsonl inspected directly). Checked before
+    // $set below, matching gemini-cli's own isMessageRecord-before-
+    // isMetadataUpdateRecord dispatch order.
+    if (typeof record.id === 'string') {
+      messagesById.set(record.id, record)
+      updatedAt = Math.max(updatedAt, normalizeTs(record.timestamp) ?? 0)
+      continue
+    }
+
+    const patch = asRecord(record.$set)
+    if (patch) {
+      updatedAt = Math.max(updatedAt, normalizeTs(patch.lastUpdated) ?? 0)
+      // A `messages` array here REPLACES the accumulated set rather than
+      // merging into it — confirmed by feeding a real captured file (one
+      // where a later $set re-sent only the auto-injected context message)
+      // straight into a real gemini-cli install: its own --list-sessions
+      // treated that session as having no resumable content and deleted
+      // the file, even though a real user message had been appended in
+      // between. Merging instead of replacing would make us disagree with
+      // what gemini-cli's own --resume/--delete-session would actually do.
+      if (Array.isArray(patch.messages)) {
+        messagesById.clear()
+        for (const m of patch.messages) {
+          const message = asRecord(m)
+          if (message && typeof message.id === 'string') messagesById.set(message.id, message)
+        }
+      }
     }
   }
   if (updatedAt <= 0) {
