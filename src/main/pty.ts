@@ -15,6 +15,7 @@ import { embeddedTerminalArgs, embeddedTerminalEnv } from './embedded-terminal'
 import { CodexInterruptGuard } from './pty-compat'
 import { resolveLaunchCwd } from './launch-cwd'
 import { resumeArgs } from './sessions-history'
+import { rotateGeminiUsageLogIfNeeded } from './usage'
 import { writeNativeConfig, hasNativeConfig } from './native-config'
 import { useBundledConpty, windowsBuildNumber } from '@shared/windows-conpty'
 import type { CliId } from '@shared/types'
@@ -142,6 +143,12 @@ function prepareCliLaunch(
     writeNativeConfig(opts.cliId)
   }
 
+  // Rotate Gemini's telemetry log before a new process starts appending to it,
+  // so a single file can't grow without bound and crash the Usage page reader.
+  if (opts.cliId === 'gemini' && getPrefs('gemini').usageTrackingEnabled) {
+    rotateGeminiUsageLogIfNeeded()
+  }
+
   return { cwd, file: target.file, args: target.args, env: buildCliEnv(opts.cliId) }
 }
 
@@ -255,6 +262,13 @@ function spawnPty(file: string, args: string[], options: pty.IWindowsPtyForkOpti
 
 export async function createSession(wc: WebContents, opts: SpawnOptions): Promise<string> {
   const version = await currentEmbeddedCliVersion(opts)
+
+  // Rotate Gemini telemetry before shell-mode spawns that inject the telemetry
+  // env (CLI-mode launches go through prepareCliLaunch, which rotates there).
+  if (opts.mode === 'shell' && opts.cliId === 'gemini' && getPrefs('gemini').usageTrackingEnabled) {
+    rotateGeminiUsageLogIfNeeded()
+  }
+
   const prepared =
     opts.mode === 'shell'
       ? {

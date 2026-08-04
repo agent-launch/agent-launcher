@@ -1,6 +1,14 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+import {
+  createReadStream,
+  existsSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync
+} from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, isAbsolute, join, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { cliStateRoots, geminiUsageLogPath, hermesHomeDir } from './config-paths'
 import { getSql, readSqliteSnapshot } from './sqlite'
 import { listSessions } from './sessions-history'
@@ -566,86 +574,217 @@ async function collectHermesUsage(): Promise<UsageEntry[]> {
   return entries
 }
 
-/** Splits gemini-cli's local telemetry outfile into individual JSON objects.
- * It's NOT valid JSON (array) or JSONL — each OTEL event is a separate
+/** Stateful scanner that splits gemini-cli's concatenated JSON telemetry file
+ * into individual JSON objects. Each OTEL event is a separate
  * `JSON.stringify(event, null, 2)` call appended back-to-back with no
- * separator (verified against a real `--telemetry` run), so this walks brace
- * depth while respecting string literals/escapes to find each object's end. */
-export function splitConcatenatedJsonObjects(text: string): string[] {
-  const out: string[] = []
-  let depth = 0
-  let start = -1
-  let inString = false
-  let escaped = false
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i]
-    if (inString) {
-      if (escaped) escaped = false
-      else if (ch === '\\') escaped = true
-      else if (ch === '"') inString = false
-      continue
-    }
-    if (ch === '"') {
-      inString = true
-    } else if (ch === '{') {
-      if (depth === 0) start = i
-      depth++
-    } else if (ch === '}') {
-      depth--
-      if (depth === 0 && start >= 0) {
-        out.push(text.slice(start, i + 1))
-        start = -1
+ * separator, so this walks brace depth while respecting string literals and
+ * escapes to find each object's end. It can be fed incrementally in chunks. */
+/** @internal Exported for unit testing chunked parsing. */
+export class ConcatenatedJsonScanner {
+  private buffer = ''
+  private depth = 0
+  private start = -1
+  private inString = false
+  private escaped = false
+  private scanned = 0
+  private readonly maxBuffer: number
+
+  constructor(maxBuffer = 10 * 1024 * 1024) {
+    this.maxBuffer = maxBuffer
+  }
+
+  push(chunk: string): string[] {
+    this.buffer += chunk
+    const out: string[] = []
+
+    // Resume scanning from where the previous chunk left off so leftover
+    // braces at the buffer boundary are not double-counted.
+    for (let i = this.scanned; i < this.buffer.length; i++) {
+      const ch = this.buffer[i]
+      if (this.inString) {
+        if (this.escaped) this.escaped = false
+        else if (ch === '\\') this.escaped = true
+        else if (ch === '"') this.inString = false
+        continue
+      }
+      if (ch === '"') {
+        this.inString = true
+      } else if (ch === '{') {
+        if (this.depth === 0) this.start = i
+        this.depth++
+      } else if (ch === '}') {
+        this.depth--
+        if (this.depth === 0 && this.start >= 0) {
+          out.push(this.buffer.slice(this.start, i + 1))
+          this.buffer = this.buffer.slice(i + 1)
+          i = -1
+          this.scanned = 0
+          this.start = -1
+        }
       }
     }
+
+    this.scanned = this.buffer.length
+
+    // Guard against runaway buffers on malformed/truncated input. If we're not
+    // inside an object, trailing garbage can be discarded. If we are inside an
+    // object but it exceeds a reasonable size, drop it so a corrupt file can't
+    // pin unbounded memory.
+    if (this.buffer.length > this.maxBuffer) {
+      if (this.depth === 0) {
+        this.buffer = ''
+      } else {
+        this.buffer = ''
+        this.depth = 0
+        this.start = -1
+        this.inString = false
+        this.escaped = false
+      }
+      this.scanned = 0
+    }
+
+    return out
   }
-  return out
+
+  /** Discards any trailing incomplete object at EOF. */
+  flush(): void {
+    this.buffer = ''
+    this.scanned = 0
+    this.depth = 0
+    this.start = -1
+    this.inString = false
+    this.escaped = false
+  }
 }
 
-function collectGeminiUsage(): UsageEntry[] {
-  const logPath = geminiUsageLogPath()
-  if (!existsSync(logPath)) return []
-  let text: string
-  let fallbackTs: number
-  try {
-    text = readFileSync(logPath, 'utf8')
-    // Matches the other collectors' convention (e.g. collectClaudeUsage) of
-    // falling back to the source file's mtime rather than "now" — "now" would
-    // misattribute an old event to today if a future gemini-cli release ever
-    // omits/malforms event.timestamp.
-    fallbackTs = statSync(logPath).mtimeMs
-  } catch {
-    return []
+/** Splits a complete concatenated JSON string into individual objects. */
+export function splitConcatenatedJsonObjects(text: string): string[] {
+  const scanner = new ConcatenatedJsonScanner()
+  return scanner.push(text)
+}
+
+/** Streams a concatenated JSON file and yields each complete object without
+ * loading the whole file into memory. */
+async function* streamConcatenatedJsonObjects(filePath: string): AsyncGenerator<string> {
+  const scanner = new ConcatenatedJsonScanner()
+  const stream = createReadStream(filePath, { highWaterMark: 1024 * 1024 })
+  for await (const chunk of stream) {
+    for (const obj of scanner.push(chunk.toString('utf8'))) {
+      yield obj
+    }
   }
-  const entries: UsageEntry[] = []
-  for (const chunk of splitConcatenatedJsonObjects(text)) {
-    let event: unknown
+  scanner.flush()
+}
+
+const GEMINI_USAGE_LOG_MAX_BYTES = 256 * 1024 * 1024
+const GEMINI_USAGE_LOG_BACKUPS = 2
+
+/** Returns the active Gemini usage log plus any rotated backup files, ordered
+ * from newest to oldest so recent events are processed first. */
+function geminiUsageLogFiles(): string[] {
+  const logPath = geminiUsageLogPath()
+  const dir = dirname(logPath)
+  const base = basename(logPath, '.log')
+  const files: string[] = []
+  for (let i = 0; i <= GEMINI_USAGE_LOG_BACKUPS; i++) {
+    const file = i === 0 ? logPath : join(dir, `${base}.log.${i}`)
+    if (existsSync(file)) files.push(file)
+  }
+  return files
+}
+
+/** Rotates the Gemini usage telemetry log if it has grown too large.
+ * Called before a new gemini-cli process starts writing to it. */
+export function rotateGeminiUsageLogIfNeeded(
+  maxBytes = GEMINI_USAGE_LOG_MAX_BYTES,
+  backups = GEMINI_USAGE_LOG_BACKUPS
+): void {
+  const logPath = geminiUsageLogPath()
+  let size: number
+  try {
+    size = statSync(logPath).size
+  } catch {
+    return
+  }
+  if (size <= maxBytes) return
+
+  const dir = dirname(logPath)
+  const base = basename(logPath, '.log')
+
+  // Shift existing backups up: .log.1 -> .log.2, etc.
+  for (let i = backups; i >= 1; i--) {
+    const src = join(dir, `${base}.log.${i}`)
+    const dst = join(dir, `${base}.log.${i + 1}`)
     try {
-      event = JSON.parse(chunk)
+      if (existsSync(dst)) unlinkSync(dst)
+      if (existsSync(src)) renameSync(src, dst)
+    } catch {
+      /* ignore individual rotation failures */
+    }
+  }
+
+  // Move current log to .log.1
+  try {
+    renameSync(logPath, join(dir, `${base}.log.1`))
+  } catch {
+    /* ignore */
+  }
+
+  // Drop the backup pushed out of the retention window.
+  try {
+    const overflow = join(dir, `${base}.log.${backups + 1}`)
+    if (existsSync(overflow)) unlinkSync(overflow)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function collectGeminiUsage(): Promise<UsageEntry[]> {
+  const entries: UsageEntry[] = []
+  const files = geminiUsageLogFiles()
+  if (files.length === 0) return []
+
+  for (const file of files) {
+    let fallbackTs: number
+    try {
+      // Matches the other collectors' convention (e.g. collectClaudeUsage) of
+      // falling back to the source file's mtime rather than "now" — "now" would
+      // misattribute an old event to today if a future gemini-cli release ever
+      // omits/malforms event.timestamp.
+      fallbackTs = statSync(file).mtimeMs
     } catch {
       continue
     }
-    const record = asRecord(event)
-    const attributes = asRecord(record?.attributes)
-    if (!attributes || attributes['event.name'] !== 'gemini_cli.api_response') continue
-    const entry: UsageEntry = {
-      cliId: 'gemini',
-      sessionId:
-        typeof attributes['session.id'] === 'string' ? attributes['session.id'] : undefined,
-      model: normalizeModel(attributes.model),
-      ts: normalizeTs(attributes['event.timestamp']) ?? fallbackTs,
-      // tool_token_count is deliberately left out — its OTEL semantics aren't
-      // documented precisely enough to confidently fold into input or output.
-      inputTokens: readNumber(attributes, ['input_token_count']),
-      outputTokens:
-        readNumber(attributes, ['output_token_count']) +
-        readNumber(attributes, ['thoughts_token_count']),
-      cacheReadTokens: readNumber(attributes, ['cached_content_token_count']),
-      // Gemini's API has no "cache write/creation" concept the way Claude's
-      // prompt caching does — cached_content_token_count is a cache *read*
-      // (reused context), so there's nothing to map here.
-      cacheCreationTokens: 0
+    for await (const chunk of streamConcatenatedJsonObjects(file)) {
+      let event: unknown
+      try {
+        event = JSON.parse(chunk)
+      } catch {
+        continue
+      }
+      const record = asRecord(event)
+      const attributes = asRecord(record?.attributes)
+      if (!attributes || attributes['event.name'] !== 'gemini_cli.api_response') continue
+      const entry: UsageEntry = {
+        cliId: 'gemini',
+        sessionId:
+          typeof attributes['session.id'] === 'string' ? attributes['session.id'] : undefined,
+        model: normalizeModel(attributes.model),
+        ts: normalizeTs(attributes['event.timestamp']) ?? fallbackTs,
+        // tool_token_count is deliberately left out — its OTEL semantics aren't
+        // documented precisely enough to confidently fold into input or output.
+        inputTokens: readNumber(attributes, ['input_token_count']),
+        outputTokens:
+          readNumber(attributes, ['output_token_count']) +
+          readNumber(attributes, ['thoughts_token_count']),
+        cacheReadTokens: readNumber(attributes, ['cached_content_token_count']),
+        // Gemini's API has no "cache write/creation" concept the way Claude's
+        // prompt caching does — cached_content_token_count is a cache *read*
+        // (reused context), so there's nothing to map here.
+        cacheCreationTokens: 0
+      }
+      if (hasUsage(entry)) entries.push(entry)
     }
-    if (hasUsage(entry)) entries.push(entry)
   }
   return entries
 }
