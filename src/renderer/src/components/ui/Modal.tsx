@@ -8,10 +8,12 @@ interface Props {
   onClose: () => void
   title: string
   children: ReactNode
+  footer?: ReactNode
+  size?: 'default' | 'wide'
 }
 
 /** Centered dialog with a soft desktop backdrop. Esc / backdrop closes. */
-export function Modal({ open, onClose, title, children }: Props) {
+export function Modal({ open, onClose, title, children, footer, size = 'default' }: Props) {
   const t = useT()
 
   return (
@@ -26,6 +28,7 @@ export function Modal({ open, onClose, title, children }: Props) {
         <Dialog.Content
           aria-describedby={undefined}
           className="modal-panel fixed z-[201] flex max-h-[82vh] flex-col overflow-hidden rounded-xl border border-border-base bg-stronger/95 outline-none"
+          style={size === 'wide' ? { width: 'min(calc(100vw - 48px), 48rem)' } : undefined}
         >
           <div className="flex h-12 shrink-0 items-center justify-between border-b border-border-weak bg-surface-weak/35 px-5">
             <Dialog.Title className="min-w-0 truncate font-display text-[15px] font-semibold text-text-strong">
@@ -40,7 +43,12 @@ export function Modal({ open, onClose, title, children }: Props) {
               <X size={16} />
             </button>
           </div>
-          <div className="overflow-y-auto px-5 py-4">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          {footer && (
+            <div className="flex shrink-0 justify-end gap-2 border-t border-border-weak bg-surface-weak/35 px-5 py-3">
+              {footer}
+            </div>
+          )}
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>

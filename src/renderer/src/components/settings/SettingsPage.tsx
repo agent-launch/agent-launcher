@@ -1,5 +1,6 @@
 import {
   memo,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -576,23 +577,48 @@ const DailyBars = memo(function DailyBars({
   setTooltip: (tooltip: UsageTooltipState | null) => void
 }) {
   const t = useT()
-  const max = useMemo(() => Math.max(1, ...days.map((day) => day.tokens.totalTokens)), [days])
-  const showTooltip = (event: PointerEvent<HTMLElement>, day: UsageDailyBucket) => {
-    setTooltip(
-      usageTooltipFromPointer(
-        event,
-        t('settings.usage.dayTooltipWithRequests', {
-          date: day.date,
-          tokens: formatCompact(day.tokens.totalTokens),
-          requests: day.requestCount
-        })
+  const { max, dayMap } = useMemo(() => {
+    const dayMap = new Map<string, UsageDailyBucket>()
+    for (const day of days) {
+      dayMap.set(day.date, day)
+    }
+    return {
+      max: Math.max(1, ...days.map((day) => day.tokens.totalTokens)),
+      dayMap
+    }
+  }, [days])
+
+  const showDayTooltip = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const target = (event.target as Element | null)?.closest('[data-date]') as HTMLElement | null
+      const date = target?.dataset.date
+      const day = date ? dayMap.get(date) : undefined
+      if (!day) {
+        setTooltip(null)
+        return
+      }
+      setTooltip(
+        usageTooltipFromPointer(
+          event,
+          t('settings.usage.dayTooltipWithRequests', {
+            date: day.date,
+            tokens: formatCompact(day.tokens.totalTokens),
+            requests: day.requestCount
+          })
+        )
       )
-    )
-  }
+    },
+    [dayMap, setTooltip, t]
+  )
+
+  const hideTooltip = useCallback(() => setTooltip(null), [setTooltip])
+
   return (
     <div
       className="flex h-[160px] items-end gap-1 rounded-lg border border-border-weak bg-surface/72 px-2.5 py-2.5"
-      onPointerLeave={() => setTooltip(null)}
+      onPointerEnter={showDayTooltip}
+      onPointerMove={showDayTooltip}
+      onPointerLeave={hideTooltip}
     >
       {days.map((day) => {
         const height =
@@ -602,6 +628,7 @@ const DailyBars = memo(function DailyBars({
             <div
               tabIndex={0}
               role="img"
+              data-date={day.date}
               aria-label={t('settings.usage.dayTooltipWithRequests', {
                 date: day.date,
                 tokens: formatCompact(day.tokens.totalTokens),
@@ -615,10 +642,7 @@ const DailyBars = memo(function DailyBars({
                     ? 'color-mix(in srgb, var(--text-strong) 72%, var(--surface-base))'
                     : 'var(--surface-weak)'
               }}
-              onPointerEnter={(event) => showTooltip(event, day)}
-              onPointerMove={(event) => showTooltip(event, day)}
-              onPointerLeave={() => setTooltip(null)}
-              onBlur={() => setTooltip(null)}
+              onBlur={hideTooltip}
             />
           </div>
         )
@@ -649,9 +673,15 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
     t('settings.usage.month.11'),
     t('settings.usage.month.12')
   ].join('\n')
-  const { weeks, max, monthLabels, width, height } = useMemo(() => {
+  const { weeks, max, monthLabels, width, height, dayMap } = useMemo(() => {
     const nextWeeks = heatmapWeeks(days)
     const monthNames = monthNamesKey.split('\n')
+    const dayMap = new Map<string, UsageDailyBucket>()
+    for (const week of nextWeeks) {
+      for (const day of week) {
+        if (day) dayMap.set(day.date, day)
+      }
+    }
     return {
       weeks: nextWeeks,
       max: Math.max(1, ...days.map((day) => day.tokens.totalTokens)),
@@ -662,9 +692,37 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
       height:
         HEATMAP_MONTH_HEIGHT +
         HEATMAP_ROWS * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP) -
-        HEATMAP_CELL_GAP
+        HEATMAP_CELL_GAP,
+      dayMap
     }
   }, [days, monthNamesKey])
+
+  const showDayTooltip = useCallback(
+    (event: PointerEvent<SVGSVGElement>) => {
+      const target = (event.target as Element | null)?.closest(
+        'rect[data-date]'
+      ) as SVGRectElement | null
+      const date = target?.dataset.date
+      const day = date ? dayMap.get(date) : undefined
+      if (!day) {
+        setTooltip(null)
+        return
+      }
+      setTooltip(
+        usageTooltipFromPointer(
+          event,
+          t('settings.usage.dayTooltipWithRequests', {
+            date: day.date,
+            tokens: formatCompact(day.tokens.totalTokens),
+            requests: day.requestCount
+          })
+        )
+      )
+    },
+    [dayMap, setTooltip, t]
+  )
+
+  const hideTooltip = useCallback(() => setTooltip(null), [setTooltip])
 
   return (
     <div
@@ -677,7 +735,9 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
         role="img"
         aria-label={t('settings.usage.activity')}
         shapeRendering="geometricPrecision"
-        onPointerLeave={() => setTooltip(null)}
+        onPointerEnter={showDayTooltip}
+        onPointerMove={showDayTooltip}
+        onPointerLeave={hideTooltip}
       >
         {weeks.map((_week, index) => {
           const label = monthLabels.get(index)
@@ -718,13 +778,14 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
                   tokens: formatCompact(day.tokens.totalTokens),
                   requests: day.requestCount
                 })
-              : ''
+              : undefined
             return (
               <rect
                 key={`${column}-${row}`}
                 tabIndex={day ? 0 : undefined}
                 role={day ? 'img' : undefined}
-                aria-label={day ? tooltipText : undefined}
+                aria-label={tooltipText}
+                data-date={day?.date}
                 className={
                   day
                     ? 'outline-none transition-[filter,stroke-width] hover:brightness-110 focus-visible:brightness-110'
@@ -738,18 +799,7 @@ const ActivityHeatmap = memo(function ActivityHeatmap({
                 fill={heatmapColor(level)}
                 stroke="var(--border-weak)"
                 strokeWidth={0.8}
-                onPointerEnter={
-                  day
-                    ? (event) => setTooltip(usageTooltipFromPointer(event, tooltipText))
-                    : undefined
-                }
-                onPointerMove={
-                  day
-                    ? (event) => setTooltip(usageTooltipFromPointer(event, tooltipText))
-                    : undefined
-                }
-                onPointerLeave={day ? () => setTooltip(null) : undefined}
-                onBlur={day ? () => setTooltip(null) : undefined}
+                onBlur={hideTooltip}
               />
             )
           })

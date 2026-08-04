@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { Worker } from 'node:worker_threads'
 import type { UsageScanResult } from '@shared/types'
@@ -22,6 +23,23 @@ interface ActiveUsageTask {
 
 const active = new Map<string, ActiveUsageTask>()
 
+// Load the worker source once. In a packaged app the worker script lives
+// inside the asar archive, but node:worker_threads cannot spawn a Worker from
+// an asar path (it needs a real filesystem entry). Evaluating the source as a
+// string keeps the non-blocking benefit of a worker while avoiding the asar
+// path problem. Inside an eval worker, relative require() paths resolve from
+// '/[worker eval]' and bare imports do not inherit the main module's search
+// paths, so we prepend the main module's module.paths and rewrite bundled
+// chunk imports to absolute paths based on the main-process __dirname.
+const mainModulePaths = require.resolve.paths('sql.js') ?? []
+const workerCode = [
+  `module.paths.push(${mainModulePaths.map((p) => JSON.stringify(p)).join(', ')})`,
+  readFileSync(join(__dirname, 'usage-worker.js'), 'utf8').replace(
+    /require\(["']\.\/chunks\/([^"']+)["']\)/g,
+    (_, chunk) => `require(${JSON.stringify(join(__dirname, 'chunks', chunk))})`
+  )
+].join(';\n')
+
 export function readUsageInWorker(
   requestId: string,
   rangeDays = 365,
@@ -32,7 +50,8 @@ export function readUsageInWorker(
   cancelUsageRead(safeRequestId)
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(join(__dirname, 'usage-worker.js'), {
+    const worker = new Worker(workerCode, {
+      eval: true,
       workerData: { rangeDays, summaryDays }
     })
     const task: ActiveUsageTask = { worker, resolve, settled: false }

@@ -238,6 +238,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.skip': '跳过引导',
     'onboarding.back': '上一步',
     'onboarding.next': '下一步',
+    'onboarding.saveAndNext': '保存并继续',
     'onboarding.finish': '完成，进入主界面',
 
     // ---- onboarding: welcome ----
@@ -336,6 +337,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.active': '生效中',
     'config.officialDefault': '官方默认',
     'config.addProfile': '新增配置',
+    'config.editProfileTitle': '编辑配置',
     'config.deleteProfileTitle': '删除配置',
     'config.deleteProfileMessage': '确定要删除“{name}”吗？删除后无法恢复。',
     'config.nativeFiles': '原生配置文件',
@@ -638,6 +640,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.skip': 'Skip setup',
     'onboarding.back': 'Back',
     'onboarding.next': 'Next',
+    'onboarding.saveAndNext': 'Save & Next',
     'onboarding.finish': 'Finish & open app',
 
     // ---- onboarding: welcome ----
@@ -730,7 +733,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.backToSessions': 'Back to conversations',
     'config.intro':
       'Each CLI can hold multiple configs; switch the active one with a click. With system CLIs, the CLI keeps reading its own system config directory.',
-    'config.tabProfiles': 'Profiles',
+    'config.tabProfiles': 'Config',
     'config.tabMcp': 'MCP',
     'config.tabSkills': 'Skills',
     'config.noProfiles': 'No configs yet — click "Add config" below.',
@@ -738,6 +741,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.active': 'Active',
     'config.officialDefault': 'Official default',
     'config.addProfile': 'Add config',
+    'config.editProfileTitle': 'Edit config',
     'config.deleteProfileTitle': 'Delete config',
     'config.deleteProfileMessage': 'Delete “{name}”? This cannot be undone.',
     'config.nativeFiles': 'Native config files',

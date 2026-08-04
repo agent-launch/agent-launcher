@@ -1,17 +1,25 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction
+} from 'react'
 import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react'
-import toast from 'react-hot-toast'
 import { useAppStore } from '@/store/app'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { CLIS } from '@/data/clis'
-import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { CliIcon } from '@/components/CliIcon'
-import { ProfileConnectionTest } from '@/components/config/ProfileConnectionTest'
+import {
+  AgentConfigEditor,
+  type AgentConfigEditorHandle
+} from '@/components/config/AgentConfigEditor'
 import appIcon from '@/assets/app-icon.png'
 import { useT } from '@/i18n'
 import type {
-  AuthStatus,
+  AppConfig,
   CliId,
   CliLinkProgress,
   DetectResult,
@@ -32,10 +40,26 @@ export function Onboarding() {
   const complete = useAppStore((s) => s.completeOnboarding)
   const skip = useAppStore((s) => s.skipOnboarding)
   const [step, setStep] = useState(0)
+  const [advancing, setAdvancing] = useState(false)
+  const configEditorRef = useRef<AgentConfigEditorHandle>(null)
   const isMac = window.api?.platform === 'darwin'
 
   const last = step === STEP_KEYS.length - 1
-  const next = () => (last ? complete() : setStep((s) => s + 1))
+  const next = async () => {
+    if (last) {
+      complete()
+      return
+    }
+    if (step === 3) {
+      setAdvancing(true)
+      try {
+        if (!configEditorRef.current || !(await configEditorRef.current.save())) return
+      } finally {
+        setAdvancing(false)
+      }
+    }
+    setStep((current) => current + 1)
+  }
   const back = () => setStep((s) => Math.max(0, s - 1))
 
   return (
@@ -87,7 +111,7 @@ export function Onboarding() {
           {step === 0 && <Welcome />}
           {step === 1 && <DetectStep />}
           {step === 2 && <LinkStep />}
-          {step === 3 && <ConfigStep />}
+          {step === 3 && <ConfigStep editorRef={configEditorRef} />}
           {step === 4 && <Done />}
         </section>
       </div>
@@ -102,7 +126,13 @@ export function Onboarding() {
               {t('onboarding.back')}
             </Button>
           )}
-          <Button onClick={next}>{last ? t('onboarding.finish') : t('onboarding.next')}</Button>
+          <Button disabled={advancing} onClick={() => void next()}>
+            {last
+              ? t('onboarding.finish')
+              : step === 3
+                ? t('onboarding.saveAndNext')
+                : t('onboarding.next')}
+          </Button>
         </div>
       </footer>
     </div>
@@ -732,397 +762,46 @@ function LinkStep() {
   )
 }
 
-function ConfigStep() {
+function ConfigStep({ editorRef }: { editorRef: RefObject<AgentConfigEditorHandle | null> }) {
   const t = useT()
-  const initialProvider = PROVIDERS_BY_CLI['claude-code'][0]
   const [cliId, setCliId] = useState<CliId>('claude-code')
-  const [mode, setMode] = useState<'official' | 'api'>('official')
-  const [providerId, setProviderId] = useState<string>(initialProvider?.id ?? '')
-  const [baseUrl, setBaseUrl] = useState(initialProvider?.baseUrl ?? '')
-  const [apiKey, setApiKey] = useState('')
-  const [model, setModel] = useState('')
-  const [saved, setSaved] = useState(false)
-  const [statuses, setStatuses] = useState<Partial<Record<CliId, AuthStatus>>>({})
-  const [authBusy, setAuthBusy] = useState<Partial<Record<CliId, boolean>>>({})
-  const [authLogs, setAuthLogs] = useState<Partial<Record<CliId, string>>>({})
-  const [activeAuthId, setActiveAuthId] = useState<string | null>(null)
-  const [activeAuthCli, setActiveAuthCli] = useState<CliId | null>(null)
-  const [authInput, setAuthInput] = useState('')
-
-  const providers = PROVIDERS_BY_CLI[cliId]
-  const officialClis = useMemo(
-    () => CLIS.filter((c) => c.id === 'claude-code' || c.id === 'codex'),
-    []
-  )
-  const supportsOfficial = cliId === 'claude-code' || cliId === 'codex'
-
-  const refreshStatus = async (id: CliId) => {
-    const s = await window.api.auth.status(id)
-    setStatuses((prev) => ({ ...prev, [id]: s }))
-  }
+  const [cfg, setCfg] = useState<AppConfig | null>(null)
 
   useEffect(() => {
-    // Checking Codex auth executes the CLI. Keep that behind the explicit
-    // "Check" button so simply entering this step cannot reopen a macOS
-    // security dialog.
-    for (const c of officialClis) {
-      if (c.id !== 'codex') refreshStatus(c.id as CliId)
-    }
-  }, [officialClis])
-
-  useEffect(() => {
-    const offData = window.api.auth.onData((_id, id, data) => {
-      setAuthLogs((prev) => ({
-        ...prev,
-        [id]: `${prev[id] ?? ''}${data}`.slice(-4000)
-      }))
-    })
-    const offExit = window.api.auth.onExit((id, owner, code) => {
-      setAuthBusy((prev) => ({ ...prev, [owner]: false }))
-      setAuthLogs((prev) => ({
-        ...prev,
-        [owner]: `${prev[owner] ?? ''}\n[exit ${code}]\n`
-      }))
-      if (id === activeAuthId) {
-        setActiveAuthId(null)
-        setActiveAuthCli(null)
-      }
-      refreshStatus(owner)
-    })
-    return () => {
-      offData()
-      offExit()
-    }
-  }, [activeAuthId])
-
-  const select = (id: string) => {
-    setMode('api')
-    setProviderId(id)
-    const p = providers.find((x) => x.id === id)
-    setBaseUrl(p?.baseUrl ?? '')
-    setApiKey('')
-    setModel('')
-    setSaved(false)
-  }
-
-  const selectCli = (id: CliId) => {
-    const first = PROVIDERS_BY_CLI[id][0]
-    setCliId(id)
-    setMode(id === 'claude-code' || id === 'codex' ? 'official' : 'api')
-    setProviderId(first?.id ?? '')
-    setBaseUrl(first?.baseUrl ?? '')
-    setApiKey('')
-    setModel('')
-    setSaved(false)
-  }
-
-  const save = async () => {
-    const p = providers.find((x) => x.id === providerId)
-    const isOfficialProvider = p?.category === 'official'
-    const nextBaseUrl = baseUrl.trim()
-    const nextApiKey = isOfficialProvider ? '' : apiKey.trim()
-    const nextModel = model.trim()
-
-    if (!isOfficialProvider && !nextBaseUrl) {
-      toast.error(t('config.baseUrlRequiredToast'))
-      return
-    }
-
-    if (!isOfficialProvider && !nextApiKey) {
-      toast.error(t('config.apiKeyRequiredToast'))
-      return
-    }
-
-    // Relay profiles must name the model explicitly — we never pick a default.
-    if (!isOfficialProvider && !nextModel) {
-      toast.error(t('config.modelRequiredToast'))
-      return
-    }
-    const cfg = await window.api.config.addProfile(cliId, {
-      name: p?.name ?? t('category.custom'),
-      providerId,
-      baseUrl: isOfficialProvider ? '' : nextBaseUrl,
-      apiKey: nextApiKey,
-      model: nextModel
-    })
-    const created = cfg.clis[cliId].profiles.at(-1)
-    if (created) await window.api.config.setActiveProfile(cliId, created.id)
-    setSaved(true)
-  }
-
-  const useOfficial = async () => {
-    const p = providers.find((x) => x.id === 'official')
-    await window.api.config.addProfile(cliId, {
-      name: p?.name ?? t('category.official'),
-      providerId: 'official',
-      baseUrl: ''
-    })
-    setMode('official')
-    setSaved(true)
-  }
-
-  const startLogin = async (id: CliId, method: 'official' | 'device' = 'official') => {
-    setCliId(id)
-    setMode('official')
-    setAuthBusy((prev) => ({ ...prev, [id]: true }))
-    setAuthLogs((prev) => ({ ...prev, [id]: '' }))
-    try {
-      const authId = await window.api.auth.startLogin(id, method)
-      setActiveAuthId(authId)
-      setActiveAuthCli(id)
-    } catch (e) {
-      setAuthBusy((prev) => ({ ...prev, [id]: false }))
-      setAuthLogs((prev) => ({
-        ...prev,
-        [id]: e instanceof Error ? e.message : String(e)
-      }))
-    }
-  }
-
-  const sendAuthInput = () => {
-    if (!activeAuthId || !authInput) return
-    window.api.auth.write(activeAuthId, `${authInput}\n`)
-    setAuthInput('')
-  }
-
-  const cancelLogin = () => {
-    if (!activeAuthId || !activeAuthCli) return
-    window.api.auth.stop(activeAuthId)
-    setAuthBusy((prev) => ({ ...prev, [activeAuthCli]: false }))
-    setAuthLogs((prev) => ({
-      ...prev,
-      [activeAuthCli]: `${prev[activeAuthCli] ?? ''}\n[cancelled]\n`
-    }))
-    setActiveAuthId(null)
-    setActiveAuthCli(null)
-  }
+    window.api.config.get().then(setCfg)
+  }, [])
 
   return (
     <StepShell title={t('onboarding.configTitle')} desc={t('onboarding.configDesc')}>
-      <div className="mb-3 flex gap-1">
-        {CLIS.map((c) => (
+      <div className="mb-3 flex flex-wrap gap-1">
+        {CLIS.map((cli) => (
           <button
-            key={c.id}
-            onClick={() => selectCli(c.id as CliId)}
+            type="button"
+            key={cli.id}
+            onClick={() => setCliId(cli.id as CliId)}
             className={`rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors ${
-              cliId === c.id
+              cliId === cli.id
                 ? 'bg-[var(--button-primary-base)] text-[var(--button-primary-text)] shadow-[var(--shadow-sm)]'
                 : 'text-text-base hover:bg-surface-weak'
             }`}
           >
-            {c.name}
+            {cli.name}
           </button>
         ))}
       </div>
 
-      <div className="grid max-h-64 grid-cols-3 gap-2 overflow-y-auto pr-1">
-        {supportsOfficial && (
-          <button
-            onClick={() => {
-              setMode('official')
-              setApiKey('')
-              setSaved(false)
-            }}
-            className={`rounded-xl border bg-surface/92 px-3 py-2.5 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] ${
-              mode === 'official'
-                ? 'border-border-selected bg-surface shadow-[var(--shadow-card)]'
-                : 'border-border-weak hover:border-border-base hover:bg-surface'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="truncate text-[13px] font-medium text-text-strong">
-                {t(cliId === 'codex' ? 'onboarding.authCardCodex' : 'onboarding.authCardClaude')}
-              </span>
-              <span className="shrink-0 rounded-full bg-success/15 px-1.5 py-0.5 text-[10px] text-success">
-                {t('onboarding.authBadgeOfficial')}
-              </span>
-            </div>
-            <div className="mt-0.5 text-[11px] text-text-weak">{t('onboarding.authOfficial')}</div>
-          </button>
-        )}
-        {providers.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => select(p.id)}
-            className={`rounded-xl border bg-surface/92 px-3 py-2.5 text-left shadow-[var(--shadow-sm)] transition-[background,border-color,box-shadow] ${
-              mode === 'api' && providerId === p.id
-                ? 'border-border-selected bg-surface shadow-[var(--shadow-card)]'
-                : 'border-border-weak hover:border-border-base hover:bg-surface'
-            }`}
-          >
-            <div className="truncate text-[13px] font-medium text-text-strong">{p.name}</div>
-            <div className="mt-0.5 text-[11px] text-text-weak">{t('category.' + p.category)}</div>
-          </button>
-        ))}
-      </div>
-
-      {mode === 'official' && supportsOfficial && (
-        <OfficialAuthPanel
-          authBusy={!!authBusy[cliId]}
-          authInput={authInput}
-          authLog={authLogs[cliId]}
-          canSend={!!activeAuthId && activeAuthCli === cliId}
+      {cfg ? (
+        <AgentConfigEditor
+          ref={editorRef}
+          key={cliId}
           cliId={cliId}
-          onCancel={cancelLogin}
-          onCheck={() => refreshStatus(cliId)}
-          onInput={setAuthInput}
-          onLogin={() => startLogin(cliId)}
-          onLoginDevice={() => startLogin(cliId, 'device')}
-          onSend={sendAuthInput}
-          onUseOfficial={useOfficial}
-          saved={saved}
-          status={statuses[cliId]}
-          t={t}
+          cli={cfg.clis[cliId]}
+          onConfigChange={setCfg}
         />
-      )}
-
-      {mode === 'api' && providerId && (
-        <div className="mt-4 space-y-3">
-          <label className="block">
-            <span className="text-[12px] text-text-weak">Base URL</span>
-            <input
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              placeholder="https://..."
-              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[12px] text-text-weak">API Key</span>
-            <input
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              type="password"
-              placeholder="sk-..."
-              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[12px] text-text-weak">{t('config.model')}</span>
-            <input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={t('config.modelPlaceholder')}
-              className="selectable mt-1 w-full rounded-md border border-border-weak bg-surface px-3 py-2.5 text-[13px] text-text-strong outline-none focus:border-border-selected"
-            />
-          </label>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={save}>{t('onboarding.saveConfig')}</Button>
-            <ProfileConnectionTest cliId={cliId} profile={{ providerId, baseUrl, apiKey, model }} />
-            {saved && <span className="text-[13px] text-success">{t('onboarding.saved')}</span>}
-          </div>
-        </div>
+      ) : (
+        <div className="text-[13px] text-text-weak">{t('common.loading')}</div>
       )}
     </StepShell>
-  )
-}
-
-function OfficialAuthPanel({
-  authBusy,
-  authInput,
-  authLog,
-  canSend,
-  cliId,
-  onCancel,
-  onCheck,
-  onInput,
-  onLogin,
-  onLoginDevice,
-  onSend,
-  onUseOfficial,
-  saved,
-  status,
-  t
-}: {
-  authBusy: boolean
-  authInput: string
-  authLog?: string
-  canSend: boolean
-  cliId: CliId
-  onCancel: () => void
-  onCheck: () => void
-  onInput: (value: string) => void
-  onLogin: () => void
-  onLoginDevice: () => void
-  onSend: () => void
-  onUseOfficial: () => void
-  saved: boolean
-  status?: AuthStatus
-  t: ReturnType<typeof useT>
-}) {
-  const statusText =
-    status?.installed === false
-      ? t('onboarding.authNotInstalled')
-      : status?.loggedIn
-        ? t('onboarding.authLoggedIn')
-        : status?.error
-          ? status.error
-          : t('onboarding.authNotLoggedIn')
-
-  return (
-    <div className="mt-4 rounded-xl border border-border-weak bg-surface/92 p-4 shadow-[var(--shadow-sm)]">
-      <div className="flex items-center gap-3">
-        <span className="grid size-9 place-items-center rounded-md bg-surface-weak text-text-strong">
-          <CliIcon cliId={cliId} size={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[14px] font-medium text-text-strong">
-            {t(cliId === 'codex' ? 'onboarding.authCardCodex' : 'onboarding.authCardClaude')}
-          </div>
-          <div className="mt-0.5 text-[12px] text-text-weak">{statusText}</div>
-        </div>
-        <Button size="sm" variant="secondary" onClick={onCheck}>
-          {t('onboarding.authCheck')}
-        </Button>
-        {authBusy ? (
-          <Button size="sm" variant="secondary" onClick={onCancel}>
-            {t('onboarding.authCancel')}
-          </Button>
-        ) : (
-          <Button size="sm" disabled={status?.installed === false} onClick={onLogin}>
-            {t(cliId === 'codex' ? 'onboarding.authLoginCodex' : 'onboarding.authLoginClaude')}
-          </Button>
-        )}
-        {cliId === 'codex' && !authBusy && (
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={status?.installed === false}
-            onClick={onLoginDevice}
-          >
-            {t('onboarding.authDevice')}
-          </Button>
-        )}
-      </div>
-      <div className="mt-3 text-[12px] leading-relaxed text-text-base">
-        {t(cliId === 'codex' ? 'onboarding.authCodexHint' : 'onboarding.authClaudeHint')}
-      </div>
-      {(authLog || authBusy) && (
-        <div className="mt-3 rounded-lg border border-border-weak bg-background-base p-2">
-          <pre className="selectable max-h-32 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-text-base">
-            {authLog || t('onboarding.authWaiting')}
-          </pre>
-          <div className="mt-2 flex gap-2">
-            <input
-              value={authInput}
-              onChange={(e) => onInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSend()
-              }}
-              placeholder={t('onboarding.authInputPlaceholder')}
-              className="selectable min-w-0 flex-1 rounded-md border border-border-weak bg-surface px-3 py-2 text-[12px] text-text-strong outline-none focus:border-border-selected"
-            />
-            <Button size="sm" variant="secondary" onClick={onSend} disabled={!canSend}>
-              {t('onboarding.authSend')}
-            </Button>
-          </div>
-        </div>
-      )}
-      <div className="mt-3 flex items-center gap-3">
-        <Button onClick={onUseOfficial}>{t('onboarding.authUseOfficial')}</Button>
-        {saved && <span className="text-[13px] text-success">{t('onboarding.saved')}</span>}
-      </div>
-    </div>
   )
 }
 
