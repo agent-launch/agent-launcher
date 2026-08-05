@@ -13,6 +13,12 @@ describe('CLI environment builder', () => {
       try {
         process.env.PATH = ['/custom/bin', '/usr/bin'].join(delimiter)
         process.env.ANTHROPIC_API_KEY = 'leaked-anthropic'
+        process.env.ANTHROPIC_DEFAULT_FABLE_MODEL = 'leaked-fable'
+        process.env.ANTHROPIC_DEFAULT_SONNET_MODEL_NAME = 'leaked-label'
+        process.env.ANTHROPIC_CUSTOM_MODEL_OPTION = 'leaked-custom'
+        process.env.ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION = 'leaked-region'
+        process.env.CLAUDE_CODE_AUTO_MODE_MODEL = 'leaked-auto'
+        process.env.CLAUDE_CODE_SUBAGENT_MODEL = 'leaked-subagent'
         process.env.OPENAI_API_KEY = 'leaked-openai'
         process.env.OPENAI_BASE_URL = 'https://leaked.example'
 
@@ -31,6 +37,12 @@ describe('CLI environment builder', () => {
         const claudeEnv = buildCliEnv('claude-code')
         expect(claudeEnv.CLAUDE_CONFIG_DIR).toBeUndefined()
         expect(claudeEnv.ANTHROPIC_API_KEY).toBeUndefined()
+        expect(claudeEnv.ANTHROPIC_DEFAULT_FABLE_MODEL).toBeUndefined()
+        expect(claudeEnv.ANTHROPIC_DEFAULT_SONNET_MODEL_NAME).toBeUndefined()
+        expect(claudeEnv.ANTHROPIC_CUSTOM_MODEL_OPTION).toBeUndefined()
+        expect(claudeEnv.ANTHROPIC_SMALL_FAST_MODEL_AWS_REGION).toBeUndefined()
+        expect(claudeEnv.CLAUDE_CODE_AUTO_MODE_MODEL).toBeUndefined()
+        expect(claudeEnv.CLAUDE_CODE_SUBAGENT_MODEL).toBeUndefined()
         expect(claudeEnv.ANTHROPIC_BASE_URL).toBe('https://claude.example')
         expect(claudeEnv.ANTHROPIC_AUTH_TOKEN).toBe('sk-claude-1234')
         expect(claudeEnv.ANTHROPIC_MODEL).toBe('sonnet')

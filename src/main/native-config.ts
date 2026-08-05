@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, unlinkSync } from '
 import { join } from 'node:path'
 import { getActiveProfile, getAuthMode } from './store'
 import { cliConfigDir } from './config-paths'
+import { claudeProfileEnv, clearClaudeProfileEnv } from './claude-profile-env'
 import type { CliId, NativeFiles } from '@shared/types'
 
 /**
@@ -357,32 +358,14 @@ function claudeSettingsPatch(): Record<string, any> {
   if (getAuthMode('claude-code') !== 'official') {
     if (p?.baseUrl) env.ANTHROPIC_BASE_URL = p.baseUrl
     if (p?.apiKey) env.ANTHROPIC_AUTH_TOKEN = p.apiKey
-    const fallback = p?.model?.trim()
-    const defaultModel = p?.defaultModel?.trim() || fallback
-    const haikuModel = p?.haikuModel?.trim() || fallback
-    const sonnetModel = p?.sonnetModel?.trim() || fallback
-    const opusModel = p?.opusModel?.trim() || fallback
-    if (defaultModel) env.ANTHROPIC_MODEL = defaultModel
-    if (haikuModel) env.ANTHROPIC_DEFAULT_HAIKU_MODEL = haikuModel
-    if (sonnetModel) env.ANTHROPIC_DEFAULT_SONNET_MODEL = sonnetModel
-    if (opusModel) env.ANTHROPIC_DEFAULT_OPUS_MODEL = opusModel
+    for (const { key, value } of claudeProfileEnv(p)) env[key] = value
   }
   return Object.keys(env).length ? { env } : {}
 }
 
 function clearClaudeManagedEnv(env: Record<string, unknown>): Record<string, unknown> {
   const next = { ...env }
-  for (const key of [
-    'ANTHROPIC_BASE_URL',
-    'ANTHROPIC_AUTH_TOKEN',
-    'ANTHROPIC_API_KEY',
-    'ANTHROPIC_MODEL',
-    'ANTHROPIC_DEFAULT_HAIKU_MODEL',
-    'ANTHROPIC_DEFAULT_SONNET_MODEL',
-    'ANTHROPIC_DEFAULT_OPUS_MODEL'
-  ]) {
-    delete next[key]
-  }
+  clearClaudeProfileEnv(next)
   return next
 }
 
@@ -482,7 +465,7 @@ function mask(content: string): string {
   // Mask known API key fields, keeping a short hint.
   return content
     .replace(
-      /("(?:apiKey|OPENAI_API_KEY|ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY)"\s*:\s*")([^"]+)(")/g,
+      /("(?:apiKey|[A-Z0-9_]*(?:API_KEY|AUTH_TOKEN|OAUTH_TOKEN|ACCESS_TOKEN|SECRET))"\s*:\s*")([^"]+)(")/gi,
       (_m, a, key: string, c) => `${a}${key ? `${key.slice(0, 3)}…${key.slice(-4)}` : ''}${c}`
     )
     .replace(

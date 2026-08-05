@@ -58,7 +58,7 @@ describe('native config materialization', () => {
     await withIsolatedHome(async () => {
       const { systemCliConfigDir } = await import('../../src/main/config-paths')
       const { addProfile, setAuthMode, setInstallState } = await import('../../src/main/store')
-      const { writeNativeConfig } = await import('../../src/main/native-config')
+      const { readNativeFiles, writeNativeConfig } = await import('../../src/main/native-config')
 
       setInstallState('claude-code', {
         installed: true,
@@ -75,7 +75,16 @@ describe('native config materialization', () => {
         env: {
           KEEP_ME: '1',
           ANTHROPIC_BASE_URL: 'https://old.example',
-          ANTHROPIC_API_KEY: 'old'
+          ANTHROPIC_API_KEY: 'old',
+          ANTHROPIC_DEFAULT_FABLE_MODEL: 'old-fable',
+          ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'old-name',
+          ANTHROPIC_DEFAULT_SONNET_MODEL_DESCRIPTION: 'old-description',
+          ANTHROPIC_DEFAULT_OPUS_MODEL_SUPPORTED_CAPABILITIES: 'old-capabilities',
+          ANTHROPIC_CUSTOM_MODEL_OPTION: 'old-custom',
+          ANTHROPIC_SMALL_FAST_MODEL: 'old-fast',
+          CLAUDE_CODE_BG_CLASSIFIER_MODEL: 'old-classifier',
+          CLAUDE_CODE_SUBAGENT_MODEL: 'old-subagent',
+          CLAUDE_CODE_OAUTH_TOKEN: 'oauth-secret-1234'
         }
       })
 
@@ -88,14 +97,20 @@ describe('native config materialization', () => {
           ANTHROPIC_MODEL: 'sonnet',
           ANTHROPIC_DEFAULT_HAIKU_MODEL: 'sonnet',
           ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet',
-          ANTHROPIC_DEFAULT_OPUS_MODEL: 'opus'
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'opus',
+          CLAUDE_CODE_OAUTH_TOKEN: 'oauth-secret-1234'
         }
       })
+
+      const preview = readNativeFiles('claude-code')
+      const settingsPreview = preview.files.find((file) => file.name === 'settings.json')?.content
+      expect(settingsPreview).toContain('oau…1234')
+      expect(settingsPreview).not.toContain('oauth-secret-1234')
 
       setAuthMode('claude-code', 'official')
       writeNativeConfig('claude-code')
       expect(readJson(join(systemCliConfigDir('claude-code'), 'settings.json'))).toEqual({
-        env: { KEEP_ME: '1' }
+        env: { KEEP_ME: '1', CLAUDE_CODE_OAUTH_TOKEN: 'oauth-secret-1234' }
       })
     })
   })

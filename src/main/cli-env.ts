@@ -4,7 +4,8 @@ import { homedir } from 'node:os'
 import { paths } from './sandbox'
 import { geminiUsageLogPath, hermesHomeDir } from './config-paths'
 import { getActiveProfile, getAuthMode, getPrefs, loadConfig } from './store'
-import type { CliId, CliProfile, EnvPair } from '@shared/types'
+import { claudeProfileEnv, clearClaudeProfileEnv } from './claude-profile-env'
+import type { CliId, EnvPair } from '@shared/types'
 
 function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (process.platform === 'win32') return env
@@ -25,13 +26,7 @@ function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
   if (cliId === 'claude-code') {
-    delete env.ANTHROPIC_BASE_URL
-    delete env.ANTHROPIC_AUTH_TOKEN
-    delete env.ANTHROPIC_API_KEY
-    delete env.ANTHROPIC_MODEL
-    delete env.ANTHROPIC_DEFAULT_HAIKU_MODEL
-    delete env.ANTHROPIC_DEFAULT_SONNET_MODEL
-    delete env.ANTHROPIC_DEFAULT_OPUS_MODEL
+    clearClaudeProfileEnv(env)
   } else if (cliId === 'codex') {
     delete env.OPENAI_BASE_URL
     delete env.OPENAI_API_KEY
@@ -50,21 +45,6 @@ function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
   }
 }
 
-function claudeModelEnv(profile: CliProfile | undefined): EnvPair[] {
-  if (!profile) return []
-  const fallback = profile.model?.trim() || undefined
-  const defaultModel = profile.defaultModel?.trim() || fallback
-  const haikuModel = profile.haikuModel?.trim() || fallback
-  const sonnetModel = profile.sonnetModel?.trim() || fallback
-  const opusModel = profile.opusModel?.trim() || fallback
-  const out: EnvPair[] = []
-  if (defaultModel) out.push({ key: 'ANTHROPIC_MODEL', value: defaultModel })
-  if (haikuModel) out.push({ key: 'ANTHROPIC_DEFAULT_HAIKU_MODEL', value: haikuModel })
-  if (sonnetModel) out.push({ key: 'ANTHROPIC_DEFAULT_SONNET_MODEL', value: sonnetModel })
-  if (opusModel) out.push({ key: 'ANTHROPIC_DEFAULT_OPUS_MODEL', value: opusModel })
-  return out
-}
-
 /**
  * The CLI-specific env vars we inject (relay endpoint + auth + model).
  * Config-home redirects were removed: every CLI now uses its standard config
@@ -79,7 +59,7 @@ function cliVars(cliId: CliId): EnvPair[] {
     if (getAuthMode(cliId) === 'official') return out
     if (p?.baseUrl) out.push({ key: 'ANTHROPIC_BASE_URL', value: p.baseUrl })
     if (p?.apiKey) out.push({ key: 'ANTHROPIC_AUTH_TOKEN', value: p.apiKey, secret: true })
-    out.push(...claudeModelEnv(p))
+    out.push(...claudeProfileEnv(p))
   } else if (cliId === 'gemini') {
     // gemini-cli dropped free-tier OAuth login (2026-06-18), so there's no
     // "official" auth mode to defer to here — always inject the relay/key.

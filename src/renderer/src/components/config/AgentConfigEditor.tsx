@@ -39,9 +39,22 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
     const [providerId, setProviderId] = useState(
       initialProfile?.providerId ?? providers[0]?.id ?? ''
     )
+    const [name, setName] = useState(initialProfile?.name ?? '')
     const [baseUrl, setBaseUrl] = useState(initialProfile?.baseUrl ?? providers[0]?.baseUrl ?? '')
     const [apiKey, setApiKey] = useState(initialProfile?.apiKey ?? '')
     const [model, setModel] = useState(initialProfile?.model ?? initialProfile?.defaultModel ?? '')
+    const [defaultModel, setDefaultModel] = useState(
+      initialProfile?.defaultModel ?? initialProfile?.model ?? ''
+    )
+    const [sonnetModel, setSonnetModel] = useState(
+      initialProfile?.sonnetModel ?? initialProfile?.model ?? ''
+    )
+    const [opusModel, setOpusModel] = useState(
+      initialProfile?.opusModel ?? initialProfile?.model ?? ''
+    )
+    const [haikuModel, setHaikuModel] = useState(
+      initialProfile?.haikuModel ?? initialProfile?.model ?? ''
+    )
     const [saving, setSaving] = useState(false)
     const [editorOpen, setEditorOpen] = useState(false)
     const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -62,9 +75,14 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
         setSelectedProfileId(profile.id)
         setMode(official && supportsOfficial ? 'official' : 'api')
         setProviderId(profile.providerId ?? 'custom')
+        setName(profile.name)
         setBaseUrl(profile.baseUrl ?? '')
         setApiKey(profile.apiKey ?? '')
         setModel(profile.model ?? profile.defaultModel ?? '')
+        setDefaultModel(profile.defaultModel ?? profile.model ?? '')
+        setSonnetModel(profile.sonnetModel ?? profile.model ?? '')
+        setOpusModel(profile.opusModel ?? profile.model ?? '')
+        setHaikuModel(profile.haikuModel ?? profile.model ?? '')
       },
       [supportsOfficial]
     )
@@ -74,9 +92,14 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
       setSelectedProfileId(null)
       setMode(supportsOfficial ? 'official' : 'api')
       setProviderId(first?.id ?? '')
+      setName('')
       setBaseUrl(first?.baseUrl ?? '')
       setApiKey('')
       setModel('')
+      setDefaultModel('')
+      setSonnetModel('')
+      setOpusModel('')
+      setHaikuModel('')
     }, [providers, supportsOfficial])
 
     useEffect(() => {
@@ -115,12 +138,18 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
         selectedProfile?.providerId === 'official' &&
         !selectedProfile.baseUrl &&
         !selectedProfile.apiKey
-      if (selectedProfile && official !== selectedIsOfficial) setSelectedProfileId(null)
+      const detachFromSelected = Boolean(selectedProfile && official !== selectedIsOfficial)
+      if (detachFromSelected) setSelectedProfileId(null)
       setMode(official ? 'official' : 'api')
       setProviderId(id)
+      if (detachFromSelected || !selectedProfile) setName(provider?.name ?? '')
       setBaseUrl(provider?.baseUrl ?? '')
       setApiKey('')
       setModel('')
+      setDefaultModel('')
+      setSonnetModel('')
+      setOpusModel('')
+      setHaikuModel('')
     }
 
     const selectExisting = async (profile: CliProfile) => {
@@ -137,7 +166,8 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
       const provider = providers.find((item) => item.id === nextProviderId)
       const nextBaseUrl = baseUrl.trim()
       const nextApiKey = isOfficialProvider ? '' : apiKey.trim()
-      const nextModel = model.trim()
+      const isClaude = cliId === 'claude-code'
+      const nextModel = isClaude ? defaultModel.trim() : model.trim()
 
       if (!isOfficialProvider && !nextBaseUrl) {
         toast.error(t('config.baseUrlRequiredToast'))
@@ -155,12 +185,15 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
       setSaving(true)
       try {
         const patch = {
-          name: selectedProfile?.name || provider?.name || t('category.custom'),
+          name: name.trim() || selectedProfile?.name || provider?.name || t('category.custom'),
           providerId: nextProviderId,
           baseUrl: isOfficialProvider ? '' : nextBaseUrl,
           apiKey: nextApiKey,
           model: nextModel,
-          defaultModel: cliId === 'claude-code' ? nextModel : undefined
+          defaultModel: isClaude ? nextModel : undefined,
+          sonnetModel: isClaude ? sonnetModel.trim() : undefined,
+          opusModel: isClaude ? opusModel.trim() : undefined,
+          haikuModel: isClaude ? haikuModel.trim() : undefined
         }
         let nextCfg: AppConfig
         let nextProfileId = selectedProfileId
@@ -187,15 +220,20 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
       apiKey,
       baseUrl,
       cliId,
+      defaultModel,
+      haikuModel,
       mode,
       modal,
       model,
+      name,
       onConfigChange,
+      opusModel,
       providerId,
       providers,
       saving,
       selectedProfile,
       selectedProfileId,
+      sonnetModel,
       supportsOfficial,
       t
     ])
@@ -440,6 +478,15 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
           ) : (
             <div className="mt-4 space-y-3">
               <label className="block">
+                <span className="text-[12px] text-text-weak">{t('config.profileName')}</span>
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder={t('config.profileNamePlaceholder')}
+                  className="selectable mt-1 h-10 w-full rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
+                />
+              </label>
+              <label className="block">
                 <span className="text-[12px] text-text-weak">Base URL</span>
                 <input
                   value={baseUrl}
@@ -458,18 +505,50 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
                   className="selectable mt-1 h-10 w-full rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
                 />
               </label>
-              <label className="block">
-                <span className="text-[12px] text-text-weak">{t('config.model')}</span>
-                <input
-                  value={model}
-                  onChange={(event) => setModel(event.target.value)}
+              {cliId === 'claude-code' ? (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <ModelInput
+                    label={t('config.claudeDefaultModel')}
+                    onChange={setDefaultModel}
+                    placeholder={t('config.claudeDefaultModelPlaceholder')}
+                    value={defaultModel}
+                  />
+                  <ModelInput
+                    label={t('config.claudeSonnetModel')}
+                    onChange={setSonnetModel}
+                    placeholder={t('config.claudeSonnetModelPlaceholder')}
+                    value={sonnetModel}
+                  />
+                  <ModelInput
+                    label={t('config.claudeOpusModel')}
+                    onChange={setOpusModel}
+                    placeholder={t('config.claudeOpusModelPlaceholder')}
+                    value={opusModel}
+                  />
+                  <ModelInput
+                    label={t('config.claudeHaikuModel')}
+                    onChange={setHaikuModel}
+                    placeholder={t('config.claudeHaikuModelPlaceholder')}
+                    value={haikuModel}
+                  />
+                </div>
+              ) : (
+                <ModelInput
+                  label={t('config.model')}
+                  onChange={setModel}
                   placeholder={t('config.modelPlaceholder')}
-                  className="selectable mt-1 h-10 w-full rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
+                  value={model}
                 />
-              </label>
+              )}
               <ProfileConnectionTest
                 cliId={cliId}
-                profile={{ providerId, baseUrl, apiKey, model }}
+                profile={{
+                  providerId,
+                  baseUrl,
+                  apiKey,
+                  model: cliId === 'claude-code' ? defaultModel : model,
+                  defaultModel: cliId === 'claude-code' ? defaultModel : undefined
+                }}
               />
             </div>
           )}
@@ -500,6 +579,30 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
     )
   }
 )
+
+function ModelInput({
+  label,
+  onChange,
+  placeholder,
+  value
+}: {
+  label: string
+  onChange: (value: string) => void
+  placeholder: string
+  value: string
+}) {
+  return (
+    <label className="block">
+      <span className="text-[12px] text-text-weak">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="selectable mt-1 h-10 w-full rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
+      />
+    </label>
+  )
+}
 
 function EditorSurface({
   modal,
