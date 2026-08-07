@@ -53,6 +53,23 @@ const NPM_PACKAGES: Record<NpmCliId, string> = {
   gemini: '@google/gemini-cli'
 }
 
+const NPM_FALLBACK_REGISTRY = 'https://registry.npmmirror.com'
+const PYPI_FALLBACK_INDEX = 'https://pypi.tuna.tsinghua.edu.cn/simple'
+const PLAYWRIGHT_FALLBACK_HOST = 'https://registry.npmmirror.com/-/binary/playwright'
+
+/** GitCode mirrors the official Git repository inside mainland China. Never
+ * trust its floating main branch: this release tag is signed upstream, and all
+ * three content-addressed values below were cross-checked against GitHub. */
+const HERMES_MIRROR = {
+  repo: 'https://gitcode.com/GitHub_Trending/he/hermes-agent.git',
+  officialRepo: 'https://github.com/NousResearch/hermes-agent.git',
+  tag: 'v2026.8.3',
+  tagObject: '7de39e700d2c329e15d32eb0b96e2f7cdd9fbdb2',
+  commit: '3c27eb6234bf91b8ceee9e9071591b31e9b148cb',
+  sh256: '45f589461248c7a6ec3aecd7522a69dd49c5c8dbf4798ba1296af5c0c5e7ccd3',
+  ps1Sha256: '4dcbf2b665750cb578f69a6efa40770659e21821a463746f86da68af0d2bb31c'
+} as const
+
 function isNpmCliId(id: CliId): id is NpmCliId {
   return id !== 'hermes'
 }
@@ -201,14 +218,16 @@ function runStreaming(
   args: string[],
   onProgress: Progress,
   label: string,
-  timeoutMs?: number
+  timeoutMs?: number,
+  env?: NodeJS.ProcessEnv
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Run installers in their own process group so a timeout can terminate any
     // child processes spawned by the shell (e.g. curl, npm, system package managers).
     const p = spawnProcess(cmd, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: process.platform !== 'win32'
+      detached: process.platform !== 'win32',
+      env: { ...process.env, ...env }
     })
     let tail = ''
     let timedOut = false
@@ -752,13 +771,15 @@ const NATIVE_INSTALL_HOST: Partial<Record<CliId, string>> = {
 }
 
 export interface InstallStep {
-  /** 'native' and 'official' run a vendor install script; 'npm' installs the
-   * published package with the user's own npm (and therefore their registry). */
-  kind: 'native' | 'npm' | 'official'
+  /** 'native' and 'official' run a vendor install script; 'npm' uses the
+   * user's registry, and 'mirror' is attempted only after the primary source
+   * is unreachable or fails. */
+  kind: 'native' | 'npm' | 'official' | 'mirror'
   file: string
   args: string[]
   label: string
   timeoutMs: number
+  env?: NodeJS.ProcessEnv
 }
 
 function powershellFile(): string {
@@ -822,8 +843,7 @@ function claudeNativeStep(platform: NodeJS.Platform): InstallStep {
   )
 }
 
-/** Hermes Agent is a Python app distributed by its own installer script; it has
- * no npm package, so there is nothing to fall back to. */
+/** Hermes Agent is a Python app distributed by its own installer script. */
 function hermesOfficialStep(platform: NodeJS.Platform): InstallStep {
   const timeoutMs = 10 * 60_000
   const label = 'Hermes official installer'
@@ -849,6 +869,84 @@ function hermesOfficialStep(platform: NodeJS.Platform): InstallStep {
   )
 }
 
+function hermesMirrorBashCommand(): string {
+  return [
+    'set -euo pipefail',
+    `mirror_repo='${HERMES_MIRROR.repo}'`,
+    `official_repo='${HERMES_MIRROR.officialRepo}'`,
+    `release_tag='${HERMES_MIRROR.tag}'`,
+    `expected_tag_object='${HERMES_MIRROR.tagObject}'`,
+    `expected_commit='${HERMES_MIRROR.commit}'`,
+    `expected_installer_sha='${HERMES_MIRROR.sh256}'`,
+    'hermes_home="${HERMES_HOME:-$HOME/.hermes}"',
+    'install_dir="${HERMES_INSTALL_DIR:-$hermes_home/hermes-agent}"',
+    'if [ -e "$install_dir" ] && [ ! -d "$install_dir/.git" ]; then echo "Hermes install directory exists but is not a Git repository: $install_dir" >&2; exit 1; fi',
+    'if [ -d "$install_dir/.git" ]; then git -C "$install_dir" fetch --depth 1 "$mirror_repo" "+refs/tags/$release_tag:refs/tags/$release_tag"; else mkdir -p "$(dirname "$install_dir")"; GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 --branch "$release_tag" "$mirror_repo" "$install_dir"; fi',
+    'actual_tag_object="$(git -C "$install_dir" rev-parse "refs/tags/$release_tag")"',
+    '[ "$actual_tag_object" = "$expected_tag_object" ] || { echo "Hermes mirror tag object mismatch" >&2; exit 1; }',
+    'actual_commit="$(git -C "$install_dir" rev-parse "refs/tags/$release_tag^{}")"',
+    '[ "$actual_commit" = "$expected_commit" ] || { echo "Hermes mirror commit mismatch" >&2; exit 1; }',
+    'git -C "$install_dir" checkout --detach "$expected_commit"',
+    'if command -v sha256sum >/dev/null 2>&1; then actual_installer_sha="$(sha256sum "$install_dir/scripts/install.sh" | awk \'{print $1}\')"; elif command -v shasum >/dev/null 2>&1; then actual_installer_sha="$(shasum -a 256 "$install_dir/scripts/install.sh" | awk \'{print $1}\')"; else echo "No SHA-256 tool is available to verify the Hermes installer" >&2; exit 1; fi',
+    '[ "$actual_installer_sha" = "$expected_installer_sha" ] || { echo "Hermes mirror installer checksum mismatch" >&2; exit 1; }',
+    'git -C "$install_dir" remote set-url origin "$official_repo"',
+    'if [ ! -e "$hermes_home/bin/uv" ] && command -v uv >/dev/null 2>&1; then mkdir -p "$hermes_home/bin"; ln -s "$(command -v uv)" "$hermes_home/bin/uv"; fi',
+    'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="url.$mirror_repo.insteadOf" GIT_CONFIG_VALUE_0="$official_repo" bash "$install_dir/scripts/install.sh" --branch "$release_tag" --commit "$expected_commit" --skip-setup --non-interactive'
+  ].join('\n')
+}
+
+function hermesMirrorPowerShellScript(): string[] {
+  return [
+    `$mirrorRepo = '${HERMES_MIRROR.repo}'`,
+    `$officialRepo = '${HERMES_MIRROR.officialRepo}'`,
+    `$releaseTag = '${HERMES_MIRROR.tag}'`,
+    `$expectedTagObject = '${HERMES_MIRROR.tagObject}'`,
+    `$expectedCommit = '${HERMES_MIRROR.commit}'`,
+    `$expectedInstallerSha = '${HERMES_MIRROR.ps1Sha256}'`,
+    '$hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "hermes" } else { Join-Path $env:USERPROFILE ".hermes" }',
+    '$installDir = if ($env:HERMES_INSTALL_DIR) { $env:HERMES_INSTALL_DIR } else { Join-Path $hermesHome "hermes-agent" }',
+    'if ((Test-Path -LiteralPath $installDir) -and -not (Test-Path -LiteralPath (Join-Path $installDir ".git"))) { throw "Hermes install directory exists but is not a Git repository: $installDir" }',
+    'if (Test-Path -LiteralPath (Join-Path $installDir ".git")) { & git -C $installDir fetch --depth 1 $mirrorRepo "+refs/tags/${releaseTag}:refs/tags/${releaseTag}"; if ($LASTEXITCODE -ne 0) { throw "Failed to fetch the pinned Hermes mirror tag" } } else { New-Item -ItemType Directory -Force -Path (Split-Path $installDir -Parent) | Out-Null; $env:GIT_LFS_SKIP_SMUDGE = "1"; & git clone --depth 1 --branch $releaseTag $mirrorRepo $installDir; if ($LASTEXITCODE -ne 0) { throw "Failed to clone the Hermes mirror" } }',
+    '$actualTagObject = ((& git -C $installDir rev-parse "refs/tags/$releaseTag") | Out-String).Trim(); if ($LASTEXITCODE -ne 0 -or $actualTagObject -ne $expectedTagObject) { throw "Hermes mirror tag object mismatch" }',
+    '$actualCommit = ((& git -C $installDir rev-parse "refs/tags/$releaseTag^{}") | Out-String).Trim(); if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $expectedCommit) { throw "Hermes mirror commit mismatch" }',
+    '& git -C $installDir checkout --detach $expectedCommit; if ($LASTEXITCODE -ne 0) { throw "Failed to check out the pinned Hermes release" }',
+    '$installer = Join-Path $installDir "scripts\\install.ps1"',
+    '$actualInstallerSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant(); if ($actualInstallerSha -ne $expectedInstallerSha) { throw "Hermes mirror installer checksum mismatch" }',
+    '& git -C $installDir remote set-url origin $officialRepo; if ($LASTEXITCODE -ne 0) { throw "Failed to restore the official Hermes Git remote" }',
+    '$managedUv = Join-Path $hermesHome "bin\\uv.exe"; $systemUv = Get-Command uv.exe -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath $managedUv) -and $systemUv) { New-Item -ItemType Directory -Force -Path (Split-Path $managedUv -Parent) | Out-Null; Copy-Item -LiteralPath $systemUv.Source -Destination $managedUv }',
+    '$env:GIT_CONFIG_COUNT = "1"',
+    '$env:GIT_CONFIG_KEY_0 = "url.$mirrorRepo.insteadOf"',
+    '$env:GIT_CONFIG_VALUE_0 = $officialRepo',
+    '& $installer -Branch $releaseTag -Commit $expectedCommit -SkipSetup -NonInteractive'
+  ]
+}
+
+function hermesMirrorStep(platform: NodeJS.Platform): InstallStep {
+  const timeoutMs = 15 * 60_000
+  const env = {
+    npm_config_registry: NPM_FALLBACK_REGISTRY,
+    PIP_INDEX_URL: PYPI_FALLBACK_INDEX,
+    UV_DEFAULT_INDEX: PYPI_FALLBACK_INDEX,
+    UV_INDEX_URL: PYPI_FALLBACK_INDEX,
+    PLAYWRIGHT_DOWNLOAD_HOST: PLAYWRIGHT_FALLBACK_HOST
+  }
+  if (platform === 'win32') {
+    return {
+      ...powershellStep(
+        'mirror',
+        hermesMirrorPowerShellScript(),
+        'Hermes verified mirror',
+        timeoutMs
+      ),
+      env
+    }
+  }
+  return {
+    ...bashStep('mirror', hermesMirrorBashCommand(), 'Hermes verified mirror', timeoutMs),
+    env
+  }
+}
+
 function npmStep(npmPath: string, pkg: string): InstallStep {
   return {
     kind: 'npm',
@@ -858,6 +956,17 @@ function npmStep(npmPath: string, pkg: string): InstallStep {
     args: ['install', '-g', `${pkg}@latest`, '--no-audit', '--no-fund', '--no-update-notifier'],
     label: `npm install -g ${pkg}@latest`,
     timeoutMs: 10 * 60_000
+  }
+}
+
+function npmMirrorStep(npmPath: string, pkg: string): InstallStep {
+  return {
+    kind: 'mirror',
+    file: npmPath,
+    args: ['install', '-g', `${pkg}@latest`, '--no-audit', '--no-fund', '--no-update-notifier'],
+    label: `npm install -g ${pkg}@latest via npmmirror.com`,
+    timeoutMs: 10 * 60_000,
+    env: { npm_config_registry: NPM_FALLBACK_REGISTRY }
   }
 }
 
@@ -875,20 +984,25 @@ export function installStepsFor(
 ): InstallStep[] {
   const platform = opts.platform ?? process.platform
   if (id === 'hermes') {
-    return opts.nativeReachable === false ? [] : [hermesOfficialStep(platform)]
+    return opts.nativeReachable === false
+      ? [hermesMirrorStep(platform)]
+      : [hermesOfficialStep(platform), hermesMirrorStep(platform)]
   }
   const steps: InstallStep[] = []
   if (id === 'claude-code' && opts.nativeReachable !== false) {
     steps.push(claudeNativeStep(platform))
   }
-  if (isNpmCliId(id) && opts.npmPath) steps.push(npmStep(opts.npmPath, NPM_PACKAGES[id]))
+  if (isNpmCliId(id) && opts.npmPath) {
+    steps.push(npmStep(opts.npmPath, NPM_PACKAGES[id]))
+    steps.push(npmMirrorStep(opts.npmPath, NPM_PACKAGES[id]))
+  }
   return steps
 }
 
 function noInstallerMessage(id: CliId): string {
   const command = SYSTEM_COMMANDS[id]
   if (id === 'hermes') {
-    return `Cannot reach ${NATIVE_INSTALL_HOST.hermes} to install ${command}. Check your network, then install it from the official docs.`
+    return `Cannot install ${command}: neither the official source nor the verified mirror is available. Check your network, then install it from the official docs.`
   }
   return `Cannot install ${command} automatically: npm was not detected. Install a current version of Node.js / npm, then try again.`
 }
@@ -899,8 +1013,9 @@ function noInstallerMessage(id: CliId): string {
  * degrades to plain linking, so an existing install is left untouched.
  *
  * Claude Code tries its official native installer first and falls back to npm
- * when claude.ai is unreachable or the script fails; the other npm-published
- * CLIs go straight to npm, and Hermes uses its own installer.
+ * when claude.ai is unreachable or the script fails. Every npm install keeps
+ * the user's registry first and uses npmmirror only after that attempt fails.
+ * Hermes falls back to a checksum-pinned official release from GitCode.
  */
 export async function installMissingCli(id: CliId, onProgress: Progress): Promise<CliLinkResult> {
   try {
@@ -941,7 +1056,7 @@ export async function installMissingCli(id: CliId, onProgress: Progress): Promis
     for (const step of steps) {
       onProgress(step.kind, `Running ${step.label}…`)
       try {
-        await runStreaming(step.file, step.args, onProgress, step.label, step.timeoutMs)
+        await runStreaming(step.file, step.args, onProgress, step.label, step.timeoutMs, step.env)
       } catch (e) {
         lastError = e
         // A failed installer may still have placed the binary somewhere we

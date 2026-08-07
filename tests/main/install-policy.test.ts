@@ -47,11 +47,23 @@ describe('CLI installation policy', () => {
     expect(installer).not.toMatch(/["']update["']\s*\]/)
   })
 
-  it('leaves the npm registry to the user, so a mirror keeps working', () => {
+  it('keeps the user npm registry primary and scopes the fallback mirror', () => {
     const installer = source('src/main/install/installer.ts')
 
     expect(installer).not.toContain('--registry')
-    expect(installer).not.toContain('npmmirror')
+    expect(installer).toContain("const NPM_FALLBACK_REGISTRY = 'https://registry.npmmirror.com'")
+    expect(installer).toMatch(/steps\.push\(npmStep[\s\S]{0,160}steps\.push\(npmMirrorStep/)
+    expect(installer).toMatch(/npmMirrorStep[\s\S]{0,500}npm_config_registry/)
+  })
+
+  it('pins and verifies the third-party Hermes mirror before executing it', () => {
+    const installer = source('src/main/install/installer.ts')
+
+    expect(installer).toContain('gitcode.com/GitHub_Trending/he/hermes-agent.git')
+    expect(installer).toContain("tag: 'v2026.8.3'")
+    expect(installer).toContain("tagObject: '7de39e700d2c329e15d32eb0b96e2f7cdd9fbdb2'")
+    expect(installer).toContain("commit: '3c27eb6234bf91b8ceee9e9071591b31e9b148cb'")
+    expect(installer).toMatch(/actual_installer_sha[\s\S]{0,200}expected_installer_sha/)
   })
 
   it('offers the install button only after detection came back empty', () => {

@@ -508,9 +508,9 @@ export interface AuthStatus {
 /** Streamed progress while linking an existing system CLI. */
 export interface CliLinkProgress {
   cliId: CliId
-  /** 'install' | 'native' | 'npm' | 'official' only occur while installing a
+  /** 'install' | 'native' | 'npm' | 'official' | 'mirror' only occur while installing a
    * CLI the user does not have yet; linking never reports them. */
-  phase: 'link' | 'verify' | 'install' | 'native' | 'npm' | 'official' | 'done' | 'error'
+  phase: 'link' | 'verify' | 'install' | 'native' | 'npm' | 'official' | 'mirror' | 'done' | 'error'
   message: string
 }
 
