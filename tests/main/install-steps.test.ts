@@ -115,6 +115,8 @@ describe('one-click install steps', () => {
     expect(command).toContain('gitcode.com/GitHub_Trending/he/hermes-agent.git')
     expect(command).toContain('3c27eb6234bf91b8ceee9e9071591b31e9b148cb')
     expect(command).toContain('4dcbf2b665750cb578f69a6efa40770659e21821a463746f86da68af0d2bb31c')
+    expect(command).toContain('7a9c854dabcb7d3e5859902ea626f444196777cfcf74a6bb0508d0f063dbf161')
+    expect(command).toContain('$expectedInstallerShas -notcontains $actualInstallerSha')
     expect(command).not.toContain('Invoke-WebRequest')
     expect(command).not.toContain('irm ')
     expect(command).not.toContain('iex')

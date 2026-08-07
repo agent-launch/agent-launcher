@@ -64,6 +64,9 @@ describe('CLI installation policy', () => {
     expect(installer).toContain("tagObject: '7de39e700d2c329e15d32eb0b96e2f7cdd9fbdb2'")
     expect(installer).toContain("commit: '3c27eb6234bf91b8ceee9e9071591b31e9b148cb'")
     expect(installer).toMatch(/actual_installer_sha[\s\S]{0,200}expected_installer_sha/)
+    expect(installer).toContain(
+      "ps1CrLfSha256: '7a9c854dabcb7d3e5859902ea626f444196777cfcf74a6bb0508d0f063dbf161'"
+    )
   })
 
   it('offers the install button only after detection came back empty', () => {

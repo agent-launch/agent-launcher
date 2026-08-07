@@ -59,7 +59,8 @@ const PLAYWRIGHT_FALLBACK_HOST = 'https://registry.npmmirror.com/-/binary/playwr
 
 /** GitCode mirrors the official Git repository inside mainland China. Never
  * trust its floating main branch: this release tag is signed upstream, and all
- * three content-addressed values below were cross-checked against GitHub. */
+ * pinned values below were cross-checked against GitHub. PowerShell has two
+ * hashes because Git for Windows may materialize the same blob with CRLF. */
 const HERMES_MIRROR = {
   repo: 'https://gitcode.com/GitHub_Trending/he/hermes-agent.git',
   officialRepo: 'https://github.com/NousResearch/hermes-agent.git',
@@ -67,7 +68,8 @@ const HERMES_MIRROR = {
   tagObject: '7de39e700d2c329e15d32eb0b96e2f7cdd9fbdb2',
   commit: '3c27eb6234bf91b8ceee9e9071591b31e9b148cb',
   sh256: '45f589461248c7a6ec3aecd7522a69dd49c5c8dbf4798ba1296af5c0c5e7ccd3',
-  ps1Sha256: '4dcbf2b665750cb578f69a6efa40770659e21821a463746f86da68af0d2bb31c'
+  ps1LfSha256: '4dcbf2b665750cb578f69a6efa40770659e21821a463746f86da68af0d2bb31c',
+  ps1CrLfSha256: '7a9c854dabcb7d3e5859902ea626f444196777cfcf74a6bb0508d0f063dbf161'
 } as const
 
 function isNpmCliId(id: CliId): id is NpmCliId {
@@ -902,7 +904,7 @@ function hermesMirrorPowerShellScript(): string[] {
     `$releaseTag = '${HERMES_MIRROR.tag}'`,
     `$expectedTagObject = '${HERMES_MIRROR.tagObject}'`,
     `$expectedCommit = '${HERMES_MIRROR.commit}'`,
-    `$expectedInstallerSha = '${HERMES_MIRROR.ps1Sha256}'`,
+    `$expectedInstallerShas = @('${HERMES_MIRROR.ps1LfSha256}', '${HERMES_MIRROR.ps1CrLfSha256}')`,
     '$hermesHome = if ($env:HERMES_HOME) { $env:HERMES_HOME } elseif ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA "hermes" } else { Join-Path $env:USERPROFILE ".hermes" }',
     '$installDir = if ($env:HERMES_INSTALL_DIR) { $env:HERMES_INSTALL_DIR } else { Join-Path $hermesHome "hermes-agent" }',
     'if ((Test-Path -LiteralPath $installDir) -and -not (Test-Path -LiteralPath (Join-Path $installDir ".git"))) { throw "Hermes install directory exists but is not a Git repository: $installDir" }',
@@ -911,7 +913,7 @@ function hermesMirrorPowerShellScript(): string[] {
     '$actualCommit = ((& git -C $installDir rev-parse "refs/tags/$releaseTag^{}") | Out-String).Trim(); if ($LASTEXITCODE -ne 0 -or $actualCommit -ne $expectedCommit) { throw "Hermes mirror commit mismatch" }',
     '& git -C $installDir checkout --detach $expectedCommit; if ($LASTEXITCODE -ne 0) { throw "Failed to check out the pinned Hermes release" }',
     '$installer = Join-Path $installDir "scripts\\install.ps1"',
-    '$actualInstallerSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant(); if ($actualInstallerSha -ne $expectedInstallerSha) { throw "Hermes mirror installer checksum mismatch" }',
+    '$actualInstallerSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant(); if ($expectedInstallerShas -notcontains $actualInstallerSha) { throw "Hermes mirror installer checksum mismatch" }',
     '& git -C $installDir remote set-url origin $officialRepo; if ($LASTEXITCODE -ne 0) { throw "Failed to restore the official Hermes Git remote" }',
     '$managedUv = Join-Path $hermesHome "bin\\uv.exe"; $systemUv = Get-Command uv.exe -ErrorAction SilentlyContinue; if (-not (Test-Path -LiteralPath $managedUv) -and $systemUv) { New-Item -ItemType Directory -Force -Path (Split-Path $managedUv -Parent) | Out-Null; Copy-Item -LiteralPath $systemUv.Source -Destination $managedUv }',
     '$env:GIT_CONFIG_COUNT = "1"',
