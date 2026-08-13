@@ -9,6 +9,7 @@ import { cancelAllSessionLists } from './sessions-runner'
 import { registerAppUpdateIpc, startAppUpdateAutoCheck } from './app-update'
 import { hasNativeConfig, writeNativeConfig } from './native-config'
 import { loadConfig } from './store'
+import { initializeSystemPath } from './system-path'
 import type { CliId } from '@shared/types'
 
 type MenuLocale = 'zh' | 'en'
@@ -185,6 +186,9 @@ app.whenReady().then(() => {
 
   app.setName('Agent Launcher')
   installApplicationMenu()
+  // Start resolving the login-shell PATH early. CLI detection awaits this
+  // cached promise, while the application window can still open immediately.
+  void initializeSystemPath()
 
   // Window control IPC for the custom titlebar.
   ipcMain.on('window:minimize', (e) => BrowserWindow.fromWebContents(e.sender)?.minimize())

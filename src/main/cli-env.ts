@@ -1,28 +1,11 @@
 import { mkdirSync } from 'node:fs'
-import { delimiter, join } from 'node:path'
-import { homedir } from 'node:os'
+import { delimiter, dirname, join } from 'node:path'
 import { paths } from './sandbox'
 import { geminiUsageLogPath, hermesHomeDir } from './config-paths'
 import { getActiveProfile, getAuthMode, getPrefs, loadConfig } from './store'
 import { claudeProfileEnv, clearClaudeProfileEnv } from './claude-profile-env'
+import { buildSystemEnv } from './system-path'
 import type { CliId, EnvPair } from '@shared/types'
-
-function withCommonPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  if (process.platform === 'win32') return env
-  const common = [
-    join(homedir(), '.local', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-    '/usr/bin',
-    '/bin',
-    '/usr/sbin',
-    '/sbin'
-  ]
-  const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
-  const seen = new Set(existing)
-  env.PATH = [...existing, ...common.filter((dir) => !seen.has(dir))].join(delimiter)
-  return env
-}
 
 function clearManagedAuthEnv(env: NodeJS.ProcessEnv, cliId: CliId): void {
   if (cliId === 'claude-code') {
@@ -100,10 +83,12 @@ export function resolvedEnvPreview(cliId: CliId): EnvPair[] {
  * Node directory while they are being migrated. The user never exports this.
  */
 export function buildCliEnv(cliId: CliId): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = withCommonPath({ ...process.env })
+  const install = loadConfig().install[cliId]
+  const commandDir = install.binPath ? dirname(install.binPath) : undefined
+  const env: NodeJS.ProcessEnv = buildSystemEnv(process.env, [commandDir])
   clearManagedAuthEnv(env, cliId)
   if (cliId === 'hermes') env.HERMES_HOME = hermesHomeDir()
-  if (loadConfig().install[cliId].legacyManaged) {
+  if (install.legacyManaged) {
     const nodeBinDir = process.platform === 'win32' ? paths.node : join(paths.node, 'bin')
     env.PATH = [nodeBinDir, env.PATH].filter(Boolean).join(delimiter)
   }

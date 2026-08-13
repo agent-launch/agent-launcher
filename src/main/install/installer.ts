@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, statSync } from 'node:fs'
-import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path'
+import { existsSync, mkdirSync, renameSync, statSync } from 'node:fs'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { realpath } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
@@ -7,6 +7,12 @@ import { paths } from '../sandbox'
 import { hermesHomeDir } from '../config-paths'
 import { macosSecurityManualUpdateMessage } from '../cli-launch-safety'
 import { decodeProcessOutput, lastLines, spawnProcess } from '../process'
+import {
+  envForCommand,
+  initializeSystemPath,
+  knownExecutableDirs,
+  resolvedPathDirs
+} from '../system-path'
 import { loadConfig, setInstallState } from '../store'
 import type {
   CliId,
@@ -78,33 +84,6 @@ function isNpmCliId(id: CliId): id is NpmCliId {
 
 const NODE_NPM_ENTRY_ROOT: Partial<Record<CliId, string[]>> = {
   pi: ['node_modules', '@earendil-works', 'pi-coding-agent']
-}
-
-function commonCliPathDirs(): string[] {
-  if (process.platform === 'win32') return []
-  return [
-    join(homedir(), '.local', 'bin'),
-    join(homedir(), 'local', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
-    '/usr/bin',
-    '/bin',
-    '/usr/sbin',
-    '/sbin'
-  ]
-}
-
-function envForCommand(commandPath: string): NodeJS.ProcessEnv {
-  const env = { ...process.env }
-  const existing = (env.PATH ?? '').split(delimiter).filter(Boolean)
-  const commandDir =
-    isAbsolute(commandPath) || commandPath.includes('/') || commandPath.includes('\\')
-      ? dirname(commandPath)
-      : undefined
-  env.PATH = uniquePaths(
-    [commandDir, ...commonCliPathDirs(), ...existing].filter((path): path is string => !!path)
-  ).join(delimiter)
-  return env
 }
 
 function spawnCliProcess(cmd: string, args: string[], options: Parameters<typeof spawnProcess>[2]) {
@@ -229,7 +208,7 @@ function runStreaming(
     const p = spawnProcess(cmd, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: process.platform !== 'win32',
-      env: { ...process.env, ...env }
+      env: envForCommand(cmd, { ...process.env, ...env })
     })
     let tail = ''
     let timedOut = false
@@ -295,9 +274,7 @@ function hermesCommandDirs(): string[] {
 
 function pathCandidates(cmd: string): string[] {
   const names = commandNames(cmd)
-  return uniquePaths([...(process.env.PATH ?? '').split(delimiter), ...commonCliPathDirs()])
-    .filter(Boolean)
-    .flatMap((dir) => names.map((name) => join(dir, name)))
+  return resolvedPathDirs().flatMap((dir) => names.map((name) => join(dir, name)))
 }
 
 function commandNames(cmd: string): string[] {
@@ -306,17 +283,6 @@ function commandNames(cmd: string): string[] {
   return process.platform === 'win32' && !/\.[A-Za-z0-9]+$/.test(cmd)
     ? exts.map((ext) => `${cmd}${ext.toLowerCase()}`)
     : [cmd]
-}
-
-function versionedBinDirs(root: string, suffix: string[]): string[] {
-  try {
-    return readdirSync(root, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }))
-      .map((entry) => join(root, entry.name, ...suffix))
-  } catch {
-    return []
-  }
 }
 
 function npmManagedBinDirs(): string[] {
@@ -331,26 +297,7 @@ function npmManagedBinDirs(): string[] {
       ].filter((dir): dir is string => !!dir)
     )
   }
-  return uniquePaths([
-    ...commonCliPathDirs(),
-    ...versionedBinDirs(join(homedir(), '.nvm', 'versions', 'node'), ['bin']),
-    ...versionedBinDirs(join(homedir(), '.local', 'share', 'fnm', 'node-versions'), [
-      'installation',
-      'bin'
-    ]),
-    ...versionedBinDirs(join(homedir(), 'Library', 'Application Support', 'fnm', 'node-versions'), [
-      'installation',
-      'bin'
-    ]),
-    ...versionedBinDirs(join(homedir(), '.local', 'share', 'mise', 'installs', 'node'), ['bin']),
-    join(homedir(), '.volta', 'bin'),
-    join(homedir(), '.bun', 'bin'),
-    ...[
-      process.env.PNPM_HOME,
-      join(homedir(), 'Library', 'pnpm'),
-      join(homedir(), '.local', 'share', 'pnpm')
-    ].filter((dir): dir is string => !!dir)
-  ])
+  return uniquePaths([...knownExecutableDirs()])
 }
 
 function codexExtraCandidates(): string[] {
@@ -391,7 +338,13 @@ function codexExtraCandidates(): string[] {
 
 export function commandSearchCandidates(cmd: string, id?: CliId): string[] {
   const candidates = pathCandidates(cmd)
-  if (id === 'codex') return uniquePaths([...candidates, ...codexExtraCandidates()])
+  if (id === 'codex') {
+    const names = commandNames(cmd)
+    const explicit = process.env.CODEX_INSTALL_DIR
+      ? names.map((name) => join(process.env.CODEX_INSTALL_DIR as string, name))
+      : []
+    return uniquePaths([...explicit, ...candidates, ...codexExtraCandidates()])
+  }
   const names = commandNames(cmd)
   if (cmd === 'npm' || (id && isNpmCliId(id))) {
     return uniquePaths([
@@ -435,7 +388,10 @@ async function whichAll(cmd: string, id?: CliId): Promise<string[]> {
   const finder = process.platform === 'win32' ? 'where' : 'which'
   const fromFinder = await new Promise<string[]>((resolve) => {
     const args = process.platform === 'win32' ? [cmd] : ['-a', cmd]
-    const p = spawn(finder, args, { stdio: ['ignore', 'pipe', 'ignore'] })
+    const p = spawn(finder, args, {
+      env: envForCommand(finder),
+      stdio: ['ignore', 'pipe', 'ignore']
+    })
     let out = ''
     p.stdout.on('data', (d) => (out += d))
     p.on('error', () => resolve([]))
@@ -461,7 +417,10 @@ async function which(cmd: string): Promise<string | null> {
 
 /** Detect commands from a GUI process whose PATH may omit /usr/local/bin,
  * Homebrew, nvm, fnm, mise, Volta, pnpm, or user-local bin directories. */
-export function findSystemCommand(cmd: string): Promise<string | null> {
+export async function findSystemCommand(cmd: string): Promise<string | null> {
+  const detected = await which(cmd)
+  if (detected) return detected
+  await initializeSystemPath()
   return which(cmd)
 }
 
@@ -501,7 +460,13 @@ export async function detectSystemCli(
   configuredBinPath?: string
 ): Promise<SystemCliDetection> {
   const command = SYSTEM_COMMANDS[id]
-  const candidates = await systemCandidates(id)
+  let candidates = await systemCandidates(id)
+  // Fast paths and explicit locations do not need to wait on shell startup.
+  // Only retry through the login-shell PATH when normal discovery found nothing.
+  if (!candidates.length) {
+    await initializeSystemPath()
+    candidates = await systemCandidates(id)
+  }
   const configuredExists = !!configuredBinPath && existsSync(configuredBinPath)
   if (configuredExists) {
     const configuredRealPath = await normalizePath(configuredBinPath)
