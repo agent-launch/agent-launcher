@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { useT } from '@/i18n'
@@ -10,10 +10,19 @@ interface Props {
   children: ReactNode
   footer?: ReactNode
   size?: 'default' | 'wide'
+  initialFocusRef?: RefObject<HTMLElement | null>
 }
 
 /** Centered dialog with a soft desktop backdrop. Esc / backdrop closes. */
-export function Modal({ open, onClose, title, children, footer, size = 'default' }: Props) {
+export function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  footer,
+  size = 'default',
+  initialFocusRef
+}: Props) {
   const t = useT()
 
   return (
@@ -27,6 +36,11 @@ export function Modal({ open, onClose, title, children, footer, size = 'default'
         <Dialog.Overlay className="modal-backdrop fixed inset-0 z-[200] backdrop-blur-md" />
         <Dialog.Content
           aria-describedby={undefined}
+          onOpenAutoFocus={(event) => {
+            if (!initialFocusRef?.current) return
+            event.preventDefault()
+            initialFocusRef.current.focus()
+          }}
           className="modal-panel fixed z-[201] flex max-h-[82vh] flex-col overflow-hidden rounded-xl border border-border-base bg-stronger/95 outline-none"
           style={size === 'wide' ? { width: 'min(calc(100vw - 48px), 48rem)' } : undefined}
         >

@@ -36,13 +36,15 @@ import { cancelUsageRead, readUsageInWorker } from './usage-runner'
 import { cancelSessionList, listSessionsInWorker } from './sessions-runner'
 import { listInstalledMcp, listInstalledSkills, readInstalledSkill } from './installed-resources'
 import { testProfileConnection } from './profile-connectivity'
+import { discoverModels } from './model-discovery'
 import type {
   AuthLoginMethod,
   CliLinkOptions,
   CliLinkProgress,
   CliId,
   ChatStartOptions,
-  CliProfilePatch
+  CliProfilePatch,
+  ModelDiscoveryRequest
 } from '@shared/types'
 
 export function registerIpc(): void {
@@ -83,6 +85,9 @@ export function registerIpc(): void {
   )
   ipcMain.handle('config:testConnection', (_e, id: CliId, patch: CliProfilePatch) =>
     testProfileConnection(id, patch)
+  )
+  ipcMain.handle('config:listModels', (_e, id: CliId, request: ModelDiscoveryRequest) =>
+    discoverModels(id, request)
   )
   ipcMain.handle('resources:listMcp', (_e, id: CliId) => listInstalledMcp(id))
   ipcMain.handle('resources:listSkills', (_e, id: CliId) => listInstalledSkills(id))

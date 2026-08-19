@@ -166,6 +166,27 @@ export interface ProfileConnectionResult {
   detail?: string
 }
 
+export interface ModelDiscoveryRequest {
+  baseUrl?: string
+  apiKey?: string
+  /** Optional provider-specific endpoint. Main only uses it when it shares the Base URL origin. */
+  modelsUrl?: string
+}
+
+export interface DiscoveredModel {
+  id: string
+  name: string
+}
+
+export interface ModelDiscoveryResult {
+  ok: boolean
+  code: ProfileConnectionCode
+  models?: DiscoveredModel[]
+  status?: number
+  /** Server-reported error message, when the endpoint returned one. */
+  detail?: string
+}
+
 export interface CliPriceEntry {
   id: string
   name: string

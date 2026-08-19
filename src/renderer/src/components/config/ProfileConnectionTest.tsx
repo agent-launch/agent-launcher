@@ -71,12 +71,9 @@ export function ProfileConnectionTest({
   }
 
   return (
-    <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      <Button size="sm" variant="secondary" onClick={test} disabled={testing}>
-        {testing ? <LoaderCircle className="animate-spin" size={13} /> : <Wifi size={13} />}
-        {testing ? t('config.connection.testing') : t('config.connection.test')}
-      </Button>
-      <span className="text-[11px] text-text-weak">{t('config.connection.costNotice')}</span>
-    </div>
+    <Button size="sm" variant="secondary" onClick={test} disabled={testing}>
+      {testing ? <LoaderCircle className="animate-spin" size={13} /> : <Wifi size={13} />}
+      {testing ? t('config.connection.testing') : t('config.connection.test')}
+    </Button>
   )
 }

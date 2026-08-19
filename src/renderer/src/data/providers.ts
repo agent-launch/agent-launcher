@@ -9,6 +9,8 @@ export interface Provider {
   category: ProviderCategory
   /** Endpoint pre-filled into the per-CLI base-url env var. */
   baseUrl: string
+  /** Provider-specific model-list endpoint when it cannot be derived from baseUrl. */
+  modelsUrl?: string
   websiteUrl?: string
   note?: string
 }
@@ -36,6 +38,7 @@ const CLAUDE: Provider[] = [
     name: 'DeepSeek',
     category: 'cn_official',
     baseUrl: 'https://api.deepseek.com/anthropic',
+    modelsUrl: 'https://api.deepseek.com/models',
     websiteUrl: 'https://platform.deepseek.com'
   },
   {
@@ -71,6 +74,7 @@ const CLAUDE: Provider[] = [
     name: 'Kimi (Moonshot)',
     category: 'cn_official',
     baseUrl: 'https://api.moonshot.cn/anthropic',
+    modelsUrl: 'https://api.moonshot.cn/v1/models',
     websiteUrl: 'https://platform.moonshot.cn'
   },
   {
@@ -99,6 +103,7 @@ const CLAUDE: Provider[] = [
     name: 'Longcat (Meituan)',
     category: 'cn_official',
     baseUrl: 'https://api.longcat.chat/anthropic',
+    modelsUrl: 'https://api.longcat.chat/openai/v1/models',
     websiteUrl: 'https://longcat.chat'
   },
   {
@@ -161,6 +166,7 @@ const CODEX: Provider[] = [
     name: 'DeepSeek',
     category: 'cn_official',
     baseUrl: 'https://api.deepseek.com',
+    modelsUrl: 'https://api.deepseek.com/models',
     websiteUrl: 'https://platform.deepseek.com'
   },
   {
@@ -249,6 +255,7 @@ const OPENCODE: Provider[] = [
     name: 'OpenCode Go',
     category: 'third_party',
     baseUrl: 'https://opencode.ai/zen/go/v1',
+    modelsUrl: 'https://opencode.ai/zen/go/v1/models',
     websiteUrl: 'https://opencode.ai/go',
     note: 'OpenAI-compatible endpoint'
   },

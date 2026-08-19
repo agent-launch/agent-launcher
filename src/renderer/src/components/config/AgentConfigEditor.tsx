@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { useT } from '@/i18n'
+import { ModelDiscoveryPicker } from './ModelDiscoveryPicker'
 import { ProfileConnectionTest } from './ProfileConnectionTest'
 import type { AppConfig, AuthStatus, CliId, CliProfile, CliProfiles } from '@shared/types'
 
@@ -67,6 +68,10 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
     const selectedProfile = useMemo(
       () => cli.profiles.find((profile) => profile.id === selectedProfileId),
       [cli.profiles, selectedProfileId]
+    )
+    const selectedProvider = useMemo(
+      () => providers.find((provider) => provider.id === providerId),
+      [providerId, providers]
     )
 
     const setDraftFromProfile = useCallback(
@@ -540,16 +545,27 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
                   value={model}
                 />
               )}
-              <ProfileConnectionTest
-                cliId={cliId}
-                profile={{
-                  providerId,
-                  baseUrl,
-                  apiKey,
-                  model: cliId === 'claude-code' ? defaultModel : model,
-                  defaultModel: cliId === 'claude-code' ? defaultModel : undefined
-                }}
-              />
+              <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <ProfileConnectionTest
+                  cliId={cliId}
+                  profile={{
+                    providerId,
+                    baseUrl,
+                    apiKey,
+                    model: cliId === 'claude-code' ? defaultModel : model,
+                    defaultModel: cliId === 'claude-code' ? defaultModel : undefined
+                  }}
+                />
+                <ModelDiscoveryPicker
+                  cliId={cliId}
+                  request={{ baseUrl, apiKey, modelsUrl: selectedProvider?.modelsUrl }}
+                  currentModel={cliId === 'claude-code' ? defaultModel : model}
+                  onSelect={cliId === 'claude-code' ? setDefaultModel : setModel}
+                />
+                <span className="text-[11px] text-text-weak">
+                  {t('config.connection.costNotice')}
+                </span>
+              </div>
             </div>
           )}
         </EditorSurface>

@@ -17,6 +17,8 @@ import type {
   CliLinkResult,
   CliUpdateStatus,
   CliProfilePatch,
+  ModelDiscoveryRequest,
+  ModelDiscoveryResult,
   ProfileConnectionResult,
   CleanupCliResult,
   DashboardLaunchResult,
@@ -144,6 +146,8 @@ const api = {
       ipcRenderer.invoke('config:setUsageTrackingEnabled', id, on),
     testConnection: (id: CliId, patch: CliProfilePatch): Promise<ProfileConnectionResult> =>
       ipcRenderer.invoke('config:testConnection', id, patch),
+    listModels: (id: CliId, request: ModelDiscoveryRequest): Promise<ModelDiscoveryResult> =>
+      ipcRenderer.invoke('config:listModels', id, request),
     nativeFiles: (id: CliId): Promise<NativeFiles | null> =>
       ipcRenderer.invoke('config:nativeFiles', id)
   },
