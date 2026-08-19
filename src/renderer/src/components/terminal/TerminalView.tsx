@@ -28,32 +28,7 @@ function readVar(name: string, fallback: string): string {
   return v || fallback
 }
 
-const CODEX_TERMINAL_THEME = {
-  background: '#151821',
-  foreground: '#f7f8ff',
-  cursor: '#f7f8ff',
-  cursorAccent: '#151821',
-  selectionBackground: 'rgba(187, 201, 237, 0.24)',
-  black: '#252a35',
-  red: '#ff8a8a',
-  green: '#a8d46f',
-  yellow: '#e8c778',
-  blue: '#8db7ff',
-  magenta: '#d1a3ff',
-  cyan: '#7fd6c2',
-  white: '#e3e6f0',
-  brightBlack: '#747b8e',
-  brightRed: '#ffb0a8',
-  brightGreen: '#c8ea90',
-  brightYellow: '#f2da9a',
-  brightBlue: '#b2ccff',
-  brightMagenta: '#e0c2ff',
-  brightCyan: '#a3e6d8',
-  brightWhite: '#ffffff'
-}
-
-function terminalTheme(cliId: CliId) {
-  if (cliId === 'codex') return CODEX_TERMINAL_THEME
+function terminalTheme() {
   return {
     background: readVar('--terminal-background', '#1e1e1e'),
     foreground: readVar('--terminal-foreground', '#cccccc'),
@@ -349,7 +324,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
       scrollback: 10000,
       scrollOnUserInput: true,
       smoothScrollDuration: 0,
-      theme: terminalTheme(cliId)
+      theme: terminalTheme()
     })
     termRef.current = term
     const fit = new FitAddon()
@@ -484,7 +459,7 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
   useEffect(() => {
     const applyTheme = () => {
       const term = termRef.current
-      if (term) term.options.theme = terminalTheme(cliId)
+      if (term) term.options.theme = terminalTheme()
     }
     const observer = new MutationObserver(applyTheme)
     observer.observe(document.documentElement, {
@@ -493,12 +468,11 @@ export function TerminalView({ cliId, mode, cwd, resumeId, sessionKey, onExit }:
     })
     applyTheme()
     return () => observer.disconnect()
-  }, [cliId])
+  }, [])
 
   return (
     <div
       className={`agent-terminal h-full min-w-0 w-full overflow-hidden bg-[var(--terminal-background)] p-3${isWindows ? ' agent-terminal--windows' : ''}`}
-      style={cliId === 'codex' ? { background: CODEX_TERMINAL_THEME.background } : undefined}
     >
       {/* FitAddon measures xterm's direct parent and does not account for padding on that parent. */}
       <div ref={hostRef} className="h-full min-h-0 min-w-0 w-full overflow-hidden" />
