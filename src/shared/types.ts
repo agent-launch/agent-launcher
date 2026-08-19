@@ -300,12 +300,27 @@ export interface CliPrefs {
   usageTrackingEnabled?: boolean
 }
 
+/** A directory the user explicitly opened as a project workspace. Shared
+ * across CLIs — the same folder is offered no matter which agent is active. */
+export interface RecentProject {
+  path: string
+  /** Last time the folder was picked or a session launched into it — epoch ms. */
+  lastUsedAt: number
+}
+
+/** RecentProject plus main-process-only facts the renderer can't compute. */
+export interface RecentProjectInfo extends RecentProject {
+  /** False when the directory no longer exists on disk (moved/deleted). */
+  exists: boolean
+}
+
 export interface AppConfig {
   schema: number
   install: Record<CliId, CliInstallState>
   clis: Record<CliId, CliProfiles>
   prefs: Record<CliId, CliPrefs>
   resources: Record<CliId, CliResources>
+  recentProjects: RecentProject[]
 }
 
 /** A real, resumable conversation persisted by the CLI itself. */

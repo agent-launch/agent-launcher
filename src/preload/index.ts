@@ -27,6 +27,7 @@ import type {
   InstalledSkillEntry,
   InstalledSkillFile,
   NativeFiles,
+  RecentProjectInfo,
   SessionDeleteResult,
   SessionInfo,
   Transcript,
@@ -162,6 +163,16 @@ const api = {
       ipcRenderer.invoke('sessions:delete', id, sid),
     defaultWorkspace: (id: CliId): Promise<string> =>
       ipcRenderer.invoke('sessions:defaultWorkspace', id)
+  },
+  projects: {
+    list: (): Promise<RecentProjectInfo[]> => ipcRenderer.invoke('projects:list'),
+    /** Opens the native folder picker; a confirmed pick is recorded as a
+     * recent project. Resolves null when the user cancels. */
+    select: (): Promise<string | null> => ipcRenderer.invoke('projects:select'),
+    remove: (path: string): Promise<RecentProjectInfo[]> =>
+      ipcRenderer.invoke('projects:remove', path),
+    exists: (paths: string[]): Promise<Record<string, boolean>> =>
+      ipcRenderer.invoke('projects:exists', paths)
   },
   cli: {
     link: (id: CliId, opts?: CliLinkOptions): Promise<CliLinkResult> =>

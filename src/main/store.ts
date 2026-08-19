@@ -14,7 +14,8 @@ import type {
   CliProfilePatch,
   CliProfiles,
   CliResources,
-  CliSkillPatch
+  CliSkillPatch,
+  RecentProject
 } from '@shared/types'
 
 const SCHEMA = 5
@@ -160,7 +161,7 @@ function emptyConfig(): AppConfig {
     prefs[id] = {}
     resources[id] = { prices: [], mcpServers: [], skills: [] }
   }
-  return { schema: SCHEMA, install, clis, prefs, resources }
+  return { schema: SCHEMA, install, clis, prefs, resources, recentProjects: [] }
 }
 
 let counter = 0
@@ -218,6 +219,20 @@ function normalize(raw: unknown): AppConfig {
     else dropUnpinnedOfficialProfile(base.clis[id], base.prefs[id])
     syncProfileState(id, base.clis[id])
   }
+  const rawProjects = (raw as { recentProjects?: unknown }).recentProjects
+  if (Array.isArray(rawProjects)) {
+    base.recentProjects = rawProjects
+      .filter(
+        (p): p is RecentProject =>
+          !!p &&
+          typeof p === 'object' &&
+          typeof (p as RecentProject).path === 'string' &&
+          (p as RecentProject).path.trim() !== '' &&
+          typeof (p as RecentProject).lastUsedAt === 'number'
+      )
+      .map((p) => ({ path: p.path, lastUsedAt: p.lastUsedAt }))
+    sortRecentProjects(base.recentProjects)
+  }
   return base
 }
 
@@ -252,6 +267,57 @@ export function setInstallState(id: CliId, state: CliInstallState): AppConfig {
     legacyManaged: isLegacyManagedInstall(state),
     source: 'system'
   }
+  return saveConfig(cfg)
+}
+
+// ---- recent projects ----
+
+/** Unpinned-list cap; oldest entries fall off. Kept generous — these are
+ * one-line records, the limit only guards against unbounded growth. */
+const MAX_RECENT_PROJECTS = 30
+
+function sortRecentProjects(list: RecentProject[]): void {
+  list.sort((a, b) => b.lastUsedAt - a.lastUsedAt)
+}
+
+/** Strictly after every recorded use, so a bump always wins the (stable)
+ * sort even when two land in the same millisecond. List is sorted desc,
+ * so [0] holds the current max. */
+function nextUseTimestamp(list: RecentProject[]): number {
+  return Math.max(Date.now(), (list[0]?.lastUsedAt ?? 0) + 1)
+}
+
+/** Upsert a directory the user explicitly picked; bumps it to the top. */
+export function addRecentProject(path: string): AppConfig {
+  const cfg = loadConfig()
+  const trimmed = path.trim()
+  if (!trimmed) return cfg
+  const now = nextUseTimestamp(cfg.recentProjects)
+  const existing = cfg.recentProjects.find((p) => p.path === trimmed)
+  if (existing) existing.lastUsedAt = now
+  else cfg.recentProjects.push({ path: trimmed, lastUsedAt: now })
+  sortRecentProjects(cfg.recentProjects)
+  cfg.recentProjects = cfg.recentProjects.slice(0, MAX_RECENT_PROJECTS)
+  return saveConfig(cfg)
+}
+
+/** Bump lastUsedAt only when the path is already a recorded project — a
+ * launch into a scratch workspace or a history-only directory must not
+ * create new entries. */
+export function touchRecentProject(path: string | undefined): void {
+  const trimmed = path?.trim()
+  if (!trimmed) return
+  const cfg = loadConfig()
+  const existing = cfg.recentProjects.find((p) => p.path === trimmed)
+  if (!existing) return
+  existing.lastUsedAt = nextUseTimestamp(cfg.recentProjects)
+  sortRecentProjects(cfg.recentProjects)
+  saveConfig(cfg)
+}
+
+export function removeRecentProject(path: string): AppConfig {
+  const cfg = loadConfig()
+  cfg.recentProjects = cfg.recentProjects.filter((p) => p.path !== path)
   return saveConfig(cfg)
 }
 

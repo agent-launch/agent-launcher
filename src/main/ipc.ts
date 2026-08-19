@@ -7,8 +7,15 @@ import {
   deleteProfile,
   setActiveProfile,
   setYolo,
-  setUsageTrackingEnabled
+  setUsageTrackingEnabled,
+  touchRecentProject
 } from './store'
+import {
+  checkDirectoriesExist,
+  listRecentProjects,
+  removeRecentProjectAndList,
+  selectProjectDirectory
+} from './projects'
 import { paths } from './sandbox'
 import { writeNativeConfig, readNativeFiles, hasNativeConfig } from './native-config'
 import { deleteSession, readTranscript } from './sessions-history'
@@ -127,7 +134,10 @@ export function registerIpc(): void {
   ipcMain.on('auth:write', (_e, id: string, data: string) => writeAuth(id, data))
   ipcMain.on('auth:stop', (_e, id: string) => stopAuth(id))
 
-  ipcMain.handle('terminal:openExternal', (_e, opts: SpawnOptions) => openExternalAgent(opts))
+  ipcMain.handle('terminal:openExternal', (_e, opts: SpawnOptions) => {
+    touchRecentProject(opts.cwd)
+    return openExternalAgent(opts)
+  })
   ipcMain.handle('dashboard:launch', (_e, id: CliId) => launchDashboard(id))
 
   // ---- sessions (CLI-native conversation history) ----
@@ -144,8 +154,19 @@ export function registerIpc(): void {
   // picks this same default whenever no directory is chosen.
   ipcMain.handle('sessions:defaultWorkspace', (_e, id: CliId) => defaultWorkspaceForCli(id))
 
+  // ---- recent projects (user-picked working directories, shared across CLIs) ----
+  ipcMain.handle('projects:list', () => listRecentProjects())
+  ipcMain.handle('projects:select', (e) => selectProjectDirectory(e.sender))
+  ipcMain.handle('projects:remove', (_e, path: string) => removeRecentProjectAndList(path))
+  ipcMain.handle('projects:exists', (_e, paths: string[]) => checkDirectoriesExist(paths))
+
   // ---- PTY terminal ----
-  ipcMain.handle('pty:create', (e, opts: SpawnOptions) => createSession(e.sender, opts))
+  ipcMain.handle('pty:create', (e, opts: SpawnOptions) => {
+    // No-op unless opts.cwd is a recorded project — keeps recents ordered by
+    // actual use without ever recording scratch workspaces.
+    touchRecentProject(opts.cwd)
+    return createSession(e.sender, opts)
+  })
   ipcMain.on('pty:write', (_e, id: string, data: string) => writeSession(id, data))
   ipcMain.on('pty:resize', (_e, id: string, cols: number, rows: number) =>
     resizeSession(id, cols, rows)
@@ -153,7 +174,10 @@ export function registerIpc(): void {
   ipcMain.on('pty:kill', (_e, id: string) => killSession(id))
 
   // ---- in-UI chat (programmatic CLI mode) ----
-  ipcMain.handle('chat:start', (e, opts: ChatStartOptions) => startChat(e.sender, opts))
+  ipcMain.handle('chat:start', (e, opts: ChatStartOptions) => {
+    touchRecentProject(opts.cwd)
+    return startChat(e.sender, opts)
+  })
   ipcMain.on('chat:send', (_e, id: string, text: string) => sendChat(id, text))
   ipcMain.on('chat:stop', (_e, id: string) => stopChat(id))
 }

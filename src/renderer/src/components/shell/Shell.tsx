@@ -11,6 +11,7 @@ import {
   Check,
   ChevronDown,
   Folder,
+  FolderOpen,
   Gauge,
   History,
   PanelLeftClose,
@@ -41,7 +42,7 @@ import { ChatView } from '@/components/chat/ChatView'
 import { useT } from '@/i18n'
 import { ENABLE_CHAT_HISTORY_RENDERING } from '@/features'
 import type { SettingsTab } from '@/components/settings/settingsTabs'
-import type { AppConfig, CliId, SessionInfo } from '@shared/types'
+import type { AppConfig, CliId, RecentProjectInfo, SessionInfo } from '@shared/types'
 
 /** In-UI chat is implemented for every supported CLI. */
 const CHAT_CLIS = new Set<CliId>(['claude-code', 'codex', 'opencode', 'pi'])
@@ -83,23 +84,36 @@ interface DirectoryOption {
   key: string
   label: string
   cwd: string | null
+  /** False when the directory no longer exists on disk; undefined = unknown/n.a. */
+  exists?: boolean
+  /** True for user-picked recent projects with no session history yet — the
+   * only entries a remove actually makes disappear (history re-derives the rest). */
+  removable?: boolean
 }
 
 function DirectorySelect({
   options,
   value,
-  onChange
+  onChange,
+  onOpenFolder,
+  onRemove
 }: {
   options: DirectoryOption[]
   value: string
   onChange: (key: string) => void
+  onOpenFolder: () => void
+  onRemove: (path: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const t = useT()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const listboxRef = useRef<HTMLDivElement | null>(null)
-  const optionRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const optionRefs = useRef<(HTMLElement | null)[]>([])
+  // The listbox holds every directory option plus one trailing action item
+  // ("Open Folder…"), all in the same keyboard-highlight index space.
+  const itemCount = options.length + 1
   const selectedIndex = Math.max(
     0,
     options.findIndex((o) => o.key === value)
@@ -143,7 +157,7 @@ function DirectorySelect({
       switch (event.key) {
         case 'ArrowDown': {
           event.preventDefault()
-          const next = Math.min(options.length - 1, highlightedIndex + 1)
+          const next = Math.min(itemCount - 1, highlightedIndex + 1)
           setHighlightedIndex(next)
           requestAnimationFrame(() => scrollOptionIntoView(next))
           break
@@ -162,12 +176,17 @@ function DirectorySelect({
           break
         case 'End':
           event.preventDefault()
-          setHighlightedIndex(options.length - 1)
-          requestAnimationFrame(() => scrollOptionIntoView(options.length - 1))
+          setHighlightedIndex(itemCount - 1)
+          requestAnimationFrame(() => scrollOptionIntoView(itemCount - 1))
           break
         case 'Enter':
         case ' ': {
           event.preventDefault()
+          if (highlightedIndex === options.length) {
+            setOpen(false)
+            onOpenFolder()
+            break
+          }
           const option = options[highlightedIndex]
           if (option) {
             onChange(option.key)
@@ -187,7 +206,7 @@ function DirectorySelect({
       window.removeEventListener('pointerdown', onPointerDown, true)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [open, options, highlightedIndex, onChange, scrollOptionIntoView])
+  }, [open, options, itemCount, highlightedIndex, onChange, onOpenFolder, scrollOptionIntoView])
 
   return (
     <div ref={rootRef} className="relative">
@@ -208,7 +227,12 @@ function DirectorySelect({
         className="no-drag flex h-8 max-w-[240px] items-center gap-2 rounded-md border border-border-weak bg-surface/95 px-3 text-left text-[13px] text-text-strong transition-[background,border-color,box-shadow] hover:border-border-selected/70 hover:bg-surface"
       >
         <Folder size={14} className="shrink-0 text-text-weak" />
-        <span className="min-w-0 truncate">{selected?.label}</span>
+        <span className="min-w-0 truncate">{selected?.label ?? t('shell.chooseDirectory')}</span>
+        {selected?.exists === false && (
+          <span className="shrink-0 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] text-danger">
+            {t('shell.directoryMissing')}
+          </span>
+        )}
         <ChevronDown size={14} className="shrink-0 text-text-weak" />
       </button>
       {open && (
@@ -216,16 +240,15 @@ function DirectorySelect({
           ref={listboxRef}
           id="directory-select-listbox"
           role="listbox"
-          aria-activedescendant={`directory-option-${options[highlightedIndex]?.key}`}
+          aria-activedescendant={`directory-option-${options[highlightedIndex]?.key ?? '__open__'}`}
           className="absolute left-0 top-[calc(100%+6px)] z-50 max-h-72 w-[min(320px,calc(100vw-32px))] overflow-y-auto overscroll-contain rounded-lg border border-border-weak bg-stronger p-1 text-[13px] shadow-[0_8px_18px_rgba(0,0,0,0.08),0_1px_4px_rgba(0,0,0,0.05)]"
         >
           {options.map((option, index) => (
-            <button
+            <div
               key={option.key}
               ref={(el) => {
                 optionRefs.current[index] = el
               }}
-              type="button"
               role="option"
               id={`directory-option-${option.key}`}
               aria-selected={option.key === value}
@@ -236,7 +259,7 @@ function DirectorySelect({
                 setOpen(false)
                 triggerRef.current?.focus()
               }}
-              className={`flex h-8 w-full items-center gap-2 rounded-md px-2.5 text-left transition-colors ${
+              className={`flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left transition-colors ${
                 index === highlightedIndex
                   ? 'bg-selection text-text-strong'
                   : option.key === value
@@ -249,9 +272,59 @@ function DirectorySelect({
               ) : (
                 <span className="w-3 shrink-0" />
               )}
-              <span className="min-w-0 truncate">{option.label}</span>
-            </button>
+              <span className="min-w-0 flex-1 truncate">{option.label}</span>
+              {option.exists === false && (
+                <span className="shrink-0 rounded bg-danger/10 px-1.5 py-0.5 text-[10px] text-danger">
+                  {t('shell.directoryMissing')}
+                </span>
+              )}
+              {option.removable && (
+                <button
+                  type="button"
+                  title={t('shell.removeRecentProject')}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onRemove(option.key)
+                  }}
+                  className="grid size-5 shrink-0 place-items-center rounded text-text-weak transition-colors hover:bg-danger/10 hover:text-danger"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
           ))}
+          {options.length > 0 && <div className="h-1" />}
+          {/* Sticky footer: reachable without scrolling however long the
+              directory list gets. -bottom/-mx/-mb cancel the listbox's p-1 so
+              the footer sits flush against its edges. */}
+          <div
+            className={`sticky -bottom-1 -mx-1 -mb-1 bg-stronger p-1 ${
+              options.length > 0 ? 'border-t border-border-weak/80' : ''
+            }`}
+          >
+            <div
+              ref={(el) => {
+                optionRefs.current[options.length] = el
+              }}
+              role="option"
+              id="directory-option-__open__"
+              aria-selected={false}
+              onMouseEnter={() => setHighlightedIndex(options.length)}
+              onClick={() => {
+                setOpen(false)
+                onOpenFolder()
+              }}
+              className={`flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-2.5 text-left transition-colors ${
+                highlightedIndex === options.length
+                  ? 'bg-selection text-text-strong'
+                  : 'text-text-base hover:bg-selection hover:text-text-strong'
+              }`}
+            >
+              <span className="w-3 shrink-0" />
+              <FolderOpen size={13} className="shrink-0 text-text-weak" />
+              <span className="min-w-0 truncate">{t('shell.openFolder')}</span>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -454,6 +527,35 @@ export function Shell() {
   const showSessionSkeleton = showSessionLoading && !sessionsLoaded
 
   const [selectedDirectory, setSelectedDirectory] = useState<string>('')
+  // User-picked project folders (cross-CLI, persisted in the main process) and
+  // on-disk existence of history-derived directories — the renderer has no fs
+  // access, so both facts come over IPC.
+  const [recentProjects, setRecentProjects] = useState<RecentProjectInfo[]>([])
+  const [dirExists, setDirExists] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    void window.api.projects.list().then((list) => {
+      if (!cancelled) setRecentProjects(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const paths = Array.from(
+      new Set(visibleSessions.map((s) => s.cwd?.trim()).filter((p): p is string => !!p))
+    )
+    if (paths.length === 0) return
+    let cancelled = false
+    void window.api.projects.exists(paths).then((result) => {
+      if (!cancelled) setDirExists((prev) => ({ ...prev, ...result }))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [visibleSessions])
   // Whether the user has explicitly picked a directory for the current CLI —
   // as long as they haven't (or their pick has since disappeared), the
   // selection keeps following directoryOptions[0] (the most recent session's
@@ -470,6 +572,7 @@ export function Shell() {
   const directoryOptions = useMemo(() => {
     const options: DirectoryOption[] = []
     const seen = new Set<string>()
+    const recentExists = new Map(recentProjects.map((p) => [p.path, p.exists]))
     let hasUnassociated = false
     for (const s of visibleSessions) {
       const cwd = s.cwd?.trim()
@@ -479,13 +582,33 @@ export function Shell() {
       }
       if (seen.has(cwd)) continue
       seen.add(cwd)
-      options.push({ key: cwd, label: displayDirectoryName(cwd), cwd })
+      options.push({
+        key: cwd,
+        label: displayDirectoryName(cwd),
+        cwd,
+        exists: dirExists[cwd] ?? recentExists.get(cwd)
+      })
+    }
+    // User-picked projects with no session history for this CLI yet — appended
+    // after history so options[0] keeps meaning "most recent session's
+    // directory". Only these are removable: history-derived entries would just
+    // be re-derived on the next refresh.
+    for (const p of recentProjects) {
+      if (seen.has(p.path)) continue
+      seen.add(p.path)
+      options.push({
+        key: p.path,
+        label: displayDirectoryName(p.path),
+        cwd: p.path,
+        exists: p.exists,
+        removable: true
+      })
     }
     if (hasUnassociated) {
       options.push({ key: '__none__', label: t('shell.unassociatedDirectory'), cwd: null })
     }
     return options
-  }, [visibleSessions, t])
+  }, [visibleSessions, recentProjects, dirExists, t])
 
   useEffect(() => {
     const stillValid = directoryOptions.some((option) => option.key === selectedDirectory)
@@ -501,6 +624,27 @@ export function Shell() {
     directoryManuallyPickedRef.current = true
     setSelectedDirectory(key)
   }, [])
+
+  const openProjectFolder = useCallback(async () => {
+    const path = await window.api.projects.select()
+    if (!path) return
+    setRecentProjects(await window.api.projects.list())
+    selectDirectory(path)
+  }, [selectDirectory])
+
+  const removeProjectFolder = useCallback(async (path: string) => {
+    setRecentProjects(await window.api.projects.remove(path))
+  }, [])
+
+  const selectedDirectoryOption = directoryOptions.find((o) => o.key === selectedDirectory)
+  const selectedDirectoryMissing = selectedDirectoryOption?.exists === false
+  // The directory new sessions/terminals launch into: the selected entry when
+  // it's a real, still-existing path. undefined → per-CLI scratch workspace,
+  // never a silent launch into a directory that no longer exists.
+  const selectedProjectCwd =
+    selectedDirectoryOption?.cwd && !selectedDirectoryMissing
+      ? selectedDirectoryOption.cwd
+      : undefined
 
   const filteredSessions = useMemo(() => {
     if (!selectedDirectory) return []
@@ -616,13 +760,13 @@ export function Shell() {
     })
 
   const startNewSession = async () => {
-    // Resolve the cwd this session will actually launch into up front (the
-    // same default resolveLaunchCwd falls back to on the main-process side
-    // when none is picked) so the tab carries a real cwd from the start —
-    // needed for reconcileNewSessionTabs to later match it back to its own
-    // history entry by cwd. Leaving cwd undefined here would never match
-    // the concrete cwd the persisted session ends up reporting.
-    const cwd = await window.api.sessions.defaultWorkspace(activeCliId)
+    // Launch into the selected project directory when there is one; otherwise
+    // resolve the same per-CLI default resolveLaunchCwd falls back to on the
+    // main-process side. Either way the tab carries a concrete cwd from the
+    // start — needed for reconcileNewSessionTabs to later match it back to
+    // its own history entry by cwd. Leaving cwd undefined here would never
+    // match the concrete cwd the persisted session ends up reporting.
+    const cwd = selectedProjectCwd ?? (await window.api.sessions.defaultWorkspace(activeCliId))
     if (renderTranscript && chatSupported) startChat(cwd)
     else start('cli', cwd)
   }
@@ -670,7 +814,8 @@ export function Shell() {
     try {
       await window.api.terminal.openExternal({
         cliId: activeCliId,
-        mode: 'cli'
+        mode: 'cli',
+        cwd: selectedProjectCwd
       })
     } finally {
       setOpeningTerminal(false)
@@ -995,13 +1140,13 @@ export function Shell() {
                             {loadingSessions ? t('shell.loadingSessions') : t('shell.refresh')}
                           </button>
                         </div>
-                        {directoryOptions.length > 0 && (
-                          <DirectorySelect
-                            options={directoryOptions}
-                            value={selectedDirectory}
-                            onChange={selectDirectory}
-                          />
-                        )}
+                        <DirectorySelect
+                          options={directoryOptions}
+                          value={selectedDirectory}
+                          onChange={selectDirectory}
+                          onOpenFolder={() => void openProjectFolder()}
+                          onRemove={(path) => void removeProjectFolder(path)}
+                        />
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
                         {activeCliId === 'hermes' && (
@@ -1030,11 +1175,20 @@ export function Shell() {
                         <Button
                           variant="secondary"
                           onClick={openExternalTerminal}
-                          disabled={openingTerminal || !installed}
+                          disabled={openingTerminal || !installed || selectedDirectoryMissing}
+                          title={
+                            selectedDirectoryMissing ? t('shell.missingDirectoryHint') : undefined
+                          }
                         >
                           {t('shell.openTerminal')}
                         </Button>
-                        <Button onClick={() => void startNewSession()} disabled={!installed}>
+                        <Button
+                          onClick={() => void startNewSession()}
+                          disabled={!installed || selectedDirectoryMissing}
+                          title={
+                            selectedDirectoryMissing ? t('shell.missingDirectoryHint') : undefined
+                          }
+                        >
                           {installed ? t('shell.newSession') : t('shell.installFirst')}
                         </Button>
                       </div>

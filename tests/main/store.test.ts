@@ -238,4 +238,61 @@ describe('main store', () => {
       expect(saved.prefs.opencode.yolo).toBe(true)
     })
   })
+
+  it('records, touches, caps and removes recent projects', async () => {
+    await withIsolatedHome(async () => {
+      const store = await import('../../src/main/store')
+
+      store.addRecentProject('/work/alpha')
+      let cfg = store.addRecentProject('/work/beta')
+      expect(cfg.recentProjects.map((p) => p.path)).toEqual(['/work/beta', '/work/alpha'])
+
+      // Re-adding bumps to the top instead of duplicating.
+      cfg = store.addRecentProject('/work/alpha')
+      expect(cfg.recentProjects.map((p) => p.path)).toEqual(['/work/alpha', '/work/beta'])
+
+      // Touch is an upsert-free bump: unknown paths (scratch workspaces,
+      // history-only directories) must not create entries.
+      store.touchRecentProject('/tmp/agent-launcher-workspaces/opencode')
+      store.touchRecentProject(undefined)
+      expect(store.loadConfig().recentProjects).toHaveLength(2)
+
+      cfg = store.removeRecentProject('/work/beta')
+      expect(cfg.recentProjects.map((p) => p.path)).toEqual(['/work/alpha'])
+
+      for (let i = 0; i < 40; i += 1) cfg = store.addRecentProject(`/work/p${i}`)
+      expect(cfg.recentProjects).toHaveLength(30)
+
+      const { paths } = await import('../../src/main/sandbox')
+      const saved = readJson(paths.config)
+      expect(saved.recentProjects).toHaveLength(30)
+    })
+  })
+
+  it('normalizes malformed recentProjects entries from disk', async () => {
+    await withIsolatedHome(async () => {
+      const { paths } = await import('../../src/main/sandbox')
+      mkdirSync(dirname(paths.config), { recursive: true })
+      writeFileSync(
+        paths.config,
+        JSON.stringify({
+          recentProjects: [
+            { path: '/work/old', lastUsedAt: 1 },
+            { path: '/work/new', lastUsedAt: 2 },
+            { path: '', lastUsedAt: 3 },
+            { path: '/no-timestamp' },
+            'garbage',
+            null
+          ]
+        })
+      )
+
+      const { loadConfig } = await import('../../src/main/store')
+      const cfg = loadConfig()
+      expect(cfg.recentProjects).toEqual([
+        { path: '/work/new', lastUsedAt: 2 },
+        { path: '/work/old', lastUsedAt: 1 }
+      ])
+    })
+  })
 })
