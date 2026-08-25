@@ -18,7 +18,7 @@ import type {
   RecentProject
 } from '@shared/types'
 
-const SCHEMA = 5
+const SCHEMA = 6
 const CLI_IDS: readonly CliId[] = ALL_CLI_IDS
 // gemini-cli dropped free-tier Google-account sign-in on 2026-06-18 (Google
 // pushed individuals to Antigravity CLI instead), so gemini can no longer
@@ -154,14 +154,16 @@ function emptyConfig(): AppConfig {
   const clis = {} as Record<CliId, CliProfiles>
   const prefs = {} as Record<CliId, CliPrefs>
   const resources = {} as Record<CliId, CliResources>
+  const recentProjects = {} as Record<CliId, RecentProject[]>
   for (const id of CLI_IDS) {
     install[id] = { installed: false }
     clis[id] = { profiles: [], authMode: defaultAuthMode(id) }
     syncProfileState(id, clis[id])
     prefs[id] = {}
     resources[id] = { prices: [], mcpServers: [], skills: [] }
+    recentProjects[id] = []
   }
-  return { schema: SCHEMA, install, clis, prefs, resources, recentProjects: [] }
+  return { schema: SCHEMA, install, clis, prefs, resources, recentProjects }
 }
 
 let counter = 0
@@ -220,18 +222,22 @@ function normalize(raw: unknown): AppConfig {
     syncProfileState(id, base.clis[id])
   }
   const rawProjects = (raw as { recentProjects?: unknown }).recentProjects
-  if (Array.isArray(rawProjects)) {
-    base.recentProjects = rawProjects
-      .filter(
-        (p): p is RecentProject =>
-          !!p &&
-          typeof p === 'object' &&
-          typeof (p as RecentProject).path === 'string' &&
-          (p as RecentProject).path.trim() !== '' &&
-          typeof (p as RecentProject).lastUsedAt === 'number'
-      )
-      .map((p) => ({ path: p.path, lastUsedAt: p.lastUsedAt }))
-    sortRecentProjects(base.recentProjects)
+  if (rawProjects && typeof rawProjects === 'object' && !Array.isArray(rawProjects)) {
+    for (const id of CLI_IDS) {
+      const entries = (rawProjects as Partial<Record<CliId, unknown>>)[id]
+      if (!Array.isArray(entries)) continue
+      base.recentProjects[id] = entries
+        .filter(
+          (p): p is RecentProject =>
+            !!p &&
+            typeof p === 'object' &&
+            typeof (p as RecentProject).path === 'string' &&
+            (p as RecentProject).path.trim() !== '' &&
+            typeof (p as RecentProject).lastUsedAt === 'number'
+        )
+        .map((p) => ({ path: p.path, lastUsedAt: p.lastUsedAt }))
+      sortRecentProjects(base.recentProjects[id])
+    }
   }
   return base
 }
@@ -288,36 +294,38 @@ function nextUseTimestamp(list: RecentProject[]): number {
 }
 
 /** Upsert a directory the user explicitly picked; bumps it to the top. */
-export function addRecentProject(path: string): AppConfig {
+export function addRecentProject(id: CliId, path: string): AppConfig {
   const cfg = loadConfig()
   const trimmed = path.trim()
   if (!trimmed) return cfg
-  const now = nextUseTimestamp(cfg.recentProjects)
-  const existing = cfg.recentProjects.find((p) => p.path === trimmed)
+  const projects = cfg.recentProjects[id]
+  const now = nextUseTimestamp(projects)
+  const existing = projects.find((p) => p.path === trimmed)
   if (existing) existing.lastUsedAt = now
-  else cfg.recentProjects.push({ path: trimmed, lastUsedAt: now })
-  sortRecentProjects(cfg.recentProjects)
-  cfg.recentProjects = cfg.recentProjects.slice(0, MAX_RECENT_PROJECTS)
+  else projects.push({ path: trimmed, lastUsedAt: now })
+  sortRecentProjects(projects)
+  cfg.recentProjects[id] = projects.slice(0, MAX_RECENT_PROJECTS)
   return saveConfig(cfg)
 }
 
 /** Bump lastUsedAt only when the path is already a recorded project — a
  * launch into a scratch workspace or a history-only directory must not
  * create new entries. */
-export function touchRecentProject(path: string | undefined): void {
+export function touchRecentProject(id: CliId, path: string | undefined): void {
   const trimmed = path?.trim()
   if (!trimmed) return
   const cfg = loadConfig()
-  const existing = cfg.recentProjects.find((p) => p.path === trimmed)
+  const projects = cfg.recentProjects[id]
+  const existing = projects.find((p) => p.path === trimmed)
   if (!existing) return
-  existing.lastUsedAt = nextUseTimestamp(cfg.recentProjects)
-  sortRecentProjects(cfg.recentProjects)
+  existing.lastUsedAt = nextUseTimestamp(projects)
+  sortRecentProjects(projects)
   saveConfig(cfg)
 }
 
-export function removeRecentProject(path: string): AppConfig {
+export function removeRecentProject(id: CliId, path: string): AppConfig {
   const cfg = loadConfig()
-  cfg.recentProjects = cfg.recentProjects.filter((p) => p.path !== path)
+  cfg.recentProjects[id] = cfg.recentProjects[id].filter((p) => p.path !== path)
   return saveConfig(cfg)
 }
 

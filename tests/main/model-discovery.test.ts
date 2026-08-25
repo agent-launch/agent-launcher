@@ -27,6 +27,13 @@ describe('provider model discovery', () => {
     expect(
       modelDiscoveryUrl(
         'claude-code',
+        'https://router-link-beta.world3.ai/api',
+        'https://router-link-beta.world3.ai/api/v1/models'
+      )?.toString()
+    ).toBe('https://router-link-beta.world3.ai/api/v1/models')
+    expect(
+      modelDiscoveryUrl(
+        'claude-code',
         'https://api.moonshot.cn/anthropic',
         'https://api.moonshot.cn/v1/models'
       )?.toString()
@@ -105,12 +112,13 @@ describe('provider model discovery', () => {
     })
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      new URL('https://gemini.example/v1beta/models'),
+      new URL('https://gemini.example/v1beta/models?key=gemini-key'),
       expect.objectContaining({
-        headers: expect.objectContaining({ 'x-goog-api-key': 'gemini-key' })
+        headers: expect.objectContaining({ Accept: 'application/json' })
       })
     )
     expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty('Authorization')
+    expect(fetchMock.mock.calls[1][1].headers).not.toHaveProperty('x-goog-api-key')
   })
 
   it('returns discovered models and structured HTTP errors', async () => {

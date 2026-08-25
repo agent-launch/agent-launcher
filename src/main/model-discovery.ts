@@ -55,7 +55,7 @@ function discoveryHeaders(cliId: CliId, apiKey: string): Record<string, string> 
     headers['x-api-key'] = apiKey
     headers['anthropic-version'] = '2023-06-01'
   } else if (cliId === 'gemini') {
-    headers['x-goog-api-key'] = apiKey
+    // Auth is carried by the `?key=` query parameter set in discoverModels.
   } else {
     headers.Authorization = `Bearer ${apiKey}`
   }
@@ -118,6 +118,11 @@ export async function discoverModels(
 
   const url = modelDiscoveryUrl(cliId, baseUrl, request.modelsUrl)
   if (!url) return result({ ok: false, code: 'invalid_url' })
+
+  // Gemini's native models endpoint expects the API key as a query parameter.
+  if (cliId === 'gemini') {
+    url.searchParams.set('key', apiKey)
+  }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)

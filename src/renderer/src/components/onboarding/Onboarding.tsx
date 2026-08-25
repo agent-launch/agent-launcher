@@ -6,7 +6,7 @@ import {
   type RefObject,
   type SetStateAction
 } from 'react'
-import { Check, ChevronDown, ChevronRight, ExternalLink, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { useAppStore } from '@/store/app'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
@@ -22,6 +22,7 @@ import type {
   AppConfig,
   CliId,
   CliLinkProgress,
+  CliUpdateStatus,
   DetectResult,
   SystemCliCandidate,
   SystemCliDetection
@@ -473,9 +474,13 @@ function LinkStep() {
   const t = useT()
   const [ui, setUi] = useState<Record<string, CliInstallUi>>({})
   const [systemClis, setSystemClis] = useState<Partial<Record<CliId, SystemCliDetection>>>({})
+  const [versionStatuses, setVersionStatuses] = useState<Partial<Record<CliId, CliUpdateStatus>>>(
+    {}
+  )
   // Until the first detection resolves, nothing is known about any CLI. Without
   // this the rows would claim every CLI is missing for a moment.
   const [detecting, setDetecting] = useState(true)
+  const [checkingVersions, setCheckingVersions] = useState(true)
   // A manual re-detect keeps the rows it already has and only spins the button.
   const [refreshing, setRefreshing] = useState(false)
   const autoLinkStarted = useRef(false)
@@ -484,6 +489,32 @@ function LinkStep() {
     const result = await window.api.detect()
     setSystemClis(result.systemClis ?? {})
     return result
+  }
+
+  const refreshVersions = async () => {
+    setCheckingVersions(true)
+    try {
+      const statuses = await window.api.cli.status()
+      setVersionStatuses(
+        Object.fromEntries(statuses.map((status) => [status.cliId, status])) as Record<
+          CliId,
+          CliUpdateStatus
+        >
+      )
+    } catch {
+      setVersionStatuses({})
+    } finally {
+      setCheckingVersions(false)
+    }
+  }
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    try {
+      await Promise.all([refreshDetection(), refreshVersions()])
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   // Seed from persisted install state, then automatically link any system CLIs
@@ -535,18 +566,23 @@ function LinkStep() {
         })
         setDetecting(false)
 
-        if (autoLinkStarted.current) return
-        autoLinkStarted.current = true
-        for (const id of autoLinks) {
-          if (cancelled) return
-          await linkOne(id, result.systemClis?.[id]?.selectedPath)
+        if (!autoLinkStarted.current) {
+          autoLinkStarted.current = true
+          for (const id of autoLinks) {
+            if (cancelled) return
+            await linkOne(id, result.systemClis?.[id]?.selectedPath, false)
+          }
         }
+        if (!cancelled) await refreshVersions()
       }
     )
     // A failed detection must still clear the loading state, or every row stays
     // stuck on its placeholder.
     detection.catch(() => {
-      if (!cancelled) setDetecting(false)
+      if (!cancelled) {
+        setDetecting(false)
+        void refreshVersions()
+      }
     })
     return () => {
       cancelled = true
@@ -568,7 +604,7 @@ function LinkStep() {
     })
   }, [])
 
-  const linkOne = async (id: CliId, binPath?: string) => {
+  const linkOne = async (id: CliId, binPath?: string, refreshStatus = true) => {
     setUi((p) => ({ ...p, [id]: { ...p[id], busy: true, error: undefined } }))
     const r = await window.api.cli.link(id, { binPath })
     setUi((p) => ({
@@ -585,6 +621,7 @@ function LinkStep() {
         : { busy: false, phase: 'error', error: r.error }
     }))
     await refreshDetection()
+    if (refreshStatus) await refreshVersions()
   }
 
   /** Only reachable for a CLI that was not detected — the main process links
@@ -616,7 +653,7 @@ function LinkStep() {
         }
       }))
     } finally {
-      await refreshDetection()
+      await Promise.all([refreshDetection(), refreshVersions()])
     }
   }
 
@@ -629,20 +666,16 @@ function LinkStep() {
         <Button
           className="shrink-0"
           size="sm"
-          disabled={detecting || refreshing}
-          onClick={() => {
-            setRefreshing(true)
-            refreshDetection().finally(() => setRefreshing(false))
-          }}
+          disabled={detecting || checkingVersions || refreshing}
+          onClick={() => void refreshAll()}
         >
-          {detecting || refreshing ? (
-            <>
-              <Loader2 size={13} className="animate-spin" />
-              {t('onboarding.detecting')}
-            </>
-          ) : (
-            t('onboarding.refreshDetection')
-          )}
+          <RefreshCw
+            size={13}
+            className={detecting || checkingVersions || refreshing ? 'animate-spin' : ''}
+          />
+          {detecting || checkingVersions || refreshing
+            ? t('settings.cliStatus.checking')
+            : t('settings.cliStatus.check')}
         </Button>
       </div>
       <div className="space-y-2">
@@ -650,6 +683,10 @@ function LinkStep() {
           const s = ui[c.id] ?? {}
           const id = c.id as CliId
           const detected = systemClis[id]
+          const versionStatus = versionStatuses[id]
+          const selectedCandidate =
+            detected?.candidates.find((candidate) => candidate.path === detected.selectedPath) ??
+            detected?.candidates[0]
           const hasMacSecurityRisk = !!detected?.macosSecurityRisk
           const isLinked = s.phase === 'done' || detected?.status === 'linked'
           const canLink =
@@ -659,6 +696,17 @@ function LinkStep() {
           const canInstall = !hasMacSecurityRisk && !isLinked && !!detected && !detected.installed
           // Nothing is known about this row yet — show that instead of guessing.
           const rowDetecting = detecting && !s.busy && s.phase !== 'done'
+          const currentVersion =
+            versionStatus?.currentVersion ?? s.version ?? selectedCandidate?.version ?? '-'
+          const latestVersion =
+            versionStatus?.latestVersion ??
+            (versionStatus?.error ? t('settings.cliStatus.latestFailed') : '-')
+          const binPath = versionStatus?.binPath ?? s.binPath ?? detected?.selectedPath
+          const sourceLabel = versionStatus?.legacyManaged
+            ? t('settings.cliStatus.sourceLegacy')
+            : versionStatus?.source === 'system' || detected?.installed
+              ? t('settings.cliStatus.sourceSystem')
+              : undefined
           const macSecurityWarning = hasMacSecurityRisk
             ? t(
                 id === 'codex'
@@ -669,90 +717,104 @@ function LinkStep() {
           return (
             <div
               key={c.id}
-              className="flex flex-wrap items-center gap-3 rounded-xl border border-border-weak bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)]"
+              className="grid gap-3 rounded-xl border border-border-weak bg-surface/92 px-4 py-3 shadow-[var(--shadow-sm)] md:grid-cols-[minmax(150px,1fr)_minmax(130px,0.8fr)_auto] md:items-center"
             >
-              <span
-                className={`grid size-9 place-items-center rounded-md ${
-                  s.phase === 'done'
-                    ? 'bg-success/15 text-success'
-                    : 'bg-surface-weak text-text-strong'
-                }`}
-              >
-                <CliIcon cliId={c.id as CliId} size={18} />
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="text-[14px] text-text-strong">{c.name}</div>
-                <div
-                  className={`${hasMacSecurityRisk ? 'whitespace-normal break-words leading-relaxed' : 'truncate'} text-[12px] text-text-weak`}
-                  title={macSecurityWarning}
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className={`grid size-9 shrink-0 place-items-center rounded-md ${
+                    isLinked ? 'bg-success/15 text-success' : 'bg-surface-weak text-text-strong'
+                  }`}
                 >
-                  {s.error ? (
-                    <span style={{ color: 'var(--danger)' }}>{s.error}</span>
-                  ) : hasMacSecurityRisk && !s.busy ? (
-                    <span style={{ color: 'var(--warning)' }}>{macSecurityWarning}</span>
-                  ) : s.phase === 'done' ? (
-                    <span style={{ color: 'var(--success)' }}>
-                      {t(s.legacyManaged ? 'onboarding.installed' : 'onboarding.systemLinked', {
-                        version: s.version && s.version !== 'installed' ? ` ${s.version}` : ''
-                      })}
-                    </span>
-                  ) : s.busy ? (
-                    (s.message ?? t('onboarding.linking'))
-                  ) : rowDetecting ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <Loader2 size={12} className="animate-spin" />
-                      {t('onboarding.detecting')}
-                    </span>
-                  ) : detected?.installed ? (
-                    t('onboarding.systemAvailable')
-                  ) : (
-                    t('onboarding.systemMissing')
-                  )}
-                </div>
-                {(s.binPath || detected?.selectedPath) && (
-                  <div className="mt-0.5 truncate text-[11px] text-text-weak">
-                    {s.binPath ?? detected?.selectedPath}
-                  </div>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                {rowDetecting ? (
-                  // Placeholder so the row keeps its height while detecting.
-                  <span className="h-7 w-24 animate-pulse rounded-md bg-surface-weak" />
-                ) : (
-                  <>
-                    {s.phase === 'done' ? (
-                      <Button size="sm" disabled>
-                        <Check size={13} />
-                        {t('onboarding.installedBtn')}
-                      </Button>
-                    ) : canInstall ? (
-                      <Button size="sm" disabled={s.busy} onClick={() => installOne(id)}>
-                        {s.busy ? t('onboarding.installBusy') : t('onboarding.installBtn')}
-                      </Button>
-                    ) : canLink ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={s.busy}
-                        onClick={() => linkOne(id, detected?.selectedPath)}
-                      >
-                        {s.busy ? t('onboarding.linkingBusy') : t('onboarding.useSystemBtn')}
-                      </Button>
+                  <CliIcon cliId={id} size={18} />
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-[14px] text-text-strong">{c.name}</div>
+                  <div className="mt-0.5 flex min-h-5 flex-wrap items-center gap-1.5 text-[11px] text-text-weak">
+                    {s.error ? (
+                      <span className="text-danger">{s.error}</span>
+                    ) : hasMacSecurityRisk && !s.busy ? (
+                      <span className="line-clamp-2 text-warning" title={macSecurityWarning}>
+                        {macSecurityWarning}
+                      </span>
+                    ) : s.busy ? (
+                      <span>{s.message ?? t('onboarding.linking')}</span>
+                    ) : rowDetecting ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Loader2 size={12} className="animate-spin" />
+                        {t('onboarding.detecting')}
+                      </span>
                     ) : (
-                      <ButtonLink
-                        size="sm"
-                        variant="secondary"
-                        href={c.installDocsUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <ExternalLink size={13} />
-                        {t('onboarding.officialInstallDocs')}
-                      </ButtonLink>
+                      <>
+                        <span
+                          className={`rounded-full px-2 py-0.5 ${
+                            versionStatus?.stale || versionStatus?.updateAvailable
+                              ? 'bg-warning/15 text-warning'
+                              : isLinked
+                                ? 'bg-success/15 text-success'
+                                : 'bg-surface-weak text-text-weak'
+                          }`}
+                        >
+                          {versionStatus?.stale
+                            ? t('settings.cliStatus.stale')
+                            : versionStatus?.updateAvailable
+                              ? t('settings.cliStatus.updateAvailable')
+                              : isLinked
+                                ? t('settings.cliStatus.installed')
+                                : detected?.installed
+                                  ? t('onboarding.systemAvailable')
+                                  : t('settings.cliStatus.notInstalled')}
+                        </span>
+                        {sourceLabel ? <span>{sourceLabel}</span> : null}
+                      </>
                     )}
-                  </>
-                )}
+                  </div>
+                </div>
+              </div>
+              <div className="min-w-0 text-[11px]">
+                <div className="grid grid-cols-[42px_1fr] gap-x-2 gap-y-0.5">
+                  <span className="text-text-weak">{t('settings.cliStatus.currentVersion')}</span>
+                  <span className="truncate font-mono text-text-strong" title={currentVersion}>
+                    {currentVersion}
+                  </span>
+                  <span className="text-text-weak">{t('settings.cliStatus.latestVersion')}</span>
+                  <span className="truncate font-mono text-text-strong" title={latestVersion}>
+                    {checkingVersions && !versionStatus ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : (
+                      latestVersion
+                    )}
+                  </span>
+                </div>
+                <div className="mt-1 truncate text-text-weak" title={binPath}>
+                  {binPath ?? t('settings.cliStatus.noPath')}
+                </div>
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                {!rowDetecting && canInstall ? (
+                  <Button size="sm" disabled={s.busy} onClick={() => void installOne(id)}>
+                    {s.busy ? t('onboarding.installBusy') : t('onboarding.installBtn')}
+                  </Button>
+                ) : null}
+                {!rowDetecting && canLink ? (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={s.busy}
+                    onClick={() => void linkOne(id, detected?.selectedPath)}
+                  >
+                    {s.busy ? t('onboarding.linkingBusy') : t('onboarding.useSystemBtn')}
+                  </Button>
+                ) : null}
+                <ButtonLink
+                  size="sm"
+                  variant="secondary"
+                  href={c.installDocsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink size={13} />
+                  {t('onboarding.officialInstallDocs')}
+                </ButtonLink>
               </div>
             </div>
           )

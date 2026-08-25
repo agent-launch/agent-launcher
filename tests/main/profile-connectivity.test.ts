@@ -100,6 +100,50 @@ describe('profile connectivity test', () => {
     )
   })
 
+  it('sends a native Gemini generateContent request', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(new Response('{"candidates":[]}', { status: 200 })))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      testProfileConnection('gemini', {
+        baseUrl: 'https://gemini.example',
+        apiKey: 'gemini-key',
+        model: 'gemini-test'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL('https://gemini.example/v1beta/models/gemini-test:generateContent'),
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          'x-goog-api-key': 'gemini-key',
+          'Content-Type': 'application/json'
+        }),
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Reply with OK.' }] }],
+          generationConfig: { maxOutputTokens: 1 }
+        }),
+        redirect: 'manual'
+      })
+    )
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Authorization')
+
+    // Models returned by discovery already carry the `models/` prefix.
+    await expect(
+      testProfileConnection('gemini', {
+        baseUrl: 'https://gemini.example',
+        apiKey: 'gemini-key',
+        model: 'models/gemini-pro'
+      })
+    ).resolves.toEqual({ kind: 'generation', ok: true, code: 'ok', status: 200 })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      new URL('https://gemini.example/v1beta/models/gemini-pro:generateContent'),
+      expect.anything()
+    )
+  })
+
   it.each([
     [401, 'unauthorized'],
     [402, 'payment_required'],

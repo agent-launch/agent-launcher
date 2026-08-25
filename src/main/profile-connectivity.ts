@@ -27,11 +27,20 @@ function result(value: Omit<ProfileConnectionResult, 'kind'>): ProfileConnection
   return { kind: 'generation', ...value }
 }
 
-function generationUrl(cliId: CliId, baseUrl: string): URL | null {
+function generationUrl(cliId: CliId, baseUrl: string, model: string): URL | null {
   try {
     const url = new URL(baseUrl)
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
     const basePath = url.pathname.replace(/\/+$/, '')
+    if (cliId === 'gemini') {
+      // Gemini native generateContent endpoint. The model id may already carry a
+      // `models/` prefix from discovery; normalize it away.
+      const modelName = model.startsWith('models/') ? model : `models/${model}`
+      url.pathname = `${basePath}/v1beta/${modelName}:generateContent`
+      url.search = ''
+      url.hash = ''
+      return url
+    }
     const suffix =
       cliId === 'claude-code'
         ? basePath.endsWith('/v1')
@@ -67,6 +76,12 @@ function requestBody(cliId: CliId, rawModel: string): Record<string, unknown> {
       stream: false
     }
   }
+  if (cliId === 'gemini') {
+    return {
+      contents: [{ role: 'user', parts: [{ text: TEST_PROMPT }] }],
+      generationConfig: { maxOutputTokens: 1 }
+    }
+  }
   return {
     model,
     messages: [{ role: 'user', content: TEST_PROMPT }],
@@ -82,6 +97,7 @@ async function hasExpectedResponse(response: Response, cliId: CliId): Promise<bo
     const record = payload as Record<string, unknown>
     if (cliId === 'claude-code') return Array.isArray(record.content)
     if (cliId === 'codex') return Array.isArray(record.output)
+    if (cliId === 'gemini') return Array.isArray(record.candidates)
     return Array.isArray(record.choices)
   } catch {
     return false
@@ -100,7 +116,7 @@ export async function testProfileConnection(
   )?.trim()
   if (!baseUrl || !apiKey || !model) return result({ ok: false, code: 'invalid_config' })
 
-  const url = generationUrl(cliId, baseUrl)
+  const url = generationUrl(cliId, baseUrl, model)
   if (!url) return result({ ok: false, code: 'invalid_url' })
 
   const controller = new AbortController()
@@ -115,6 +131,10 @@ export async function testProfileConnection(
     headers['anthropic-version'] = '2023-06-01'
     headers['anthropic-beta'] = CLAUDE_CODE_BETA
     headers['User-Agent'] = CLAUDE_CODE_UA
+  } else if (cliId === 'gemini') {
+    // Gemini uses an API-key header, not a Bearer token.
+    delete headers.Authorization
+    headers['x-goog-api-key'] = apiKey
   }
 
   try {

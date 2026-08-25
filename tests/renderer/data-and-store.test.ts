@@ -29,10 +29,16 @@ describe('renderer static data and persisted app store', () => {
     expect(Object.keys(PROVIDERS_BY_CLI)).toEqual(ids)
     expect(Object.keys(YOLO_SUPPORT)).toEqual(ids)
     expect(Object.keys(messages.zh).sort()).toEqual(Object.keys(messages.en).sort())
-    const providerIds = Object.values(PROVIDERS_BY_CLI).flatMap((providers) =>
-      providers.map((provider) => provider.id)
-    )
-    expect(providerIds).not.toContain('routerlink')
+    expect(PROVIDERS_BY_CLI['claude-code'][0]).toMatchObject({
+      id: 'routerlink',
+      baseUrl: 'https://router-link-beta.world3.ai/api',
+      modelsUrl: 'https://router-link-beta.world3.ai/api/v1/models'
+    })
+    expect(PROVIDERS_BY_CLI.codex[0]).toMatchObject({
+      id: 'routerlink',
+      baseUrl: 'https://router-link-beta.world3.ai/api/v1',
+      modelsUrl: 'https://router-link-beta.world3.ai/api/v1/models'
+    })
     const claudeProviderIds = PROVIDERS_BY_CLI['claude-code'].map((provider) => provider.id)
     expect(claudeProviderIds).not.toContain('shengsuanyun')
     expect(claudeProviderIds).not.toContain('volcengine')

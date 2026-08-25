@@ -9,7 +9,7 @@ describe('main store', () => {
       const { loadConfig } = await import('../../src/main/store')
       const cfg = loadConfig()
 
-      expect(cfg.schema).toBe(5)
+      expect(cfg.schema).toBe(6)
       expect(Object.keys(cfg.install)).toEqual([
         'claude-code',
         'codex',
@@ -243,29 +243,33 @@ describe('main store', () => {
     await withIsolatedHome(async () => {
       const store = await import('../../src/main/store')
 
-      store.addRecentProject('/work/alpha')
-      let cfg = store.addRecentProject('/work/beta')
-      expect(cfg.recentProjects.map((p) => p.path)).toEqual(['/work/beta', '/work/alpha'])
+      store.addRecentProject('opencode', '/work/alpha')
+      let cfg = store.addRecentProject('opencode', '/work/beta')
+      expect(cfg.recentProjects.opencode.map((p) => p.path)).toEqual(['/work/beta', '/work/alpha'])
+      expect(cfg.recentProjects.codex).toEqual([])
 
       // Re-adding bumps to the top instead of duplicating.
-      cfg = store.addRecentProject('/work/alpha')
-      expect(cfg.recentProjects.map((p) => p.path)).toEqual(['/work/alpha', '/work/beta'])
+      cfg = store.addRecentProject('opencode', '/work/alpha')
+      expect(cfg.recentProjects.opencode.map((p) => p.path)).toEqual(['/work/alpha', '/work/beta'])
 
       // Touch is an upsert-free bump: unknown paths (scratch workspaces,
       // history-only directories) must not create entries.
-      store.touchRecentProject('/tmp/agent-launcher-workspaces/opencode')
-      store.touchRecentProject(undefined)
-      expect(store.loadConfig().recentProjects).toHaveLength(2)
+      store.touchRecentProject('opencode', '/tmp/agent-launcher-workspaces/opencode')
+      store.touchRecentProject('opencode', undefined)
+      expect(store.loadConfig().recentProjects.opencode).toHaveLength(2)
 
-      cfg = store.removeRecentProject('/work/beta')
-      expect(cfg.recentProjects.map((p) => p.path)).toEqual(['/work/alpha'])
+      cfg = store.removeRecentProject('opencode', '/work/beta')
+      expect(cfg.recentProjects.opencode.map((p) => p.path)).toEqual(['/work/alpha'])
 
-      for (let i = 0; i < 40; i += 1) cfg = store.addRecentProject(`/work/p${i}`)
-      expect(cfg.recentProjects).toHaveLength(30)
+      for (let i = 0; i < 40; i += 1) {
+        cfg = store.addRecentProject('opencode', `/work/p${i}`)
+      }
+      expect(cfg.recentProjects.opencode).toHaveLength(30)
 
       const { paths } = await import('../../src/main/sandbox')
       const saved = readJson(paths.config)
-      expect(saved.recentProjects).toHaveLength(30)
+      expect(saved.recentProjects.opencode).toHaveLength(30)
+      expect(saved.recentProjects.codex).toEqual([])
     })
   })
 
@@ -276,23 +280,44 @@ describe('main store', () => {
       writeFileSync(
         paths.config,
         JSON.stringify({
-          recentProjects: [
-            { path: '/work/old', lastUsedAt: 1 },
-            { path: '/work/new', lastUsedAt: 2 },
-            { path: '', lastUsedAt: 3 },
-            { path: '/no-timestamp' },
-            'garbage',
-            null
-          ]
+          recentProjects: {
+            opencode: [
+              { path: '/work/old', lastUsedAt: 1 },
+              { path: '/work/new', lastUsedAt: 2 },
+              { path: '', lastUsedAt: 3 },
+              { path: '/no-timestamp' },
+              'garbage',
+              null
+            ],
+            codex: [{ path: '/work/codex', lastUsedAt: 4 }]
+          }
         })
       )
 
       const { loadConfig } = await import('../../src/main/store')
       const cfg = loadConfig()
-      expect(cfg.recentProjects).toEqual([
+      expect(cfg.recentProjects.opencode).toEqual([
         { path: '/work/new', lastUsedAt: 2 },
         { path: '/work/old', lastUsedAt: 1 }
       ])
+      expect(cfg.recentProjects.codex).toEqual([{ path: '/work/codex', lastUsedAt: 4 }])
+    })
+  })
+
+  it('does not copy legacy global recent projects into every CLI', async () => {
+    await withIsolatedHome(async () => {
+      const { paths } = await import('../../src/main/sandbox')
+      mkdirSync(dirname(paths.config), { recursive: true })
+      writeFileSync(
+        paths.config,
+        JSON.stringify({ recentProjects: [{ path: '/work/shared', lastUsedAt: 1 }] })
+      )
+
+      const { loadConfig } = await import('../../src/main/store')
+      const cfg = loadConfig()
+      expect(Object.values(cfg.recentProjects).every((projects) => projects.length === 0)).toBe(
+        true
+      )
     })
   })
 })

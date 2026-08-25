@@ -259,7 +259,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: link ----
     'onboarding.linkTitle': '关联已安装的 CLI',
     'onboarding.linkDesc':
-      'Agent Launcher 会关联系统中已有的 CLI，绝不重装或更新它们；只有未检测到的 CLI 才提供一键安装。',
+      'Agent Launcher 会关联系统中已有的 CLI，并检查当前版本与最新版本；只有未检测到的 CLI 才提供一键安装。',
     'onboarding.installed': '已安装{version}',
     'onboarding.installedBtn': '已安装',
     'onboarding.systemLinked': '使用系统版本{version}',
@@ -268,7 +268,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.linkingBusy': '关联中…',
     'onboarding.useSystemBtn': '使用系统版本',
     'onboarding.linkManageDesc':
-      '已检测到的 CLI 保持原样，不会被重装或更新；缺失的 CLI 可以一键安装，也可以按官方文档自行安装后重新检测。',
+      '这里只检测各 CLI 的当前版本和最新版本，不会重装或更新已有 CLI；缺失或需要升级时请查看各项目官方文档。',
     'onboarding.refreshDetection': '重新检测',
     'onboarding.systemAvailable': '检测到系统版本，可直接使用',
     'onboarding.systemMissing': '未检测到系统版本，可一键安装',
@@ -362,6 +362,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.modelRequiredToast': '请填写 Model（模型名称）',
     'config.modelDiscovery.fetch': '获取模型列表',
     'config.modelDiscovery.fetching': '正在获取…',
+    'config.modelDiscovery.open': '展开模型列表',
     'config.modelDiscovery.title': '选择模型',
     'config.modelDiscovery.count': '服务返回了 {count} 个模型，选择一个回填到默认模型。',
     'config.modelDiscovery.search': '搜索模型名称或 ID',
@@ -686,7 +687,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     // ---- onboarding: link ----
     'onboarding.linkTitle': 'Link installed CLIs',
     'onboarding.linkDesc':
-      'Agent Launcher links the CLIs already on your system and never reinstalls or updates them. One-click install is offered only for CLIs it cannot find.',
+      'Agent Launcher links installed CLIs and checks their current and latest versions. One-click install is offered only for CLIs it cannot find.',
     'onboarding.installed': 'Installed{version}',
     'onboarding.installedBtn': 'Installed',
     'onboarding.systemLinked': 'Using system CLI{version}',
@@ -695,7 +696,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.linkingBusy': 'Linking…',
     'onboarding.useSystemBtn': 'Use system CLI',
     'onboarding.linkManageDesc':
-      'Detected CLIs are left exactly as they are — never reinstalled or updated. Missing CLIs can be installed in one click, or install them yourself from the official docs and detect again.',
+      'This step only compares current and latest CLI versions; it never reinstalls or updates an existing CLI. Use the official documentation when a CLI is missing or needs an upgrade.',
     'onboarding.refreshDetection': 'Detect again',
     'onboarding.systemAvailable': 'System CLI detected and ready to link',
     'onboarding.systemMissing': 'System CLI not detected; it can be installed for you',
@@ -791,6 +792,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'config.modelRequiredToast': 'Please enter a model name',
     'config.modelDiscovery.fetch': 'Fetch model list',
     'config.modelDiscovery.fetching': 'Fetching…',
+    'config.modelDiscovery.open': 'Open model list',
     'config.modelDiscovery.title': 'Select a model',
     'config.modelDiscovery.count':
       'The service returned {count} models. Select one to use as the default.',

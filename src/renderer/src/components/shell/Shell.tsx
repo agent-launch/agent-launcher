@@ -527,7 +527,7 @@ export function Shell() {
   const showSessionSkeleton = showSessionLoading && !sessionsLoaded
 
   const [selectedDirectory, setSelectedDirectory] = useState<string>('')
-  // User-picked project folders (cross-CLI, persisted in the main process) and
+  // User-picked project folders (per CLI, persisted in the main process) and
   // on-disk existence of history-derived directories — the renderer has no fs
   // access, so both facts come over IPC.
   const [recentProjects, setRecentProjects] = useState<RecentProjectInfo[]>([])
@@ -535,13 +535,14 @@ export function Shell() {
 
   useEffect(() => {
     let cancelled = false
-    void window.api.projects.list().then((list) => {
+    setRecentProjects([])
+    void window.api.projects.list(activeCliId).then((list) => {
       if (!cancelled) setRecentProjects(list)
     })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [activeCliId])
 
   useEffect(() => {
     const paths = Array.from(
@@ -626,15 +627,18 @@ export function Shell() {
   }, [])
 
   const openProjectFolder = useCallback(async () => {
-    const path = await window.api.projects.select()
+    const path = await window.api.projects.select(activeCliId)
     if (!path) return
-    setRecentProjects(await window.api.projects.list())
+    setRecentProjects(await window.api.projects.list(activeCliId))
     selectDirectory(path)
-  }, [selectDirectory])
+  }, [activeCliId, selectDirectory])
 
-  const removeProjectFolder = useCallback(async (path: string) => {
-    setRecentProjects(await window.api.projects.remove(path))
-  }, [])
+  const removeProjectFolder = useCallback(
+    async (path: string) => {
+      setRecentProjects(await window.api.projects.remove(activeCliId, path))
+    },
+    [activeCliId]
+  )
 
   const selectedDirectoryOption = directoryOptions.find((o) => o.key === selectedDirectory)
   const selectedDirectoryMissing = selectedDirectoryOption?.exists === false

@@ -94,13 +94,22 @@ function npmMeta(spec: string): Promise<NpmDist> {
   return fetchJson<NpmDist>(`https://registry.npmjs.org/${spec}`)
 }
 
-/** Hermes Agent releases are published on PyPI rather than npm. */
+/** Hermes Agent releases are published on GitHub; PyPI often lags behind. */
 async function hermesLatestVersion(): Promise<string> {
+  try {
+    const release = await fetchJson<{ tag_name?: string; name?: string }>(
+      'https://api.github.com/repos/NousResearch/hermes-agent/releases/latest'
+    )
+    const version = parseVersion(release.name ?? release.tag_name ?? '')
+    if (versionParts(version)) return version
+  } catch {
+    // Fall back to PyPI if GitHub is unreachable or returns no parseable version.
+  }
   const meta = await fetchJson<{ info?: { version?: string } }>(
     'https://pypi.org/pypi/hermes-agent/json'
   )
   const version = meta.info?.version
-  if (!version) throw new Error('PyPI returned no version for hermes-agent')
+  if (!version) throw new Error('No version found for hermes-agent on GitHub or PyPI')
   return version
 }
 

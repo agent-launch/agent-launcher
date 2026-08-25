@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs'
 import { BrowserWindow, dialog, type WebContents } from 'electron'
-import type { RecentProjectInfo } from '@shared/types'
+import type { CliId, RecentProjectInfo } from '@shared/types'
 import { addRecentProject, loadConfig, removeRecentProject } from './store'
 
 /** Renderer-supplied path lists are capped so a buggy caller can't turn one
@@ -15,13 +15,13 @@ function directoryExists(path: string): boolean {
   }
 }
 
-export function listRecentProjects(): RecentProjectInfo[] {
-  return loadConfig().recentProjects.map((p) => ({ ...p, exists: directoryExists(p.path) }))
+export function listRecentProjects(id: CliId): RecentProjectInfo[] {
+  return loadConfig().recentProjects[id].map((p) => ({ ...p, exists: directoryExists(p.path) }))
 }
 
-export function removeRecentProjectAndList(path: string): RecentProjectInfo[] {
-  removeRecentProject(path)
-  return listRecentProjects()
+export function removeRecentProjectAndList(id: CliId, path: string): RecentProjectInfo[] {
+  removeRecentProject(id, path)
+  return listRecentProjects(id)
 }
 
 /** Existence check for arbitrary directories the renderer only knows from
@@ -37,7 +37,10 @@ export function checkDirectoriesExist(paths: string[]): Record<string, boolean> 
 }
 
 /** Native folder picker; a confirmed pick is recorded as a recent project. */
-export async function selectProjectDirectory(sender: WebContents): Promise<string | null> {
+export async function selectProjectDirectory(
+  sender: WebContents,
+  id: CliId
+): Promise<string | null> {
   const win = BrowserWindow.fromWebContents(sender)
   const options = {
     properties: ['openDirectory', 'createDirectory'] as Array<'openDirectory' | 'createDirectory'>
@@ -47,6 +50,6 @@ export async function selectProjectDirectory(sender: WebContents): Promise<strin
     : await dialog.showOpenDialog(options)
   const path = result.canceled ? undefined : result.filePaths[0]
   if (!path) return null
-  addRecentProject(path)
+  addRecentProject(id, path)
   return path
 }

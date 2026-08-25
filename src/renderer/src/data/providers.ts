@@ -26,6 +26,15 @@ const CUSTOM: Provider = {
 // Claude uses ANTHROPIC_BASE_URL (often /anthropic paths).
 const CLAUDE: Provider[] = [
   {
+    id: 'routerlink',
+    name: 'RouterLink',
+    category: 'aggregator',
+    baseUrl: 'https://router-link-beta.world3.ai/api',
+    modelsUrl: 'https://router-link-beta.world3.ai/api/v1/models',
+    websiteUrl: 'https://router-link-beta.world3.ai',
+    note: 'Anthropic endpoint'
+  },
+  {
     id: 'official',
     name: 'Claude Official',
     category: 'official',
@@ -153,6 +162,15 @@ const CLAUDE: Provider[] = [
 
 // Codex uses an OpenAI-style base_url (usually ending in /v1).
 const CODEX: Provider[] = [
+  {
+    id: 'routerlink',
+    name: 'RouterLink',
+    category: 'aggregator',
+    baseUrl: 'https://router-link-beta.world3.ai/api/v1',
+    modelsUrl: 'https://router-link-beta.world3.ai/api/v1/models',
+    websiteUrl: 'https://router-link-beta.world3.ai',
+    note: 'OpenAI-compatible endpoint'
+  },
   {
     id: 'official',
     name: 'OpenAI Official',

@@ -7,8 +7,16 @@ import { Modal } from '@/components/ui/Modal'
 import { PROVIDERS_BY_CLI } from '@/data/providers'
 import { useT } from '@/i18n'
 import { ModelDiscoveryPicker } from './ModelDiscoveryPicker'
+import { ModelCombobox } from './ModelCombobox'
 import { ProfileConnectionTest } from './ProfileConnectionTest'
-import type { AppConfig, AuthStatus, CliId, CliProfile, CliProfiles } from '@shared/types'
+import type {
+  AppConfig,
+  AuthStatus,
+  CliId,
+  CliProfile,
+  CliProfiles,
+  ModelDiscoveryRequest
+} from '@shared/types'
 
 export interface AgentConfigEditorHandle {
   save: () => Promise<boolean>
@@ -72,6 +80,10 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
     const selectedProvider = useMemo(
       () => providers.find((provider) => provider.id === providerId),
       [providerId, providers]
+    )
+    const discoveryRequest = useMemo(
+      () => ({ baseUrl, apiKey, modelsUrl: selectedProvider?.modelsUrl }),
+      [baseUrl, apiKey, selectedProvider?.modelsUrl]
     )
 
     const setDraftFromProfile = useCallback(
@@ -513,24 +525,32 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
               {cliId === 'claude-code' ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <ModelInput
+                    cliId={cliId}
+                    request={discoveryRequest}
                     label={t('config.claudeDefaultModel')}
                     onChange={setDefaultModel}
                     placeholder={t('config.claudeDefaultModelPlaceholder')}
                     value={defaultModel}
                   />
                   <ModelInput
+                    cliId={cliId}
+                    request={discoveryRequest}
                     label={t('config.claudeSonnetModel')}
                     onChange={setSonnetModel}
                     placeholder={t('config.claudeSonnetModelPlaceholder')}
                     value={sonnetModel}
                   />
                   <ModelInput
+                    cliId={cliId}
+                    request={discoveryRequest}
                     label={t('config.claudeOpusModel')}
                     onChange={setOpusModel}
                     placeholder={t('config.claudeOpusModelPlaceholder')}
                     value={opusModel}
                   />
                   <ModelInput
+                    cliId={cliId}
+                    request={discoveryRequest}
                     label={t('config.claudeHaikuModel')}
                     onChange={setHaikuModel}
                     placeholder={t('config.claudeHaikuModelPlaceholder')}
@@ -539,6 +559,8 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
                 </div>
               ) : (
                 <ModelInput
+                  cliId={cliId}
+                  request={discoveryRequest}
                   label={t('config.model')}
                   onChange={setModel}
                   placeholder={t('config.modelPlaceholder')}
@@ -597,11 +619,15 @@ export const AgentConfigEditor = forwardRef<AgentConfigEditorHandle, AgentConfig
 )
 
 function ModelInput({
+  cliId,
+  request,
   label,
   onChange,
   placeholder,
   value
 }: {
+  cliId: CliId
+  request: ModelDiscoveryRequest
   label: string
   onChange: (value: string) => void
   placeholder: string
@@ -610,12 +636,15 @@ function ModelInput({
   return (
     <label className="block">
       <span className="text-[12px] text-text-weak">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        className="selectable mt-1 h-10 w-full rounded-md border border-border-weak bg-surface px-3 text-[13px] text-text-strong outline-none focus:border-border-selected"
-      />
+      <div className="mt-1">
+        <ModelCombobox
+          cliId={cliId}
+          request={request}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+        />
+      </div>
     </label>
   )
 }

@@ -165,12 +165,12 @@ const api = {
       ipcRenderer.invoke('sessions:defaultWorkspace', id)
   },
   projects: {
-    list: (): Promise<RecentProjectInfo[]> => ipcRenderer.invoke('projects:list'),
+    list: (id: CliId): Promise<RecentProjectInfo[]> => ipcRenderer.invoke('projects:list', id),
     /** Opens the native folder picker; a confirmed pick is recorded as a
      * recent project. Resolves null when the user cancels. */
-    select: (): Promise<string | null> => ipcRenderer.invoke('projects:select'),
-    remove: (path: string): Promise<RecentProjectInfo[]> =>
-      ipcRenderer.invoke('projects:remove', path),
+    select: (id: CliId): Promise<string | null> => ipcRenderer.invoke('projects:select', id),
+    remove: (id: CliId, path: string): Promise<RecentProjectInfo[]> =>
+      ipcRenderer.invoke('projects:remove', id, path),
     exists: (paths: string[]): Promise<Record<string, boolean>> =>
       ipcRenderer.invoke('projects:exists', paths)
   },

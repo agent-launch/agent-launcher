@@ -3,8 +3,9 @@ import toast from 'react-hot-toast'
 import { Check, LoaderCircle, RefreshCw, Search } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
+import { useModelDiscovery } from './useModelDiscovery'
 import { useT } from '@/i18n'
-import type { CliId, DiscoveredModel, ModelDiscoveryRequest } from '@shared/types'
+import type { CliId, ModelDiscoveryRequest } from '@shared/types'
 
 export function ModelDiscoveryPicker({
   cliId,
@@ -20,11 +21,11 @@ export function ModelDiscoveryPicker({
   const t = useT()
   const requestRef = useRef(0)
   const searchRef = useRef<HTMLInputElement>(null)
-  const [fetching, setFetching] = useState(false)
   const [open, setOpen] = useState(false)
-  const [models, setModels] = useState<DiscoveredModel[]>([])
   const [selected, setSelected] = useState('')
   const [query, setQuery] = useState('')
+  const { models, fetching, fetch } = useModelDiscovery(cliId, request)
+
   const signature = JSON.stringify([
     cliId,
     request.baseUrl?.trim(),
@@ -34,7 +35,9 @@ export function ModelDiscoveryPicker({
 
   useEffect(() => {
     requestRef.current += 1
-    setFetching(false)
+    setOpen(false)
+    setSelected('')
+    setQuery('')
   }, [signature])
 
   const filtered = useMemo(() => {
@@ -58,27 +61,19 @@ export function ModelDiscoveryPicker({
 
     const requestId = requestRef.current + 1
     requestRef.current = requestId
-    setFetching(true)
-    try {
-      const result = await window.api.config.listModels(cliId, request)
-      if (requestRef.current !== requestId) return
-      if (!result.ok || !result.models?.length) {
-        const message = `${t(`config.modelDiscovery.${result.code}`)}${result.detail ? ` - ${result.detail}` : ''}`
-        toast.error(message)
-        return
-      }
-      const current = currentModel.trim()
-      setModels(result.models)
-      setSelected(result.models.some((model) => model.id === current) ? current : '')
-      setQuery('')
-      setOpen(true)
-    } catch {
-      if (requestRef.current === requestId) {
-        toast.error(t('config.modelDiscovery.network_error'))
-      }
-    } finally {
-      if (requestRef.current === requestId) setFetching(false)
+    const { ok, error } = await fetch()
+    if (requestRef.current !== requestId) return
+    if (!ok) {
+      const message = error
+        ? `${t(`config.modelDiscovery.${error.code}`) ?? error.code}${error.detail ? ` - ${error.detail}` : ''}`
+        : t('config.modelDiscovery.empty')
+      toast.error(message)
+      return
     }
+    const current = currentModel.trim()
+    setSelected(models.some((model) => model.id === current) ? current : '')
+    setQuery('')
+    setOpen(true)
   }
 
   const confirm = () => {
@@ -89,7 +84,7 @@ export function ModelDiscoveryPicker({
 
   return (
     <>
-      <Button size="sm" variant="secondary" onClick={fetchModels} disabled={fetching}>
+      <Button size="sm" variant="secondary" onClick={() => void fetchModels()} disabled={fetching}>
         {fetching ? <LoaderCircle className="animate-spin" size={13} /> : <RefreshCw size={13} />}
         {fetching ? t('config.modelDiscovery.fetching') : t('config.modelDiscovery.fetch')}
       </Button>

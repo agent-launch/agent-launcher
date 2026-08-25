@@ -135,7 +135,7 @@ export function registerIpc(): void {
   ipcMain.on('auth:stop', (_e, id: string) => stopAuth(id))
 
   ipcMain.handle('terminal:openExternal', (_e, opts: SpawnOptions) => {
-    touchRecentProject(opts.cwd)
+    touchRecentProject(opts.cliId, opts.cwd)
     return openExternalAgent(opts)
   })
   ipcMain.handle('dashboard:launch', (_e, id: CliId) => launchDashboard(id))
@@ -154,17 +154,19 @@ export function registerIpc(): void {
   // picks this same default whenever no directory is chosen.
   ipcMain.handle('sessions:defaultWorkspace', (_e, id: CliId) => defaultWorkspaceForCli(id))
 
-  // ---- recent projects (user-picked working directories, shared across CLIs) ----
-  ipcMain.handle('projects:list', () => listRecentProjects())
-  ipcMain.handle('projects:select', (e) => selectProjectDirectory(e.sender))
-  ipcMain.handle('projects:remove', (_e, path: string) => removeRecentProjectAndList(path))
+  // ---- recent projects (user-picked working directories, isolated per CLI) ----
+  ipcMain.handle('projects:list', (_e, id: CliId) => listRecentProjects(id))
+  ipcMain.handle('projects:select', (e, id: CliId) => selectProjectDirectory(e.sender, id))
+  ipcMain.handle('projects:remove', (_e, id: CliId, path: string) =>
+    removeRecentProjectAndList(id, path)
+  )
   ipcMain.handle('projects:exists', (_e, paths: string[]) => checkDirectoriesExist(paths))
 
   // ---- PTY terminal ----
   ipcMain.handle('pty:create', (e, opts: SpawnOptions) => {
     // No-op unless opts.cwd is a recorded project — keeps recents ordered by
     // actual use without ever recording scratch workspaces.
-    touchRecentProject(opts.cwd)
+    touchRecentProject(opts.cliId, opts.cwd)
     return createSession(e.sender, opts)
   })
   ipcMain.on('pty:write', (_e, id: string, data: string) => writeSession(id, data))
@@ -175,7 +177,7 @@ export function registerIpc(): void {
 
   // ---- in-UI chat (programmatic CLI mode) ----
   ipcMain.handle('chat:start', (e, opts: ChatStartOptions) => {
-    touchRecentProject(opts.cwd)
+    touchRecentProject(opts.cliId, opts.cwd)
     return startChat(e.sender, opts)
   })
   ipcMain.on('chat:send', (_e, id: string, text: string) => sendChat(id, text))
