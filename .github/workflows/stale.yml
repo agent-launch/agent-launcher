@@ -1,0 +1,28 @@
+name: stale
+
+on:
+  schedule:
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10
+        with:
+          days-before-stale: 60
+          days-before-issue-close: -1
+          days-before-pr-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: pinned,security,release-blocker
+          exempt-pr-labels: pinned,security
+          stale-issue-message: This issue has had no recent activity. Add current reproduction details or context to keep it actionable.
+          stale-pr-message: This pull request has had no recent activity. Rebase it and confirm the current test status to keep it active.
+          close-pr-message: Closing this inactive pull request. It can be reopened after it is rebased and ready for review.
