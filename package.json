@@ -36,10 +36,10 @@
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
     "typecheck": "pnpm typecheck:node && pnpm typecheck:web",
-    "package": "pnpm build && electron-builder",
-    "package:mac": "pnpm build && electron-builder --mac",
-    "package:win": "pnpm build && electron-builder --win",
-    "package:linux": "pnpm build && electron-builder --linux"
+    "package": "pnpm build && electron-builder --publish never",
+    "package:mac": "pnpm build && electron-builder --mac --publish never",
+    "package:win": "pnpm build && electron-builder --win --publish never",
+    "package:linux": "pnpm build && electron-builder --linux --publish never"
   },
   "dependencies": {
     "@lobehub/icons": "^5.10.0",

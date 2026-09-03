@@ -78,7 +78,6 @@ jobs:
 
       - name: Build package
         env:
-          ELECTRON_BUILDER_PUBLISH: never
           GH_TOKEN: ${{ github.token }}
           CSC_LINK: ${{ matrix.name == 'macos' && secrets.MAC_CSC_LINK || matrix.name == 'windows' && secrets.WIN_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ matrix.name == 'macos' && secrets.MAC_CSC_KEY_PASSWORD || matrix.name == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
