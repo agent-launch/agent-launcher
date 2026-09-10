@@ -1,0 +1,206 @@
+/*
+ * Design tokens - Otty-inspired desktop chrome.
+ *
+ * Otty's default surfaces are very macOS-native: translucent light grey
+ * window chrome, white floating panes, hairline borders, compact type, and a
+ * dark graphite primary action instead of a saturated brand color.
+ *
+ * Keep variable names stable so existing renderer components can be reskinned
+ * without changing their behavior.
+ */
+
+:root {
+  /* ---- type ---- */
+  --font-family-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'Microsoft YaHei', 'PingFang SC',
+    'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  --font-family-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI',
+    'Microsoft YaHei', 'PingFang SC', sans-serif;
+  --font-family-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+    'Courier New', monospace;
+  --font-size-small: 13px;
+  --font-size-base: 14px;
+  --font-size-large: 17px;
+  --font-size-x-large: 22px;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --line-height-normal: 1.5;
+  --line-height-large: 1.625;
+
+  /* ---- spacing / radii ---- */
+  --spacing: 0.25rem;
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
+
+  /* ---- brand + status colors ---- */
+  --brand: #4a4a4a;
+  --brand-strong: #18181b;
+  --apple-green: #2f8f4e;
+  --system-red: #c44747;
+  --system-orange: #b2782a;
+
+  /* ---- semantic: light ---- */
+  --background-base: #f2f3f3;
+  --background-strong: #eeeeef;
+  --background-stronger: #ffffff;
+  --sidebar-background: rgba(246, 246, 247, 0.82);
+  --sidebar-text: #3f3f46;
+  --sidebar-text-weak: #7a7a82;
+  --sidebar-icon: #5f6068;
+  --sidebar-selection: rgba(255, 255, 255, 0.92);
+  --surface-base: #ffffff;
+  --surface-weak: rgba(24, 24, 27, 0.045);
+  --surface-hover: rgba(24, 24, 27, 0.065);
+  --selection-base: rgba(74, 74, 74, 0.1);
+  --message-user: rgba(255, 255, 255, 0.94);
+  --composer-background: rgba(255, 255, 255, 0.94);
+
+  --text-base: #3f3f46;
+  --text-weak: #696970;
+  --text-muted: #a1a1aa;
+  --text-strong: #18181b;
+  --text-interactive-base: #1f1f23;
+  --text-on-accent: #ffffff;
+
+  --border-base: rgba(24, 24, 27, 0.16);
+  --border-weak: rgba(24, 24, 27, 0.09);
+  --border-selected: rgba(24, 24, 27, 0.34);
+
+  --button-primary-base: #3d3d3f;
+  --button-primary-text: #ffffff;
+  --button-secondary-base: rgba(255, 255, 255, 0.86);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 6px 14px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card: 0 1.5px 5px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.78) inset;
+  --shadow-composer:
+    0 14px 30px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(24, 24, 27, 0.09);
+
+  --accent: var(--brand);
+  --accent-soft: rgba(74, 74, 74, 0.11);
+  --success: var(--apple-green);
+  --danger: var(--system-red);
+  --warning: var(--system-orange);
+
+  --canvas-gradient: linear-gradient(180deg, #f7f7f8 0%, #eeeeef 100%);
+  --sidebar-gradient: linear-gradient(180deg, rgba(250, 250, 250, 0.82), rgba(238, 238, 239, 0.86));
+
+  /* ---- syntax highlighting ---- */
+  --syntax-comment: #73737a;
+  --syntax-keyword: #b23b3b;
+  --syntax-string: #266947;
+  --syntax-number: #3d678f;
+  --syntax-title: #715b9b;
+  --syntax-symbol: #9a6936;
+
+  /* ---- embedded terminal ---- */
+  --terminal-background: #ffffff;
+  --terminal-foreground: #24292e;
+  --terminal-cursor: #18181b;
+  --terminal-cursor-accent: #ffffff;
+  --terminal-selection-background: rgba(74, 74, 74, 0.22);
+  --terminal-black: #24292e;
+  --terminal-red: #c44747;
+  --terminal-green: #2f8f4e;
+  --terminal-yellow: #a17225;
+  --terminal-blue: #3d6798;
+  --terminal-magenta: #80579c;
+  --terminal-cyan: #3f8376;
+  --terminal-white: #d4d6d7;
+  --terminal-bright-black: #8c8f94;
+  --terminal-bright-red: #d45f5f;
+  --terminal-bright-green: #44a863;
+  --terminal-bright-yellow: #bd8c39;
+  --terminal-bright-blue: #547eae;
+  --terminal-bright-magenta: #9a72b4;
+  --terminal-bright-cyan: #5b9b90;
+  --terminal-bright-white: #f5f5f5;
+
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --background-base: #101116;
+  --background-strong: #171920;
+  --background-stronger: #1d2029;
+  --sidebar-background: rgba(27, 30, 39, 0.82);
+  --sidebar-text: #d8dbe4;
+  --sidebar-text-weak: #9aa0ad;
+  --sidebar-icon: #c5c9d4;
+  --sidebar-selection: rgba(255, 255, 255, 0.09);
+  --surface-base: #1d2029;
+  --surface-weak: rgba(255, 255, 255, 0.055);
+  --surface-hover: rgba(255, 255, 255, 0.09);
+  --selection-base: rgba(255, 255, 255, 0.105);
+  --message-user: rgba(255, 255, 255, 0.07);
+  --composer-background: rgba(29, 32, 41, 0.92);
+
+  --text-base: #d8dbe4;
+  --text-weak: #b8bdc9;
+  --text-muted: #757c8b;
+  --text-strong: #f7f8ff;
+  --text-interactive-base: #f7f8ff;
+  --text-on-accent: #101116;
+
+  --border-base: rgba(255, 255, 255, 0.15);
+  --border-weak: rgba(255, 255, 255, 0.09);
+  --border-selected: rgba(255, 255, 255, 0.31);
+
+  --button-primary-base: #f3f4f6;
+  --button-primary-text: #111217;
+  --button-secondary-base: rgba(255, 255, 255, 0.07);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.38);
+  --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.36), 0 1px 3px rgba(0, 0, 0, 0.32);
+  --shadow-card: 0 8px 22px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.045) inset;
+  --shadow-composer:
+    0 16px 38px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.34),
+    0 0 0 1px rgba(255, 255, 255, 0.08);
+
+  --accent: #b8bdc9;
+  --accent-soft: rgba(216, 219, 228, 0.12);
+  --success: #7fc08b;
+  --danger: #ff8a8a;
+  --warning: #d7b46a;
+
+  --canvas-gradient: linear-gradient(180deg, #151821 0%, #101116 100%);
+  --sidebar-gradient: linear-gradient(180deg, rgba(31, 34, 44, 0.86), rgba(21, 24, 33, 0.9));
+
+  --syntax-comment: #8f96a3;
+  --syntax-keyword: #ff8a8a;
+  --syntax-string: #a8d46f;
+  --syntax-number: #8db7ff;
+  --syntax-title: #d1a3ff;
+  --syntax-symbol: #e8c778;
+
+  --terminal-background: #151821;
+  --terminal-foreground: #f7f8ff;
+  --terminal-cursor: #f7f8ff;
+  --terminal-cursor-accent: #151821;
+  --terminal-selection-background: rgba(187, 201, 237, 0.24);
+  --terminal-black: #252a35;
+  --terminal-red: #ff8a8a;
+  --terminal-green: #a8d46f;
+  --terminal-yellow: #e8c778;
+  --terminal-blue: #8db7ff;
+  --terminal-magenta: #d1a3ff;
+  --terminal-cyan: #7fd6c2;
+  --terminal-white: #e3e6f0;
+  --terminal-bright-black: #747b8e;
+  --terminal-bright-red: #ffb0a8;
+  --terminal-bright-green: #c8ea90;
+  --terminal-bright-yellow: #f2da9a;
+  --terminal-bright-blue: #b2ccff;
+  --terminal-bright-magenta: #e0c2ff;
+  --terminal-bright-cyan: #a3e6d8;
+  --terminal-bright-white: #ffffff;
+}

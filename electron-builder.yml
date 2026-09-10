@@ -1,0 +1,57 @@
+appId: app.agent-launch.agentlauncher
+productName: Agent Launcher
+# Never derive this from `${productName}`: its space is rewritten to a dot by
+# GitHub when the workflow uploads the file, while electron-builder writes the
+# name into latest*.yml with a dash — and electron-updater downloads by the
+# exact yml name, so every auto-update 404s (v0.1.0 and v0.2.0-rc.1 shipped
+# broken this way). The release workflow and tests/repo/identity.test.ts both
+# enforce that artifact names survive a GitHub upload verbatim.
+artifactName: AgentLauncher-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - '!**/*.map'
+asarUnpack:
+  # sql.js ships a .wasm that must be a real file on disk (not inside asar).
+  - '**/node_modules/sql.js/dist/sql-wasm.wasm'
+  # @lydell/node-pty loads a platform-specific .node binary from a sibling
+  # package; it must live outside the asar to be dlopen-able at runtime.
+  - '**/node_modules/@lydell/node-pty-*/**'
+mac:
+  # Turn a missing signing certificate into a hard build failure instead of a
+  # silently unsigned build. On pull-request builds electron-builder skips
+  # signing before this flag is ever consulted, so PR builds stay unaffected.
+  forceCodeSigning: true
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
+win:
+  icon: build/icon.ico
+  target:
+    - nsis
+linux:
+  icon: build/icon.png
+  target:
+    - AppImage
+  category: Development
+# Every `package:*` script runs electron-builder with `--publish never`, so this
+# block never publishes anything. It exists because app-builder-lib serializes
+# it into `app-update.yml` inside the packaged app, which is the feed every
+# installed client polls — owner/repo here are load-bearing, `releaseType` is
+# not. The channel a build is actually published on is set by
+# `.github/workflows/release.yml` (always `prerelease: true`).
+publish:
+  provider: github
+  owner: agent-launch
+  repo: agent-launcher
+  releaseType: release

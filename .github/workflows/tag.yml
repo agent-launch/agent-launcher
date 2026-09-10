@@ -1,0 +1,132 @@
+name: tag
+
+# Creating the tag is the only part of releasing that is automated. Promotion to
+# a full release stays manual on purpose: release.yml publishes every tag as a
+# prerelease, and a human deciding a build is good is the gate that keeps an
+# unverified build away from updater clients.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without the leading v, e.g. 0.2.0-rc.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write # create the tag ref
+  actions: write # dispatch release.yml
+
+jobs:
+  tag:
+    name: create tag and start the release build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout workflow definitions
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          sparse-checkout: .github/workflows
+
+      - name: Validate the version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # Read the pattern out of release.yml rather than restating it here. A
+          # tag this workflow accepts but release.yml's "Validate tag" step
+          # rejects would leave a tag behind that never produces a release.
+          RE="$(sed -n "s/^  STRICT_VERSION_REF_RE: '\(.*\)'\$/\1/p" .github/workflows/release.yml)"
+          if [[ -z "$RE" ]]; then
+            echo "::error::Could not read STRICT_VERSION_REF_RE out of .github/workflows/release.yml."
+            exit 1
+          fi
+          TAG="v${VERSION#v}"
+          if [[ ! "refs/tags/$TAG" =~ $RE ]]; then
+            echo "::error::\"$TAG\" is not a release tag. Expected v<MAJOR>.<MINOR>.<PATCH>, optionally followed by -<prerelease>."
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Tagging ${GITHUB_SHA} as ${TAG}."
+
+      - name: Refuse to reuse an existing tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::$TAG already exists. Published versions are immutable; pick the next one."
+            exit 1
+          fi
+
+      - name: Require a green commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Tagging a commit whose checks never passed produces a release nobody
+          # can trust, and several release-only failures — macOS signing among
+          # them — stay invisible until release.yml runs.
+          #
+          # Ask ci.yml specifically rather than reading every check run on the
+          # commit. This workflow's own runs attach to the same commit, so a
+          # blanket scan sees its previous failure and refuses forever: one
+          # rejected attempt would permanently block the version. ci.yml is the
+          # workflow that verifies a commit, and it runs on every push to main.
+          run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml \
+            --commit "$GITHUB_SHA" --limit 1 --json status,conclusion,url)"
+          status="$(echo "$run" | jq -r '.[0].status // ""')"
+          conclusion="$(echo "$run" | jq -r '.[0].conclusion // ""')"
+          url="$(echo "$run" | jq -r '.[0].url // ""')"
+
+          if [[ -z "$status" ]]; then
+            echo "::error::ci.yml has not run on $GITHUB_SHA, so nothing has verified this commit."
+            exit 1
+          fi
+          if [[ "$status" != "completed" ]]; then
+            echo "::error::ci.yml is still ${status} on $GITHUB_SHA. Wait for it to finish: ${url}"
+            exit 1
+          fi
+          if [[ "$conclusion" != "success" ]]; then
+            echo "::error::ci.yml concluded ${conclusion} on $GITHUB_SHA: ${url}"
+            exit 1
+          fi
+          echo "ci.yml passed on $GITHUB_SHA: $url"
+
+      - name: Create the tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA" --silent
+          echo "Created $TAG at $GITHUB_SHA."
+
+      - name: Start the release build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A tag created with GITHUB_TOKEN raises no push event that can start a
+          # workflow — GitHub suppresses those to prevent recursion — so
+          # release.yml will not pick this tag up on its own. workflow_dispatch
+          # is one of the two events exempt from that rule, so dispatch it
+          # explicitly against the tag; release.yml's publish job accepts that
+          # path when publish_release is true.
+          gh workflow run release.yml --repo "$GITHUB_REPOSITORY" --ref "$TAG" -f publish_release=true
+          echo "Dispatched release.yml against $TAG."
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### Tagged \`$TAG\`"
+            echo
+            echo "- Commit: \`$GITHUB_SHA\`"
+            echo "- Release build: https://github.com/$GITHUB_REPOSITORY/actions/workflows/release.yml"
+            echo
+            echo "It will publish as a **prerelease**. Check the artifacts, then promote it"
+            echo "manually before updater clients can receive it."
+          } >> "$GITHUB_STEP_SUMMARY"

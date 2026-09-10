@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '02:00'
+      timezone: Asia/Shanghai
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      production-dependencies:
+        dependency-type: production
+      development-dependencies:
+        dependency-type: development
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '02:30'
+      timezone: Asia/Shanghai
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      github-actions:
+        patterns:
+          - '*'

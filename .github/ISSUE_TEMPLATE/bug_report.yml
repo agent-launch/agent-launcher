@@ -1,0 +1,64 @@
+name: Bug Report / Bug 报告
+description: Report a reproducible Agent Launcher problem / 报告可复现的 Agent Launcher 问题
+title: '[Bug] '
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include API keys, tokens, private conversation content, or unredacted personal paths. / 请勿提交 API Key、Token、私人对话内容或未遮盖的个人路径。
+  - type: input
+    id: version
+    attributes:
+      label: Agent Launcher version / Agent Launcher 版本
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system / 操作系统
+      options:
+        - macOS (Apple silicon)
+        - macOS (Intel)
+        - Windows 11
+        - Windows 10
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: cli
+    attributes:
+      label: Agent CLI and version / Agent CLI 及版本
+      placeholder: Codex CLI 0.135.0
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened? / 发生了什么？
+      description: Describe the actual and expected behavior. / 请说明实际行为和预期行为。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps / 复现步骤
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. See...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or screenshots / 已脱敏的日志或截图
+      description: Drag files here after removing secrets and personal data. / 删除密钥和个人信息后，可将文件拖到这里。
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation / 确认
+      options:
+        - label: I searched existing issues and removed sensitive information. / 我已搜索现有 Issue 并删除敏感信息。
+          required: true
