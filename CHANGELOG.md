@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-17
+
+### Fixed
+
+- A quarantined Codex CLI that Gatekeeper accepts (a notarized Developer ID binary, which is every Homebrew cask or GitHub-release download) is no longer reported as blocked by macOS, and a blocked current build is no longer called "outdated". (#4)
+
+## [0.1.0] - 2026-09-10
+
 ### Added
 
 - Community health files, bilingual contribution and support guidance, and structured issue forms.
@@ -19,7 +27,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The application id is `app.agent-launch.agentlauncher`.
 - Tagged builds are published as prereleases; a maintainer promotes a release before updater clients can receive it.
 - A macOS build without a signing certificate now fails instead of producing an unsigned application.
-
-### Fixed
-
-- A quarantined Codex CLI that Gatekeeper accepts (a notarized Developer ID binary, which is every Homebrew cask or GitHub-release download) is no longer reported as blocked by macOS, and a blocked current build is no longer called "outdated". (#4)
