@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import type { ProgressInfo, UpdateInfo } from 'electron-updater'
+import { compareVersions, normalizeVersion } from '@shared/version'
 import type {
   AppUpdateCheckResult,
   AppUpdateDownloadProgress,
@@ -74,31 +75,7 @@ function emitStatus(next = status): void {
   broadcast('appUpdate:status', next)
 }
 
-export function compareVersions(a: string, b: string): number {
-  const left = normalizeVersion(a).split(/[.-]/)
-  const right = normalizeVersion(b).split(/[.-]/)
-  const length = Math.max(left.length, right.length)
-
-  for (let i = 0; i < length; i += 1) {
-    const aa = left[i] ?? '0'
-    const bb = right[i] ?? '0'
-    const an = /^\d+$/.test(aa) ? Number(aa) : Number.NaN
-    const bn = /^\d+$/.test(bb) ? Number(bb) : Number.NaN
-    if (!Number.isNaN(an) && !Number.isNaN(bn)) {
-      if (an > bn) return 1
-      if (an < bn) return -1
-      continue
-    }
-    if (aa > bb) return 1
-    if (aa < bb) return -1
-  }
-
-  return 0
-}
-
-export function normalizeVersion(version: string): string {
-  return version.trim().replace(/^v/i, '')
-}
+export { compareVersions, normalizeVersion }
 
 function releaseUrl(version?: string): string {
   if (!version) return `${RELEASES_URL}/latest`

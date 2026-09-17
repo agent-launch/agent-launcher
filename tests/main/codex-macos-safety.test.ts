@@ -12,13 +12,20 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CODEX_MACOS_MIN_SAFE_VERSION,
-  cliLaunchBlockMessage
+  cliLaunchBlockMessage,
+  macosSecurityManualUpdateMessage
 } from '../../src/main/cli-launch-safety'
 import {
   codexPackageVersion,
   inspectCodexInstall,
-  isExplicitMacSecurityAssessmentFailure
+  isExplicitMacSecurityAssessmentFailure,
+  isTrustedMacCodeSignature
 } from '../../src/main/install/codex-safety'
+import {
+  checkTrustedMacSignature,
+  type MacToolResult,
+  type MacToolRunner
+} from '../../src/main/install/installer'
 
 const tempDirs: string[] = []
 
@@ -70,7 +77,7 @@ describe('Codex macOS launch safety', () => {
       {
         installed: true,
         source: 'system',
-        version: '0.144.5',
+        version: '0.120.0',
         binPath: '/usr/local/bin/codex',
         launchBlockedReason: 'macos-security'
       },
@@ -402,5 +409,144 @@ describe('Codex macOS launch safety', () => {
       vi.doUnmock('../../src/main/install/download')
       vi.resetModules()
     }
+  })
+})
+
+describe('quarantined but signed binaries (Homebrew cask, GitHub release)', () => {
+  it('trusts a Developer ID signing chain and rejects ad-hoc or unsigned code', () => {
+    const brewCodex = [
+      'Executable=/opt/homebrew/Caskroom/codex/0.154.0/bin/codex',
+      'Identifier=codex',
+      'Authority=Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)',
+      'Authority=Developer ID Certification Authority',
+      'Authority=Apple Root CA',
+      'TeamIdentifier=2DC432GLL2'
+    ].join('\n')
+    expect(isTrustedMacCodeSignature(brewCodex)).toBe(true)
+    expect(
+      isTrustedMacCodeSignature('Identifier=codex\nSignature=adhoc\nTeamIdentifier=not set')
+    ).toBe(false)
+    expect(
+      isTrustedMacCodeSignature(
+        '/opt/homebrew/Caskroom/cscreen/2012.09/cscreen: code object is not signed at all'
+      )
+    ).toBe(false)
+    expect(isTrustedMacCodeSignature('')).toBe(false)
+    // A stray "Authority=" fragment elsewhere in the text must not count.
+    expect(isTrustedMacCodeSignature('Note: Authority=Developer ID Application: x')).toBe(false)
+  })
+
+  it('only calls a Codex "outdated" when its version is known to be below the floor', () => {
+    const current = macosSecurityManualUpdateMessage('codex', '0.154.0')
+    expect(current).not.toMatch(/outdated/i)
+    expect(current).toContain('0.154.0')
+    expect(macosSecurityManualUpdateMessage('codex', '0.120.0')).toMatch(/outdated/i)
+    // Unknown version: a blocked curl download at ~/bin/codex has no
+    // parseable version, and "outdated" would be a guess.
+    for (const unknown of ['system', undefined, '-']) {
+      const message = macosSecurityManualUpdateMessage('codex', unknown)
+      expect(message).not.toMatch(/outdated/i)
+      expect(message).not.toMatch(/\(/)
+    }
+    expect(
+      cliLaunchBlockMessage(
+        'codex',
+        {
+          installed: true,
+          source: 'system',
+          version: '0.154.0',
+          binPath: '/opt/homebrew/bin/codex',
+          launchBlockedReason: 'macos-security'
+        },
+        'darwin'
+      )
+    ).not.toMatch(/outdated/i)
+  })
+})
+
+describe('checkTrustedMacSignature', () => {
+  const developerId = [
+    'Identifier=codex',
+    'Authority=Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)',
+    'Authority=Developer ID Certification Authority',
+    'Authority=Apple Root CA'
+  ].join('\n')
+
+  function runner(responses: Partial<Record<'codesign' | 'spctl', Partial<MacToolResult>>>): {
+    run: MacToolRunner
+    calls: string[]
+  } {
+    const calls: string[] = []
+    const run: MacToolRunner = async (command) => {
+      calls.push(command)
+      return { code: 0, timedOut: false, output: '', ...responses[command] }
+    }
+    return { run, calls }
+  }
+
+  it('trusts a notarized Developer ID binary and caches nothing inconclusive', async () => {
+    const { run, calls } = runner({
+      codesign: { output: developerId },
+      spctl: { output: 'accepted\nsource=Notarized Developer ID' }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: false
+    })
+    expect(calls).toEqual(['codesign', 'spctl'])
+  })
+
+  it('rejects ad-hoc or unsigned code without ever running spctl', async () => {
+    const { run, calls } = runner({ codesign: { output: 'Signature=adhoc' } })
+    await expect(checkTrustedMacSignature('/x/codex', run)).resolves.toEqual({
+      trusted: false,
+      inconclusive: false
+    })
+    expect(calls).toEqual(['codesign'])
+  })
+
+  it('rejects when Gatekeeper explicitly refuses the binary', async () => {
+    const { run } = runner({
+      codesign: { output: developerId },
+      spctl: { code: 3, output: 'rejected\nsource=no usable signature' }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', run)).resolves.toEqual({
+      trusted: false,
+      inconclusive: false
+    })
+  })
+
+  it('treats a timed-out or unspawnable codesign as inconclusive, never a cached block', async () => {
+    const timedOut = runner({ codesign: { code: null, timedOut: true, output: '' } })
+    await expect(checkTrustedMacSignature('/x/codex', timedOut.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
+    expect(timedOut.calls).toEqual(['codesign'])
+    const missingTool = runner({ codesign: { code: null, timedOut: false, output: '' } })
+    await expect(checkTrustedMacSignature('/x/codex', missingTool.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
+    expect(missingTool.calls).toEqual(['codesign'])
+  })
+
+  it('treats a timed-out or failed assessment as inconclusive, not as blocked', async () => {
+    const timedOut = runner({
+      codesign: { output: developerId },
+      spctl: { code: null, timedOut: true }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', timedOut.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
+    const missingTool = runner({
+      codesign: { output: developerId },
+      spctl: { code: null, timedOut: false }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', missingTool.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
   })
 })

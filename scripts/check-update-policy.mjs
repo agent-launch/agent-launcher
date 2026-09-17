@@ -20,7 +20,7 @@ import { pathToFileURL } from 'node:url'
 const RETRY_DELAYS_MS = [2000, 5000, 10000]
 
 // normalizeVersion and compareVersions deliberately mirror
-// src/main/app-update.ts rather than semver: the client ranks 0.2.0-rc.1
+// src/shared/version.ts (re-exported by src/main/app-update.ts) rather than semver: the client ranks 0.2.0-rc.1
 // ABOVE 0.2.0, and the question this gate answers is "would a client show a
 // banner", not "is this semver-correct". A stricter comparator would pass
 // states that still produce the banner.
