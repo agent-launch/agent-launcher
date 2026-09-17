@@ -43,11 +43,11 @@ async function installedBin(cliId: CliId): Promise<string | undefined> {
   )
   const selected = detection.selectedPath
   if (!selected || !existsSync(selected)) return undefined
+  const candidate = detection.candidates.find((c) => c.path === selected || c.realPath === selected)
   if (detection.macosSecurityRisk) {
-    throw new Error(macosSecurityManualUpdateMessage(cliId))
+    throw new Error(macosSecurityManualUpdateMessage(cliId, candidate?.version))
   }
 
-  const candidate = detection.candidates.find((c) => c.path === selected || c.realPath === selected)
   setInstallState(cliId, {
     installed: true,
     source: 'system',

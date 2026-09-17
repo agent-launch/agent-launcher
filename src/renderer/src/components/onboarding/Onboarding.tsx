@@ -18,6 +18,7 @@ import {
 } from '@/components/config/AgentConfigEditor'
 import appIcon from '@/assets/app-icon.png'
 import { useT } from '@/i18n'
+import { CODEX_MACOS_MIN_SAFE_VERSION, isVersionAtLeast } from '@shared/version'
 import type {
   AppConfig,
   CliId,
@@ -709,9 +710,11 @@ function LinkStep() {
               : undefined
           const macSecurityWarning = hasMacSecurityRisk
             ? t(
-                id === 'codex'
-                  ? 'onboarding.codexManualUpdateWarning'
-                  : 'onboarding.macSecurityManualUpdateWarning'
+                id !== 'codex'
+                  ? 'onboarding.macSecurityManualUpdateWarning'
+                  : isVersionAtLeast(currentVersion, CODEX_MACOS_MIN_SAFE_VERSION)
+                    ? 'onboarding.codexBlockedWarning'
+                    : 'onboarding.codexManualUpdateWarning'
               )
             : undefined
           return (

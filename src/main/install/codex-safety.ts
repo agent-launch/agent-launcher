@@ -284,3 +284,14 @@ export function codexInstallLabel(kind: CodexInstallKind, manager?: CodexPackage
   }
   return labels[kind]
 }
+
+/** `codesign -dvv` output for a binary Gatekeeper will run without complaint:
+ * a Developer ID (or Apple) signing chain, not ad-hoc and not unsigned. A
+ * quarantined binary with such a signature is the normal state of every
+ * Homebrew cask download, so quarantine alone must not block it. */
+export function isTrustedMacCodeSignature(output: string): boolean {
+  if (/code object is not signed|Signature=adhoc/i.test(output)) return false
+  return /^Authority=(?:Developer ID Application:|Apple Mac OS Application Signing|Software Signing)/m.test(
+    output
+  )
+}

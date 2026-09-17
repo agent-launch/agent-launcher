@@ -27,6 +27,7 @@ import type {
 import { fetchJson, isReachable } from './download'
 import {
   codexInstallLabel,
+  isTrustedMacCodeSignature,
   inspectCodexInstall,
   isExplicitMacSecurityAssessmentFailure,
   type CodexInstallInspection
@@ -175,12 +176,114 @@ async function hasExplicitMacSecurityFailure(target?: string): Promise<boolean> 
   return risky
 }
 
+const macSignatureCache = new Map<string, { expiresAt: number; trusted: boolean }>()
+const macSignatureInFlight = new Map<string, Promise<boolean>>()
+const MAC_SIGNATURE_CACHE_MS = 60 * 60_000
+/** `codesign --verify` hashes the whole binary (Codex is >200 MB); on a
+ * loaded or older machine that can take well over 10 s. */
+const MAC_SIGNATURE_VERIFY_TIMEOUT_MS = 30_000
+
+interface CodesignResult {
+  /** null when codesign could not run or was killed on timeout */
+  code: number | null
+  timedOut: boolean
+  output: string
+}
+
+function runCodesign(args: string[], timeoutMs: number): Promise<CodesignResult> {
+  return new Promise((resolve) => {
+    let output = ''
+    let settled = false
+    let timedOut = false
+    const finish = (code: number | null) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      resolve({ code, timedOut, output })
+    }
+    const p = spawn('codesign', args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const append = (data: Buffer) => {
+      output = `${output}${decodeProcessOutput(data)}`.slice(-4000)
+    }
+    p.stdout.on('data', append)
+    p.stderr.on('data', append)
+    p.on('error', () => finish(null))
+    p.on('close', (code) => finish(code))
+    const timer = setTimeout(() => {
+      timedOut = true
+      p.kill()
+      finish(null)
+    }, timeoutMs)
+  })
+}
+
+async function checkTrustedMacSignature(target: string): Promise<boolean> {
+  // Reading the signature blob is instant and answers the question that
+  // matters to Gatekeeper: Developer ID vs ad-hoc/unsigned.
+  const details = await runCodesign(['-dvv', target], 5000)
+  if (!isTrustedMacCodeSignature(details.output)) return false
+  // Full hash verification catches a tampered binary. It is slow, so a
+  // timeout is inconclusive and keeps the metadata verdict; only an actual
+  // failure downgrades the binary.
+  const verify = await runCodesign(
+    ['--verify', '--strict', target],
+    MAC_SIGNATURE_VERIFY_TIMEOUT_MS
+  )
+  if (verify.timedOut) return true
+  return verify.code === 0
+}
+
+/** Static signature check — `codesign` never executes the binary. Gatekeeper
+ * accepts a quarantined binary that carries a valid Developer ID signature,
+ * which is how every Homebrew cask (and every curl-downloaded GitHub release)
+ * of Codex arrives. */
+async function hasTrustedMacSignature(target?: string): Promise<boolean> {
+  if (process.platform !== 'darwin' || !target || !existsSync(target)) return false
+  let stamp: string
+  try {
+    const stat = statSync(target)
+    stamp = `${target}:${stat.size}:${stat.mtimeMs}`
+  } catch {
+    return false
+  }
+  const cached = macSignatureCache.get(stamp)
+  if (cached && cached.expiresAt > Date.now()) return cached.trusted
+  const inFlight = macSignatureInFlight.get(stamp)
+  if (inFlight) return inFlight
+
+  const pending = checkTrustedMacSignature(target)
+    .then((trusted) => {
+      macSignatureCache.set(stamp, { expiresAt: Date.now() + MAC_SIGNATURE_CACHE_MS, trusted })
+      return trusted
+    })
+    .finally(() => macSignatureInFlight.delete(stamp))
+  macSignatureInFlight.set(stamp, pending)
+  return pending
+}
+
+/** Quarantine only blocks a launch when no candidate path carries a trusted
+ * signature. Checks the executable behind a shim first (that is what
+ * Gatekeeper assesses), then the resolved and linked paths. */
+async function isMacQuarantineBlocked(
+  quarantined: boolean,
+  ...targets: (string | undefined)[]
+): Promise<boolean> {
+  if (process.platform !== 'darwin' || !quarantined) return false
+  const unique = [...new Set(targets.filter((target): target is string => !!target))]
+  for (const target of unique) {
+    if (await hasTrustedMacSignature(target)) return false
+  }
+  return true
+}
+
 async function codexMacSecurityRisk(
   inspection: CodexInstallInspection | undefined,
-  quarantined: boolean
+  quarantined: boolean,
+  realPath: string
 ): Promise<boolean> {
   if (process.platform !== 'darwin') return false
-  if (quarantined || inspection?.runtimeMissing) return true
+  if (inspection?.runtimeMissing) return true
+  if (await isMacQuarantineBlocked(quarantined, inspection?.executablePath, realPath)) return true
   return hasExplicitMacSecurityFailure(inspection?.executablePath)
 }
 
@@ -447,8 +550,8 @@ async function systemCandidates(id: CliId): Promise<SystemCliCandidate[]> {
     const quarantined = await isMacQuarantined(path, realPath, codexInspection?.executablePath)
     const macosSecurityRisk =
       id === 'codex'
-        ? await codexMacSecurityRisk(codexInspection, quarantined)
-        : process.platform === 'darwin' && quarantined
+        ? await codexMacSecurityRisk(codexInspection, quarantined, realPath)
+        : await isMacQuarantineBlocked(quarantined, realPath, path)
     out.push({
       path,
       realPath,
@@ -496,8 +599,8 @@ export async function detectSystemCli(
       )
       const macosSecurityRisk =
         id === 'codex'
-          ? await codexMacSecurityRisk(codexInspection, quarantined)
-          : process.platform === 'darwin' && quarantined
+          ? await codexMacSecurityRisk(codexInspection, quarantined, configuredRealPath)
+          : await isMacQuarantineBlocked(quarantined, configuredRealPath, configuredBinPath)
       candidates.unshift({
         path: configuredBinPath,
         realPath: configuredRealPath,
@@ -626,10 +729,17 @@ async function linkExistingSystemCli(
     (candidate) => candidate.path === selected || candidate.realPath === selected
   )
   if (selectedCandidate?.macosSecurityRisk) {
-    throw new Error(macosSecurityManualUpdateMessage(id))
+    throw new Error(macosSecurityManualUpdateMessage(id, selectedCandidate.version))
   }
-  if (await isMacQuarantined(selected, await normalizePath(selected))) {
-    throw new Error(macosSecurityManualUpdateMessage(id))
+  const selectedRealPath = await normalizePath(selected)
+  if (
+    await isMacQuarantineBlocked(
+      await isMacQuarantined(selected, selectedRealPath),
+      selectedRealPath,
+      selected
+    )
+  ) {
+    throw new Error(macosSecurityManualUpdateMessage(id, selectedCandidate?.version))
   }
   onProgress('verify', `Verifying ${basename(selected)}…`)
   const version = await systemVersion(id, selected, selectedCandidate?.realPath)
@@ -717,8 +827,17 @@ async function systemVersion(id: CliId, binPath: string, realPath?: string): Pro
       if (inspected.version) return inspected.version
       if (process.platform === 'darwin') return 'system'
     }
-    // Never execute a quarantined binary — that pops the Gatekeeper dialog.
-    if (await isMacQuarantined(binPath, await normalizePath(binPath))) return 'system'
+    // Never execute a quarantined binary that Gatekeeper would refuse — that
+    // pops the security dialog. A trusted signature makes the spawn safe.
+    const resolvedPath = realPath ?? (await normalizePath(binPath))
+    if (
+      await isMacQuarantineBlocked(
+        await isMacQuarantined(binPath, resolvedPath),
+        resolvedPath,
+        binPath
+      )
+    )
+      return 'system'
     return parseVersion(await run(binPath, ['--version']))
   } catch {
     return 'system'

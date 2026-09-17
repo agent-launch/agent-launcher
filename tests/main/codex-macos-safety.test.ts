@@ -12,12 +12,14 @@ import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   CODEX_MACOS_MIN_SAFE_VERSION,
-  cliLaunchBlockMessage
+  cliLaunchBlockMessage,
+  macosSecurityManualUpdateMessage
 } from '../../src/main/cli-launch-safety'
 import {
   codexPackageVersion,
   inspectCodexInstall,
-  isExplicitMacSecurityAssessmentFailure
+  isExplicitMacSecurityAssessmentFailure,
+  isTrustedMacCodeSignature
 } from '../../src/main/install/codex-safety'
 
 const tempDirs: string[] = []
@@ -70,7 +72,7 @@ describe('Codex macOS launch safety', () => {
       {
         installed: true,
         source: 'system',
-        version: '0.144.5',
+        version: '0.120.0',
         binPath: '/usr/local/bin/codex',
         launchBlockedReason: 'macos-security'
       },
@@ -402,5 +404,52 @@ describe('Codex macOS launch safety', () => {
       vi.doUnmock('../../src/main/install/download')
       vi.resetModules()
     }
+  })
+})
+
+describe('quarantined but signed binaries (Homebrew cask, GitHub release)', () => {
+  it('trusts a Developer ID signing chain and rejects ad-hoc or unsigned code', () => {
+    const brewCodex = [
+      'Executable=/opt/homebrew/Caskroom/codex/0.154.0/bin/codex',
+      'Identifier=codex',
+      'Authority=Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)',
+      'Authority=Developer ID Certification Authority',
+      'Authority=Apple Root CA',
+      'TeamIdentifier=2DC432GLL2'
+    ].join('\n')
+    expect(isTrustedMacCodeSignature(brewCodex)).toBe(true)
+    expect(
+      isTrustedMacCodeSignature('Identifier=codex\nSignature=adhoc\nTeamIdentifier=not set')
+    ).toBe(false)
+    expect(
+      isTrustedMacCodeSignature(
+        '/opt/homebrew/Caskroom/cscreen/2012.09/cscreen: code object is not signed at all'
+      )
+    ).toBe(false)
+    expect(isTrustedMacCodeSignature('')).toBe(false)
+    // A stray "Authority=" fragment elsewhere in the text must not count.
+    expect(isTrustedMacCodeSignature('Note: Authority=Developer ID Application: x')).toBe(false)
+  })
+
+  it('does not call a current Codex "outdated" when it is still blocked', () => {
+    const current = macosSecurityManualUpdateMessage('codex', '0.154.0')
+    expect(current).not.toMatch(/outdated/i)
+    expect(current).toContain('0.154.0')
+    expect(macosSecurityManualUpdateMessage('codex', '0.120.0')).toMatch(/outdated/i)
+    expect(macosSecurityManualUpdateMessage('codex', 'system')).toMatch(/outdated/i)
+    expect(macosSecurityManualUpdateMessage('codex')).toMatch(/outdated/i)
+    expect(
+      cliLaunchBlockMessage(
+        'codex',
+        {
+          installed: true,
+          source: 'system',
+          version: '0.154.0',
+          binPath: '/opt/homebrew/bin/codex',
+          launchBlockedReason: 'macos-security'
+        },
+        'darwin'
+      )
+    ).not.toMatch(/outdated/i)
   })
 })

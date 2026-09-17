@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- A quarantined but validly signed Codex CLI (every Homebrew cask or GitHub-release download) is no longer reported as blocked by macOS; the block now requires a missing or untrusted signature, and the message no longer calls a current build "outdated". (#4)
+
 ### Added
 
 - Community health files, bilingual contribution and support guidance, and structured issue forms.
