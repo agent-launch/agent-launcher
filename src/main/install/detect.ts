@@ -4,7 +4,7 @@ import { detectPlatform } from './platform'
 import { ALL_CLI_IDS } from '@shared/types'
 import type { CliId, DetectItem, DetectResult } from '@shared/types'
 import { detectSystemCli } from './installer'
-import { CODEX_MACOS_MIN_SAFE_VERSION, isVersionAtLeast } from '@shared/version'
+import { CODEX_MACOS_MIN_SAFE_VERSION, isKnownVersionBelow } from '@shared/version'
 
 const CLI_LABELS: Record<CliId, string> = {
   'claude-code': 'Claude Code',
@@ -46,9 +46,9 @@ function displayDetectionDetail(d: Awaited<ReturnType<typeof detectSystemCli>>):
     )?.version
     const message =
       d.cliId === 'codex'
-        ? isVersionAtLeast(version, CODEX_MACOS_MIN_SAFE_VERSION)
-          ? 'macOS blocked this Codex install: uninstall it and reinstall from the official docs'
-          : `Manual update required: uninstall Codex and install version ${CODEX_MACOS_MIN_SAFE_VERSION} or later`
+        ? isKnownVersionBelow(version, CODEX_MACOS_MIN_SAFE_VERSION)
+          ? `Manual update required: uninstall Codex and install version ${CODEX_MACOS_MIN_SAFE_VERSION} or later`
+          : 'macOS will not run this Codex install: uninstall it and reinstall from the official docs'
         : 'Manual update required: uninstall this CLI and install a current version'
     return d.selectedPath ? `${message} · ${d.selectedPath}` : message
   }

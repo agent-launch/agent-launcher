@@ -18,7 +18,7 @@ import {
 } from '@/components/config/AgentConfigEditor'
 import appIcon from '@/assets/app-icon.png'
 import { useT } from '@/i18n'
-import { CODEX_MACOS_MIN_SAFE_VERSION, isVersionAtLeast } from '@shared/version'
+import { CODEX_MACOS_MIN_SAFE_VERSION, isKnownVersionBelow } from '@shared/version'
 import type {
   AppConfig,
   CliId,
@@ -708,13 +708,17 @@ function LinkStep() {
             : versionStatus?.source === 'system' || detected?.installed
               ? t('settings.cliStatus.sourceSystem')
               : undefined
+          // The blocked binary's own version comes from this detection; the
+          // stored/link-time version may be a stale placeholder.
+          const blockedVersion =
+            selectedCandidate?.version ?? s.version ?? versionStatus?.currentVersion
           const macSecurityWarning = hasMacSecurityRisk
             ? t(
                 id !== 'codex'
                   ? 'onboarding.macSecurityManualUpdateWarning'
-                  : isVersionAtLeast(currentVersion, CODEX_MACOS_MIN_SAFE_VERSION)
-                    ? 'onboarding.codexBlockedWarning'
-                    : 'onboarding.codexManualUpdateWarning'
+                  : isKnownVersionBelow(blockedVersion, CODEX_MACOS_MIN_SAFE_VERSION)
+                    ? 'onboarding.codexManualUpdateWarning'
+                    : 'onboarding.codexBlockedWarning'
               )
             : undefined
           return (

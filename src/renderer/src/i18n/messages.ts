@@ -280,7 +280,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.codexManualUpdateWarning':
       '你的 Codex CLI 版本过旧，macOS 会将其标记为已损坏并拒绝打开。请卸载后按官方安装文档安装 0.135.0 或更高版本。',
     'onboarding.codexBlockedWarning':
-      'macOS 拦截了这个 Codex CLI：二进制带隔离标记但没有有效签名，或被 Gatekeeper 标记。请卸载后按官方安装文档重新安装。',
+      'macOS 不会运行这个 Codex CLI。请卸载后按官方安装文档重新安装。',
     'onboarding.officialInstallDocs': '官方安装文档',
     'onboarding.currentPath': '默认路径：{path}',
     'onboarding.managePaths': '管理 {count} 个路径',
@@ -710,7 +710,7 @@ export const messages: Record<'zh' | 'en', Record<string, string>> = {
     'onboarding.codexManualUpdateWarning':
       "Your Codex CLI is outdated, so macOS flags it as damaged and won't open it. Uninstall it, then follow the official installation docs to install version 0.135.0 or later.",
     'onboarding.codexBlockedWarning':
-      'macOS has blocked this Codex CLI: the binary is quarantined without a valid signature, or Gatekeeper flagged it. Uninstall it, then reinstall by following the official installation docs.',
+      'macOS will not run this Codex CLI. Uninstall it, then reinstall by following the official installation docs.',
     'onboarding.officialInstallDocs': 'Official install docs',
     'onboarding.currentPath': 'Default path: {path}',
     'onboarding.managePaths': 'Manage {count} paths',

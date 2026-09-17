@@ -21,6 +21,11 @@ import {
   isExplicitMacSecurityAssessmentFailure,
   isTrustedMacCodeSignature
 } from '../../src/main/install/codex-safety'
+import {
+  checkTrustedMacSignature,
+  type MacToolResult,
+  type MacToolRunner
+} from '../../src/main/install/installer'
 
 const tempDirs: string[] = []
 
@@ -431,13 +436,18 @@ describe('quarantined but signed binaries (Homebrew cask, GitHub release)', () =
     expect(isTrustedMacCodeSignature('Note: Authority=Developer ID Application: x')).toBe(false)
   })
 
-  it('does not call a current Codex "outdated" when it is still blocked', () => {
+  it('only calls a Codex "outdated" when its version is known to be below the floor', () => {
     const current = macosSecurityManualUpdateMessage('codex', '0.154.0')
     expect(current).not.toMatch(/outdated/i)
     expect(current).toContain('0.154.0')
     expect(macosSecurityManualUpdateMessage('codex', '0.120.0')).toMatch(/outdated/i)
-    expect(macosSecurityManualUpdateMessage('codex', 'system')).toMatch(/outdated/i)
-    expect(macosSecurityManualUpdateMessage('codex')).toMatch(/outdated/i)
+    // Unknown version: a blocked curl download at ~/bin/codex has no
+    // parseable version, and "outdated" would be a guess.
+    for (const unknown of ['system', undefined, '-']) {
+      const message = macosSecurityManualUpdateMessage('codex', unknown)
+      expect(message).not.toMatch(/outdated/i)
+      expect(message).not.toMatch(/\(/)
+    }
     expect(
       cliLaunchBlockMessage(
         'codex',
@@ -451,5 +461,77 @@ describe('quarantined but signed binaries (Homebrew cask, GitHub release)', () =
         'darwin'
       )
     ).not.toMatch(/outdated/i)
+  })
+})
+
+describe('checkTrustedMacSignature', () => {
+  const developerId = [
+    'Identifier=codex',
+    'Authority=Developer ID Application: OpenAI OpCo, LLC (2DC432GLL2)',
+    'Authority=Developer ID Certification Authority',
+    'Authority=Apple Root CA'
+  ].join('\n')
+
+  function runner(responses: Partial<Record<'codesign' | 'spctl', Partial<MacToolResult>>>): {
+    run: MacToolRunner
+    calls: string[]
+  } {
+    const calls: string[] = []
+    const run: MacToolRunner = async (command) => {
+      calls.push(command)
+      return { code: 0, timedOut: false, output: '', ...responses[command] }
+    }
+    return { run, calls }
+  }
+
+  it('trusts a notarized Developer ID binary and caches nothing inconclusive', async () => {
+    const { run, calls } = runner({
+      codesign: { output: developerId },
+      spctl: { output: 'accepted\nsource=Notarized Developer ID' }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: false
+    })
+    expect(calls).toEqual(['codesign', 'spctl'])
+  })
+
+  it('rejects ad-hoc or unsigned code without ever running spctl', async () => {
+    const { run, calls } = runner({ codesign: { output: 'Signature=adhoc' } })
+    await expect(checkTrustedMacSignature('/x/codex', run)).resolves.toEqual({
+      trusted: false,
+      inconclusive: false
+    })
+    expect(calls).toEqual(['codesign'])
+  })
+
+  it('rejects when Gatekeeper explicitly refuses the binary', async () => {
+    const { run } = runner({
+      codesign: { output: developerId },
+      spctl: { code: 3, output: 'rejected\nsource=no usable signature' }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', run)).resolves.toEqual({
+      trusted: false,
+      inconclusive: false
+    })
+  })
+
+  it('treats a timed-out or failed assessment as inconclusive, not as blocked', async () => {
+    const timedOut = runner({
+      codesign: { output: developerId },
+      spctl: { code: null, timedOut: true }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', timedOut.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
+    const missingTool = runner({
+      codesign: { output: developerId },
+      spctl: { code: null, timedOut: false }
+    })
+    await expect(checkTrustedMacSignature('/x/codex', missingTool.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
   })
 })

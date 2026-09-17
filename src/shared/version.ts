@@ -35,3 +35,10 @@ export function isVersionAtLeast(version: string | undefined, min: string): bool
   if (!version || !/^\d+\.\d+/.test(normalizeVersion(version))) return false
   return compareVersions(version, min) >= 0
 }
+
+/** True only when `version` is a real, parseable version strictly below
+ * `min`. Unknown/placeholder versions are never "known to be below". */
+export function isKnownVersionBelow(version: string | undefined, min: string): boolean {
+  if (!version || !/^\d+\.\d+/.test(normalizeVersion(version))) return false
+  return compareVersions(version, min) < 0
+}

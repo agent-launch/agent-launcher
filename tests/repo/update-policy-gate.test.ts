@@ -18,7 +18,8 @@ const { compareVersions: clientCompare, normalizeVersion: clientNormalize } =
   await import('../../src/main/app-update')
 
 // The gate's whole purpose is to predict what a shipped client concludes, so
-// its copied comparator must agree with src/main/app-update.ts on every pair
+// its copied comparator must agree with src/shared/version.ts (the client's
+// comparator, re-exported by src/main/app-update.ts) on every pair
 // — including the deliberate non-semver quirk (prereleases rank ABOVE their
 // release). If the client comparator ever changes, this is the test that
 // forces the gate to follow.
