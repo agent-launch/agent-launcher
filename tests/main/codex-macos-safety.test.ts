@@ -528,6 +528,7 @@ describe('checkTrustedMacSignature', () => {
       trusted: true,
       inconclusive: true
     })
+    expect(missingTool.calls).toEqual(['codesign'])
   })
 
   it('treats a timed-out or failed assessment as inconclusive, not as blocked', async () => {
