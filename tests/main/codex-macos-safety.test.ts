@@ -516,6 +516,20 @@ describe('checkTrustedMacSignature', () => {
     })
   })
 
+  it('treats a timed-out or unspawnable codesign as inconclusive, never a cached block', async () => {
+    const timedOut = runner({ codesign: { code: null, timedOut: true, output: '' } })
+    await expect(checkTrustedMacSignature('/x/codex', timedOut.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
+    expect(timedOut.calls).toEqual(['codesign'])
+    const missingTool = runner({ codesign: { code: null, timedOut: false, output: '' } })
+    await expect(checkTrustedMacSignature('/x/codex', missingTool.run)).resolves.toEqual({
+      trusted: true,
+      inconclusive: true
+    })
+  })
+
   it('treats a timed-out or failed assessment as inconclusive, not as blocked', async () => {
     const timedOut = runner({
       codesign: { output: developerId },

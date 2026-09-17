@@ -237,14 +237,23 @@ export async function checkTrustedMacSignature(
   run: MacToolRunner = runMacTool
 ): Promise<MacSignatureVerdict> {
   // Reading the signature blob is instant and rules out the common failures
-  // (unsigned, ad-hoc, development certificate) before any hashing.
+  // (unsigned, ad-hoc, development certificate) before any hashing. A killed
+  // or unspawnable codesign is inconclusive, never a verdict: on a loaded
+  // machine an empty output must not turn into an hour-long cached block.
   const details = await run('codesign', ['-dvv', target], 5000)
+  if (details.timedOut || details.code === null) return { trusted: true, inconclusive: true }
   if (!isTrustedMacCodeSignature(details.output)) return { trusted: false, inconclusive: false }
   // `spctl --type install` applies Gatekeeper's actual rule for quarantined
   // standalone code — valid Developer ID signature AND notarization — which
-  // `codesign` alone cannot see. A timeout or tool failure is inconclusive:
-  // the metadata verdict stands for this detection but is not cached, so the
-  // next run asks again. Only an explicit rejection downgrades the binary.
+  // `codesign` alone cannot see. `--type install` is the ONLY assessment type
+  // that works on a bare Mach-O: `--type execute` rejects every CLI with
+  // "the code is valid but does not seem to be an app" (that edit would
+  // reproduce #4 exactly), and `--type open` rejects with "Insufficient
+  // Context". Script CLIs (a shell or `#!/usr/bin/env node` file) carry no
+  // signature and stay blocked when quarantined, as they were before.
+  // A timeout or tool failure is inconclusive: the metadata verdict stands
+  // for this detection but is not cached, so the next run asks again. Only
+  // an explicit rejection downgrades the binary.
   const assess = await run(
     'spctl',
     ['--assess', '--type', 'install', '-vv', target],
